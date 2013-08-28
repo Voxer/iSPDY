@@ -11,22 +11,31 @@
     "include_dirs": [ "include" ],
     "sources": [
       "src/ispdy.m",
-      "src/framer.m",
       "src/compressor.m",
+      "src/framer.m",
+      "src/parser.m",
     ],
+    "xcode_settings": {
+      "CLANG_ENABLE_OBJC_ARC": "YES",
+    }
   }, {
     "target_name": "test-runner",
     "type": "executable",
-    "dependencies": [ "ispdy" ],
+    "dependencies": [
+      "ispdy",
+      "deps/Kiwi/kiwi.gyp:Kiwi",
+    ],
     "link_settings": {
       "libraries": [
-        "-lobjc",
-        "-framework Foundation",
-        "-framework CoreFoundation",
+        "Foundation.framework",
+        "CoreFoundation.framework",
       ],
     },
     "sources": [
       "test/runner.m",
     ],
+    "xcode_settings": {
+      "CLANG_ENABLE_OBJC_ARC": "YES",
+    }
   }]
 }

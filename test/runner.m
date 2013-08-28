@@ -1,27 +1,13 @@
-#import <assert.h>
-#import <Foundation/Foundation.h>
+#import <Kiwi.h>
+#import <SenTestingKit/SenTestingKit.h>
 #import <ispdy.h>
 
-void basic_test() {
-  ISpdy* c = [[ISpdy alloc] init: kISpdyV2];
-
-  BOOL r = [c connect:@"api.hackerdns.com" port:3232 secure: NO];
-  assert(r == YES);
-
-  ISpdyRequest* req = [[ISpdyRequest alloc] init: @"POST" url: @"/"];
-  [c send: req];
-  [req writeString: @"hello world"];
-  [req end];
-
-  [[NSRunLoop currentRunLoop] run];
-}
+SPEC_BEGIN(iSpdy)
+SPEC_END
 
 int main() {
   @autoreleasepool {
-    NSLog(@"Running tests...");
-
-    basic_test();
+    SenSelfTestMain();
   }
-
   return 0;
 }

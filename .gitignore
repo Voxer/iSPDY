@@ -16,5 +16,8 @@ profile
 *.moved-aside
 DerivedData
 .idea/
+
+# Project specific
 /build/gyp/
 /out/
+/deps/Kiwi/Kiwi

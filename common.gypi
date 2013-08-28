@@ -17,62 +17,40 @@
         'defines': [ 'DEBUG', '_DEBUG' ],
         'cflags': [ '-g', '-O0', '-fwrapv' ],
         'xcode_settings': {
-          'GCC_OPTIMIZATION_LEVEL': '0',
-          'OTHER_CFLAGS': [ '-Wno-strict-aliasing' ],
+          'GCC_OPTIMIZATION_LEVEL': '0'
         },
       },
       'Release': {
         'defines': [ 'NDEBUG' ],
-        'cflags': [
-          '-O3',
-          '-fstrict-aliasing',
-          '-fomit-frame-pointer',
-          '-fdata-sections',
-          '-ffunction-sections',
-        ],
       }
     },
+    'xcode_settings': {
+      'SDKROOT': '<(sdk)',
+      'GCC_WARN_ABOUT_MISSING_NEWLINE': 'YES',  # -Wnewline-eof
+      'PREBINDING': 'NO',                       # No -Wl,-prebind
+      'HEADER_SEARCH_PATHS': '$(inherited)',
+      'OTHER_CFLAGS': [
+        '-fstrict-aliasing',
+        '-F<(sdk_path)/Developer/Library/Frameworks',
+        '-F<(sdk_dev_path)/Library/Frameworks',
+      ],
+      'WARNING_CFLAGS': [
+        '-Wall',
+        '-Wendif-labels',
+        '-W',
+        '-Wno-unused-parameter',
+      ],
+    },
+    'library_paths': [
+      '<(sdk_path)/Developer/Library/Frameworks',
+      '<(sdk_dev_path)/Library/Frameworks',
+    ],
     'conditions': [
-      ['OS=="mac"', {
-        'xcode_settings': {
-          'ALWAYS_SEARCH_USER_PATHS': 'NO',
-          'GCC_CW_ASM_SYNTAX': 'NO',                # No -fasm-blocks
-          'GCC_DYNAMIC_NO_PIC': 'NO',               # No -mdynamic-no-pic
-                                                    # (Equivalent to -fPIC)
-          'GCC_ENABLE_CPP_EXCEPTIONS': 'NO',        # -fno-exceptions
-          'GCC_ENABLE_CPP_RTTI': 'NO',              # -fno-rtti
-          'GCC_ENABLE_PASCAL_STRINGS': 'NO',        # No -mpascal-strings
-          # GCC_INLINES_ARE_PRIVATE_EXTERN maps to -fvisibility-inlines-hidden
-          'GCC_INLINES_ARE_PRIVATE_EXTERN': 'YES',
-          'GCC_SYMBOLS_PRIVATE_EXTERN': 'YES',      # -fvisibility=hidden
-          'GCC_THREADSAFE_STATICS': 'NO',           # -fno-threadsafe-statics
-          'GCC_WARN_ABOUT_MISSING_NEWLINE': 'YES',  # -Wnewline-eof
-          'PREBINDING': 'NO',                       # No -Wl,-prebind
-          'USE_HEADERMAP': 'NO',
-          'OTHER_CFLAGS': [
-            '-fstrict-aliasing',
-            '-fobjc-arc',
-          ],
-          'WARNING_CFLAGS': [
-            '-Wall',
-            '-Wendif-labels',
-            '-W',
-            '-Wno-unused-parameter',
-          ],
-        },
-        'conditions': [
-          ['target_arch=="ia32"', {
-            'xcode_settings': {'ARCHS': ['i386']},
-          }],
-          ['target_arch=="x64"', {
-            'xcode_settings': {'ARCHS': ['x86_64']},
-          }],
-        ],
-        'target_conditions': [
-          ['_type!="static_library"', {
-            'xcode_settings': {'OTHER_LDFLAGS': ['-Wl,-search_paths_first']},
-          }],
-        ],
+      ['target_arch=="ia32"', {
+        'xcode_settings': {'ARCHS': ['i386']},
+      }],
+      ['target_arch=="x64"', {
+        'xcode_settings': {'ARCHS': ['x86_64']},
       }],
     ],
   },

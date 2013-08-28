@@ -60,6 +60,26 @@ if __name__ == '__main__':
 
   args.append('--depth=' + root)
 
+  if 'iphoneos' not in args:
+    sdk = 'macosx'
+  else:
+    sdk = 'iphoneos'
+  proc = subprocess.Popen(['xcodebuild', '-version',
+                           '-sdk', sdk, 'Path'],
+                          stdout=subprocess.PIPE)
+  sdk_path = proc.communicate()[0].rstrip('\n')
+  if proc.returncode != 0:
+    system.exit(43);
+  args.extend(['-Dsdk=' + sdk]);
+  args.extend(['-Dsdk_path=' + sdk_path]);
+
+  proc = subprocess.Popen(['xcode-select', '-print-path'],
+                          stdout=subprocess.PIPE);
+  sdk_dev_path = proc.communicate()[0].rstrip('\n')
+  if proc.returncode != 0:
+    system.exit(44);
+  args.extend(['-Dsdk_dev_path=' + sdk_dev_path]);
+
   if '-f' not in args:
     args.extend('-f make'.split())
   if 'ninja' not in args:
