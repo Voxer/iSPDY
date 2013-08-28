@@ -19,7 +19,7 @@
 }
 
 // Initialize framer with specific protocol version
-- (id) init: (ISpdyVersion) version;
+- (id) init: (ISpdyVersion) version compressor: (ISpdyCompressor*) comp;
 
 // Truncate internal buffer (`output_`)
 - (void) clear;

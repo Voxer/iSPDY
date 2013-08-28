@@ -7,7 +7,7 @@
 
 @implementation ISpdyFramer
 
-- (id) init: (ISpdyVersion) version {
+- (id) init: (ISpdyVersion) version compressor: (ISpdyCompressor*) comp {
   NSAssert(version == kISpdyV2, @"Only spdyv2 is supported now");
 
   self = [super init];
@@ -15,7 +15,7 @@
     return self;
 
   version_ = version;
-  comp_ = [[ISpdyCompressor alloc] init: version];
+  comp_ = comp;
   pairs_ = [[NSMutableData alloc] initWithCapacity: 4096];
   output_ = [[NSMutableData alloc] initWithCapacity: 4096];
   return self;
@@ -95,8 +95,7 @@
 
   // Now insert a proper length
   uint8_t* data = [pairs_ mutableBytes];
-  data[0] = (count >> 8) & 0xff;
-  data[1] = count & 0xff;
+  *(uint16_t*) data = htons(count);
 
   // And compress pairs
   [comp_ deflate: pairs_];
@@ -126,7 +125,7 @@
   uint8_t header[8];
 
   *(uint32_t*) header = htonl(stream_id & 0x7fffffff);
-  *(uint32_t*) (header + 4) = htonl(len & 0xffffff);
+  *(uint32_t*) (header + 4) = htonl(len & 0x00ffffff);
   header[4] = fin == YES ? kISpdyFlagFin : 0;
 
   [output_ appendBytes: (const void*) header length: sizeof(header)];
@@ -139,7 +138,7 @@
 
   uint8_t body[8];
   *(uint32_t*) body = htonl(stream_id & 0x7fffffff);
-  *(uint32_t*) (body + 4) = htonl(code & 0xff);
+  *(uint32_t*) (body + 4) = htonl(code & 0x000000ff);
 
   [self controlHeader: kISpdyRstStream flags: 0 length: sizeof(body)];
   [output_ appendBytes: (const void*) body length: sizeof(body)];

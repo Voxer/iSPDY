@@ -20,6 +20,11 @@ typedef enum {
   kISpdySynStream = 1,
   kISpdySynReply = 2,
   kISpdyRstStream = 3,
+  kISpdySettings = 4,
+  kISpdyNoop = 5,
+  kISpdyPing = 6,
+  kISpdyGoaway = 7,
+  kISpdyHeaders = 8,
   kISpdyData = 0xffff
 } ISpdyFrameType;
 
@@ -28,4 +33,5 @@ typedef enum {
                 body: (id) body
                isFin: (BOOL) isFin
            forStream: (uint32_t) stream_id;
+- (void) handleParseError;
 @end

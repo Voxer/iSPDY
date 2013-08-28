@@ -2,6 +2,7 @@
 #import <string.h>  // memmove
 
 #import "ispdy.h"
+#import "compressor.h"  // ISpdyCompressor
 #import "framer.h"  // ISpdyFramer
 #import "parser.h"  // ISpdyParser
 
@@ -13,8 +14,9 @@
     return self;
 
   version_ = version;
-  framer_ = [[ISpdyFramer alloc] init: version];
-  parser_ = [[ISpdyParser alloc] init: version];
+  comp_ = [[ISpdyCompressor alloc] init: version];
+  framer_ = [[ISpdyFramer alloc] init: version compressor: comp_];
+  parser_ = [[ISpdyParser alloc] init: version compressor: comp_];
   [parser_ setDelegate: self];
   stream_id_ = 1;
 
@@ -134,8 +136,8 @@
              headers: request.headers];
   [self writeRaw: [framer_ output]];
 
-  [streams_ setObject: request
-               forKey: [NSNumber numberWithInt: request.stream_id]];
+  NSNumber* request_key = [NSNumber numberWithUnsignedInt: request.stream_id];
+  [streams_ setObject: request forKey: request_key];
 }
 
 
@@ -180,9 +182,12 @@
     [self rst: request.stream_id code: kISpdyRstCancel];
     request.closed_by_us = YES;
   }
-  [streams_ removeObjectForKey: [NSNumber numberWithInt: request.stream_id]];
+
+  NSNumber* request_key = [NSNumber numberWithUnsignedInt: request.stream_id];
+  [streams_ removeObjectForKey: request_key];
 }
 
+// NSSocket delegate methods
 
 - (void) stream: (NSStream*) stream handleEvent: (NSStreamEvent) event {
   if (event == NSStreamEventErrorOccurred)
@@ -190,7 +195,7 @@
 
   if (event == NSStreamEventEndEncountered) {
     return [self handleError: [NSError errorWithDomain: @"spdy"
-                                                  code: kISpdyConnectionEnd
+                                                  code: kISpdyErrConnectionEnd
                                               userInfo: nil]];
   }
 
@@ -227,26 +232,66 @@
   }
 }
 
+// Parser delegate methods
 
 - (void) handleFrame: (ISpdyFrameType) type
                 body: (id) body
                isFin: (BOOL) isFin
            forStream: (uint32_t) stream_id {
-  ISpdyRequest* req =
-      [streams_ objectForKey: [NSNumber numberWithInt: stream_id]];
-  if (req == nil) {
-    [self rst: stream_id code: kISpdyRstProtocolError];
-    return [self handleError: [NSError errorWithDomain: @"spdy"
-                                                  code: kISpdyNoSuchStream
-                                              userInfo: nil]];
+  ISpdyRequest* req = nil;
+
+  if (type == kISpdySynReply ||
+      type == kISpdyRstStream ||
+      type == kISpdyData) {
+    req = [streams_ objectForKey: [NSNumber numberWithUnsignedInt: stream_id]];
+    if (req == nil) {
+      [self rst: stream_id code: kISpdyRstProtocolError];
+      NSError* err = [NSError errorWithDomain: @"spdy"
+                                         code: kISpdyErrNoSuchStream
+                                     userInfo: nil];
+      return [self handleError: err];
+    }
   }
 
-  if (type == kISpdyData) {
-    [req.delegate request: req handleInput: (NSData*) body];
+  // Stream was already ended, this is probably a harmless race condition on
+  // server.
+  if (req != nil && req.connection == nil)
+    return;
+
+  switch (type) {
+    case kISpdyData:
+      [req.delegate request: req handleInput: (NSData*) body];
+      break;
+    case kISpdySynReply:
+      if (req.seen_response)
+        return [self rst: req.stream_id code: kISpdyRstProtocolError];
+      req.seen_response = YES;
+      [req.delegate request: req handleResponse: body];
+      break;
+    case kISpdyRstStream:
+      {
+        NSError* err = [NSError errorWithDomain: @"spdy"
+                                           code: kISpdyErrRst
+                                       userInfo: nil];
+        [req.delegate request: req handleError: err];
+        [req close];
+      }
+      break;
+    default:
+      // Ignore
+      break;
   }
 
   if (isFin)
     [req.delegate handleEnd: req];
+}
+
+
+- (void) handleParseError {
+  // TODO(indutny): Propagate stream_id here and send RST
+  return [self handleError: [NSError errorWithDomain: @"spdy"
+                                                code: kISpdyErrParseError
+                                            userInfo: nil]];
 }
 
 @end
@@ -290,6 +335,10 @@
   }
 }
 
+@end
 
+@implementation ISpdyResponse
+
+// No-op, only to generate properties' accessors
 
 @end

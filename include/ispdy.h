@@ -4,9 +4,10 @@
 
 // Forward-declarations
 @class ISpdy;
-@class ISpdyRequest;
+@class ISpdyCompressor;
 @class ISpdyFramer;
 @class ISpdyParser;
+@class ISpdyRequest;
 
 // SPDY Protocol version
 typedef enum {
@@ -16,12 +17,24 @@ typedef enum {
 
 // Possible error codes in NSError with domain @"spdy"
 typedef enum {
-  kISpdyConnectionEnd,
-  kISpdyNoSuchStream
+  kISpdyErrConnectionEnd,
+  kISpdyErrNoSuchStream,
+  kISpdyErrRst,
+  kISpdyErrParseError
 } ISpdyErrorCode;
+
+// Response class
+@interface ISpdyResponse : NSObject
+
+@property NSInteger code;
+@property NSString* status;
+@property NSDictionary* headers;
+
+@end
 
 // Delegate for handling request-level events
 @protocol ISpdyRequestDelegate
+- (void) request: (ISpdyRequest*) req handleResponse: (ISpdyResponse*) res;
 - (void) request: (ISpdyRequest*) req handleError: (NSError*) err;
 - (void) request: (ISpdyRequest*) req handleInput: (NSData*) input;
 - (void) handleEnd: (ISpdyRequest*) req;
@@ -43,6 +56,7 @@ typedef enum {
 @property uint32_t stream_id;
 @property BOOL closed_by_us;
 @property BOOL closed_by_them;
+@property BOOL seen_response;
 
 // Initialize properties
 - (id) init: (NSString*) method url: (NSString*) url;
@@ -79,6 +93,7 @@ typedef enum {
   ISpdyVersion version_;
   NSInputStream* in_stream_;
   NSOutputStream* out_stream_;
+  ISpdyCompressor* comp_;
   ISpdyFramer* framer_;
   ISpdyParser* parser_;
 

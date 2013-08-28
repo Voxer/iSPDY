@@ -259,6 +259,7 @@ static const char spdy3_dict_[] = {
   [output_ setLength: COMP_BUFFER_SIZE];
 
   offset = 0;
+  // TODO(indutny) fail gracefully, instead of assertions
   do {
     stream->next_out = (unsigned char*) [output_ bytes] + offset;
     stream->avail_out = [output_ length] - offset;
