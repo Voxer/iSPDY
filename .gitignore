@@ -22,3 +22,4 @@ DerivedData
 /out/
 /deps/Kiwi/Kiwi
 *.xcodeproj/
+node_modules/
