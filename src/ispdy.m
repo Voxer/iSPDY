@@ -144,12 +144,15 @@
 - (void) writeData: (NSData*) data to: (ISpdyRequest*) request {
   NSAssert(request.connection != nil, @"Request was closed");
 
-  // TODO(indutny): wait for SYN_REPLY
   [framer_ clear];
   [framer_ dataFrame: request.stream_id
                  fin: 0
             withData: data];
-  [self writeRaw: [framer_ output]];
+
+  if (request.seen_response)
+    [self writeRaw: [framer_ output]];
+  else
+    [request buffer: [framer_ output]];
 }
 
 
@@ -172,14 +175,21 @@
 - (void) end: (ISpdyRequest*) request {
   NSAssert(request.connection != nil, @"Request was already closed");
   NSAssert(request.closed_by_us == NO, @"Request already awaiting other side");
+  NSAssert(request.pending_closed_by_us == NO,
+           @"Request already awaiting other side");
 
-  request.closed_by_us = YES;
   [framer_ clear];
   [framer_ dataFrame: request.stream_id
                  fin: 1
             withData: nil];
-  [self writeRaw: [framer_ output]];
-  [request _tryClose];
+  if (request.seen_response) {
+    request.closed_by_us = YES;
+    [self writeRaw: [framer_ output]];
+    [request _tryClose];
+  } else {
+    request.pending_closed_by_us = YES;
+    [request buffer: [framer_ output]];
+  }
 }
 
 
@@ -276,6 +286,21 @@
         return [self error: req code: kISpdyErrDoubleResponse];
       req.seen_response = YES;
       [req.delegate request: req handleResponse: body];
+
+      // Write queued data
+      if ([req buffer] != nil) {
+        [self writeRaw: [req buffer]];
+        [req clearBuffer];
+
+        // End request, if its pending
+        if (req.pending_closed_by_us) {
+          req.pending_closed_by_us = NO;
+          if (!req.closed_by_us) {
+            req.closed_by_us = YES;
+            [req _tryClose];
+          }
+        }
+      }
       break;
     case kISpdyRstStream:
       {
@@ -342,6 +367,22 @@
     [self.delegate handleEnd: self];
     [self close];
   }
+}
+
+
+- (void) buffer: (NSData*) data {
+  if (buffer_ == nil)
+    buffer_ = [NSMutableData dataWithData: data];
+  else
+    [buffer_ appendData: data];
+}
+
+- (void) clearBuffer {
+  buffer_ = nil;
+}
+
+- (NSData*) buffer {
+  return buffer_;
 }
 
 @end

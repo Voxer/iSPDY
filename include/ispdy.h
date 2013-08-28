@@ -45,7 +45,9 @@ typedef enum {
 //
 // Should be used to initiate new request to the server, works only with
 // existing ISpdy connection.
-@interface ISpdyRequest : NSObject
+@interface ISpdyRequest : NSObject {
+  NSMutableData* buffer_;
+}
 
 @property (weak) id <ISpdyRequestDelegate> delegate;
 @property (weak) ISpdy* connection;
@@ -55,6 +57,7 @@ typedef enum {
 
 // Mostly internal fields
 @property uint32_t stream_id;
+@property BOOL pending_closed_by_us;
 @property BOOL closed_by_us;
 @property BOOL closed_by_them;
 @property BOOL seen_response;
@@ -77,6 +80,11 @@ typedef enum {
 // Mostly internal method, calls `[req close]` if the stream is closed by both
 // us and them.
 - (void) _tryClose;
+
+// Bufferize frame data and fetch it
+- (void) buffer: (NSData*) data;
+- (void) clearBuffer;
+- (NSData*) buffer;
 
 @end
 
