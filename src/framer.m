@@ -23,14 +23,6 @@ typedef enum {
   return self;
 }
 
-- (void) dealloc {
-  [comp_ release];
-  [pairs_ release];
-  [output_ release];
-
-  [super dealloc];
-}
-
 
 - (void) clear {
   [output_ setLength: 0];
@@ -97,7 +89,6 @@ typedef enum {
       [self putValue: val withKey: lckey];
       count++;
     }
-    [lckey release];
   }];
 
   // Now insert a proper length

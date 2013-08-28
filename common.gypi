@@ -51,6 +51,7 @@
           'USE_HEADERMAP': 'NO',
           'OTHER_CFLAGS': [
             '-fstrict-aliasing',
+            '-fobjc-arc',
           ],
           'WARNING_CFLAGS': [
             '-Wall',

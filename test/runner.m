@@ -14,17 +14,14 @@ void basic_test() {
   [req end];
 
   [[NSRunLoop currentRunLoop] run];
-
-  [c release];
 }
 
 int main() {
-  NSAutoreleasePool* pool = [[NSAutoreleasePool alloc] init];
+  @autoreleasepool {
+    NSLog(@"Running tests...");
 
-  NSLog(@"Running tests...");
+    basic_test();
+  }
 
-  basic_test();
-
-  [pool release];
   return 0;
 }

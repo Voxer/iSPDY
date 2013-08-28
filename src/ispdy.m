@@ -26,13 +26,6 @@
 - (void) dealloc {
   [in_stream_ close];
   [out_stream_ close];
-  [in_stream_ release];
-  [out_stream_ release];
-  [framer_ release];
-  [streams_ release];
-  [buffer_ release];
-
-  [super dealloc];
 }
 
 
@@ -42,17 +35,17 @@
 
   CFStreamCreatePairWithSocketToHost(
       NULL,
-      (CFStringRef) host,
+      (__bridge CFStringRef) host,
       port,
       &cf_in_stream,
       &cf_out_stream);
 
-  in_stream_ = (NSInputStream*) cf_in_stream;
-  out_stream_ = (NSOutputStream*) cf_out_stream;
+  in_stream_ = (NSInputStream*) CFBridgingRelease(cf_in_stream);
+  out_stream_ = (NSOutputStream*) CFBridgingRelease(cf_out_stream);
 
   if (in_stream_ == nil || out_stream_ == nil) {
-    [in_stream_ release];
-    [out_stream_ release];
+    in_stream_ = nil;
+    out_stream_ = nil;
     return NO;
   }
 
@@ -98,8 +91,6 @@
     return;
   [in_stream_ close];
   [out_stream_ close];
-  [in_stream_ release];
-  [out_stream_ release];
   in_stream_ = nil;
   out_stream_ = nil;
 

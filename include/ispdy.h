@@ -17,10 +17,10 @@ typedef enum {
 @interface iSpdyRequest : NSObject
 
 @property uint32_t stream_id;
-@property (retain) iSpdy* connection;
-@property (retain) NSString* method;
-@property (retain) NSString* url;
-@property (retain) NSDictionary* headers;
+@property (weak) iSpdy* connection;
+@property NSString* method;
+@property NSString* url;
+@property NSDictionary* headers;
 
 - (id) init: (NSString*) method url: (NSString*) url;
 - (void) writeData: (NSData*) data;
@@ -51,7 +51,7 @@ typedef enum {
   NSMutableData* buffer_;
 }
 
-@property (retain) id <iSpdyDelegate> delegate;
+@property (weak) id <iSpdyDelegate> delegate;
 
 - (id) init: (iSpdyVersion) version;
 - (BOOL) connect: (NSString*) host port: (UInt32) port;

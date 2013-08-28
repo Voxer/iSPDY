@@ -239,13 +239,6 @@ static const char spdy3_dict_[] = {
 }
 
 
-- (void) dealloc {
-  [output_ release];
-
-  [super dealloc];
-}
-
-
 - (NSMutableData*) output {
   return output_;
 }
