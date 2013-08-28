@@ -1,8 +1,9 @@
 #import <Foundation/Foundation.h>
-#import "ispdy.h"  // iSpdyVersion
+#import "ispdy.h"  // ISpdyVersion
 #import "zlib.h"  // z_stream
 
-@interface iSpdyCompressor : NSObject {
+// Wrapper class for deflating/inflating data using zlib with SPDY dictionary
+@interface ISpdyCompressor : NSObject {
   z_stream deflate_;
   z_stream inflate_;
   const unsigned char* dict_;
@@ -10,11 +11,19 @@
   NSMutableData* output_;
 }
 
-- (id) init: (iSpdyVersion) version;
+// Initialize compressor with specific protocol version
+- (id) init: (ISpdyVersion) version;
 
+// Get last operation's output
 - (NSMutableData*) output;
-- (void) process: (BOOL) isDeflate in: (NSData*) input;
+
+// Deflate input data
 - (void) deflate: (NSData*) input;
+
+// Inflate input data
 - (void) inflate: (NSData*) input;
+
+// (Internal) use deflate()/inflate() instead
+- (void) process: (BOOL) isDeflate in: (NSData*) input;
 
 @end

@@ -2,7 +2,7 @@
 #import <string.h>
 
 #import "compressor.h"
-#import "ispdy.h"  // iSpdyVersion
+#import "ispdy.h"  // ISpdyVersion
 #import "zlib.h"   // deflateInit2, inflateInit2 and friends
 
 #define ZLIB_BITS 11
@@ -205,9 +205,9 @@ static const char spdy3_dict_[] = {
 };
 
 
-@implementation iSpdyCompressor
+@implementation ISpdyCompressor
 
-- (id) init: (iSpdyVersion) version {
+- (id) init: (ISpdyVersion) version {
   self = [super init];
   if (!self)
     return self;
@@ -223,11 +223,11 @@ static const char spdy3_dict_[] = {
                Z_DEFAULT_STRATEGY);
   inflateInit2(&inflate_, ZLIB_BITS);
 
-  const char* dict = version == iSpdyV2 ? spdy2_dict_ : spdy3_dict_;
+  const char* dict = version == kISpdyV2 ? spdy2_dict_ : spdy3_dict_;
 
   NSAssert(dict != NULL, @"Unsupported dictionary version");
   dict_ = (const unsigned char*) dict;
-  dict_len_ = version == iSpdyV2 ? sizeof(spdy2_dict_) : sizeof(spdy3_dict_);
+  dict_len_ = version == kISpdyV2 ? sizeof(spdy2_dict_) : sizeof(spdy3_dict_);
 
   // But deflate stream needs it right now.
   int r = deflateSetDictionary(&deflate_, dict_, dict_len_);

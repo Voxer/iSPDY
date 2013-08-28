@@ -3,12 +3,12 @@
 #import <ispdy.h>
 
 void basic_test() {
-  iSpdy* c = [[iSpdy alloc] init: iSpdyV2];
+  ISpdy* c = [[ISpdy alloc] init: kISpdyV2];
 
-  BOOL r = [c connect:@"api.hackerdns.com" port:3232];
+  BOOL r = [c connect:@"api.hackerdns.com" port:3232 secure: NO];
   assert(r == YES);
 
-  iSpdyRequest* req = [[iSpdyRequest alloc] init: @"POST" url: @"/"];
+  ISpdyRequest* req = [[ISpdyRequest alloc] init: @"POST" url: @"/"];
   [c send: req];
   [req writeString: @"hello world"];
   [req end];

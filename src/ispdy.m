@@ -2,17 +2,17 @@
 #import <string.h>  // memmove
 
 #import "ispdy.h"
-#import "framer.h"  // iSpdyFramer
+#import "framer.h"  // ISpdyFramer
 
-@implementation iSpdy
+@implementation ISpdy
 
-- (id) init: (iSpdyVersion) version {
+- (id) init: (ISpdyVersion) version {
   self = [super init];
   if (!self)
     return self;
 
   version_ = version;
-  framer_ = [[iSpdyFramer alloc] init: version];
+  framer_ = [[ISpdyFramer alloc] init: version];
   stream_id_ = 1;
 
   streams_ = [[NSMutableDictionary alloc] initWithCapacity: 100];
@@ -29,7 +29,7 @@
 }
 
 
-- (BOOL) connect: (NSString*) host port: (UInt32) port {
+- (BOOL) connect: (NSString*) host port: (UInt32) port secure: (BOOL) secure {
   CFReadStreamRef cf_in_stream;
   CFWriteStreamRef cf_out_stream;
 
@@ -54,10 +54,12 @@
   [out_stream_ setDelegate: self];
   [in_stream_ scheduleInRunLoop: loop forMode: NSDefaultRunLoopMode];
   [out_stream_ scheduleInRunLoop: loop forMode: NSDefaultRunLoopMode];
-/*  [in_stream_ setProperty: NSStreamSocketSecurityLevelNegotiatedSSL
-                   forKey: NSStreamSocketSecurityLevelKey];
-  [out_stream_ setProperty: NSStreamSocketSecurityLevelNegotiatedSSL
-                    forKey: NSStreamSocketSecurityLevelKey];*/
+  if (secure) {
+    [in_stream_ setProperty: NSStreamSocketSecurityLevelNegotiatedSSL
+                     forKey: NSStreamSocketSecurityLevelKey];
+    [out_stream_ setProperty: NSStreamSocketSecurityLevelNegotiatedSSL
+                      forKey: NSStreamSocketSecurityLevelKey];
+  }
   [in_stream_ open];
   [out_stream_ open];
 
@@ -66,8 +68,12 @@
 
 
 - (void) writeRaw: (NSData*) data {
-  // Has buffered data, just queue more and wait until event
-  if ([buffer_ length] > 0) {
+  NSStreamStatus status = [out_stream_ streamStatus];
+
+  // If stream is not open yet, or if there's already queued data -
+  // queue more.
+  if ((status != NSStreamStatusOpen && status != NSStreamStatusWriting) ||
+      [buffer_ length] > 0) {
     [buffer_ appendData: data];
     return;
   }
@@ -95,8 +101,8 @@
   out_stream_ = nil;
 
   // Close all streams
-  for (iSpdyRequest* req in streams_) {
-    [self.delegate request: req handleError: err];
+  for (ISpdyRequest* req in streams_) {
+    [req.delegate request: req handleError: err];
   }
   [streams_ removeAllObjects];
 
@@ -105,7 +111,7 @@
 }
 
 
-- (void) send: (iSpdyRequest*) request {
+- (void) send: (ISpdyRequest*) request {
   NSAssert(request.connection == nil, @"Request was already sent");
 
   if (request.connection != nil)
@@ -127,8 +133,8 @@
 }
 
 
-- (void) writeData: (NSData*) data to: (iSpdyRequest*) request {
-  NSAssert(request.connection != nil, @"Request was ended");
+- (void) writeData: (NSData*) data to: (ISpdyRequest*) request {
+  NSAssert(request.connection != nil, @"Request was closed");
 
   // TODO(indutny): wait for SYN_REPLY
   [framer_ clear];
@@ -139,14 +145,30 @@
 }
 
 
-- (void) end: (iSpdyRequest*) request {
-  NSAssert(request.connection != nil, @"Request was already ended");
-  request.connection = nil;
+- (void) end: (ISpdyRequest*) request {
+  NSAssert(request.connection != nil, @"Request was already closed");
+  NSAssert(request.closed_by_us == NO, @"Request already awaiting other side");
+
+  request.closed_by_us = YES;
   [framer_ clear];
   [framer_ dataFrame: request.stream_id
                  fin: 1
             withData: nil];
   [self writeRaw: [framer_ output]];
+  [request _tryClose];
+}
+
+
+- (void) close: (ISpdyRequest*) request {
+  NSAssert(request.connection != nil, @"Request was already closed");
+  request.connection = nil;
+
+  if (!request.closed_by_us) {
+    [framer_ clear];
+    [framer_ rst: request.stream_id code: kISpdyRstCancel];
+    [self writeRaw: [framer_ output]];
+    request.closed_by_us = YES;
+  }
   [streams_ removeObjectForKey: [NSNumber numberWithInt: request.stream_id]];
 }
 
@@ -157,7 +179,7 @@
 
   if (event == NSStreamEventEndEncountered) {
     return [self handleError: [NSError errorWithDomain: @"spdy"
-                                                  code: iSpdyConnectionEnd
+                                                  code: kISpdyConnectionEnd
                                               userInfo: nil]];
   }
 
@@ -181,7 +203,7 @@
 @end
 
 
-@implementation iSpdyRequest
+@implementation ISpdyRequest
 
 - (id) init: (NSString*) method url: (NSString*) url {
   self = [self init];
@@ -192,21 +214,32 @@
 
 
 - (void) writeData: (NSData*) data {
-  NSAssert(self.connection != nil, @"Request was ended");
   [self.connection writeData: data to: self];
 }
 
 
 - (void) writeString: (NSString*) str {
-  NSAssert(self.connection != nil, @"Request was ended");
-  [self.connection writeData: [str dataUsingEncoding: NSUTF8StringEncoding] 
+  [self.connection writeData: [str dataUsingEncoding: NSUTF8StringEncoding]
                    to: self];
 }
 
 
 - (void) end {
-  NSAssert(self.connection != nil, @"Request was already ended");
   [self.connection end: self];
 }
+
+
+- (void) close {
+  [self.connection close: self];
+}
+
+
+- (void) _tryClose {
+  if (self.closed_by_us && self.closed_by_them) {
+    [self close];
+  }
+}
+
+
 
 @end
