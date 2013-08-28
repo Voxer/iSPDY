@@ -144,7 +144,7 @@
         return nil;
 
       reply.code = code;
-      reply.status = [kv[1] substringFromIndex: [scanner scanLocation]];
+      reply.status = [kv[1] substringFromIndex: [scanner scanLocation] + 1];
     } else {
       [headers setValue: kv[1] forKey: kv[0]];
     }
