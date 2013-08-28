@@ -7,6 +7,7 @@
 typedef enum {
   SYN_STREAM = 1,
   SYN_REPLY = 2,
+  RST_STREAM = 3
 } ISpdyFrameType;
 
 @implementation ISpdyFramer
@@ -132,7 +133,17 @@ typedef enum {
 
 
 - (void) rst: (uint32_t) stream_id code: (ISpdyRstCode) code {
+  NSAssert(code <= 0xff, @"Incorrect RST code");
 
+  uint8_t body[] = {
+    (stream_id >> 24) & 0x7f,
+    (stream_id >> 16) & 0xff,
+    (stream_id >> 8) & 0xff,
+    stream_id & 0xff,
+    0, 0, 0, (code & 0xff)
+  };
+  [self controlHeader: RST_STREAM flags: 0 length: sizeof(body)];
+  [output_ appendBytes: (const void*) body length: sizeof(body)];
 }
 
 @end
