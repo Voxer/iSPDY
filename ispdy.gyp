@@ -8,7 +8,10 @@
     "dependencies": [
       "deps/zlib/zlib.gyp:zlib",
     ],
-    "include_dirs": [ "include" ],
+    "include_dirs": [
+      "include",
+      ".",
+    ],
     "sources": [
       "src/ispdy.m",
       "src/compressor.m",

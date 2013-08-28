@@ -16,8 +16,8 @@ SPEC_BEGIN(ISpdySpec)
       c = nil;
     });
 
-    context(@"connecting", ^() {
-      it(@"should not fail", ^() {
+    context(@"connecting", ^{
+      it(@"should not fail", ^{
         ISpdyRequest* req = [[ISpdyRequest alloc] init: @"POST" url: @"/"];
         [c send: req];
         [req writeString: @"hello world"];

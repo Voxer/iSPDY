@@ -81,6 +81,7 @@ if __name__ == '__main__':
   CC = run_cmd(['xcrun', '-find', 'clang', '-sdk', sdk])
   os.environ['CC'] = CC;
   os.environ['CXX'] = run_cmd(['xcrun', '-find', 'clang++', '-sdk', sdk]);
+  os.environ['LDPLUSPLUS'] = os.environ.get('CXX');
 
   if '-f' not in args:
     args.extend('-f make'.split())

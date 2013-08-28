@@ -114,7 +114,8 @@
       "xcode_settings": {
         "OTHER_LDFLAGS": [
           "-F<(sdk_dev_path)/Library/Frameworks",
-          "-rpath <(sdk_dev_path)/Library/Frameworks"
+          "-rpath <(sdk_dev_path)/Library/Frameworks",
+          '-ObjC',
         ],
       },
       "link_settings": {
