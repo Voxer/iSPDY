@@ -1,4 +1,5 @@
 #import <Foundation/Foundation.h>
+#import <arpa/inet.h>  // htonl
 
 #import "framer.h"  // ISpdyFramer
 #import "ispdy.h"  // ISpdyVersion
@@ -34,10 +35,14 @@
 - (void) controlHeader: (uint16_t) type
                  flags: (uint8_t) flags
                 length: (uint32_t) len {
-  const uint8_t header[] = {
-    0x80, version_ == kISpdyV2 ? 2 : 3, (type >> 8) & 0xff, (type & 0xff),
-    flags, (len >> 16) & 0xff, (len >> 8) & 0xff, len & 0xff
-  };
+  uint8_t header[8];
+
+  header[0] = 0x80;
+  header[1] = version_ == kISpdyV2 ? 2 : 3;
+  *(uint16_t*) (header + 2) = htons(type);
+  *(uint32_t*) (header + 4) = htonl(len & 0x00ffffff);
+  header[4] = flags;
+
   [output_ appendBytes: (const void*) header length: sizeof(header)];
 }
 
@@ -47,13 +52,13 @@
   NSUInteger cvalue_len =
       [value lengthOfBytesUsingEncoding: NSUTF8StringEncoding];
 
-  uint8_t ckey_repr[] = { (ckey_len >> 8) & 0xff, ckey_len & 0xff };
-  [pairs_ appendBytes: (const void*) ckey_repr length: sizeof(ckey_repr)];
+  uint16_t ckey_repr = htons(ckey_len);
+  [pairs_ appendBytes: (const void*) &ckey_repr length: sizeof(ckey_repr)];
   [pairs_ appendBytes: [key cStringUsingEncoding: NSUTF8StringEncoding]
                length: ckey_len];
 
-  uint8_t cvalue_repr[] = { (cvalue_len >> 8) & 0xff, cvalue_len & 0xff };
-  [pairs_ appendBytes: (const void*) cvalue_repr length: sizeof(cvalue_repr)];
+  uint16_t cvalue_repr = htons(cvalue_len);
+  [pairs_ appendBytes: (const void*) &cvalue_repr length: sizeof(cvalue_repr)];
   [pairs_ appendBytes: [value cStringUsingEncoding: NSUTF8StringEncoding]
                length: cvalue_len];
 }
@@ -97,14 +102,14 @@
   [comp_ deflate: pairs_];
 
   // Finally, write body
-  uint8_t body[] = {
-    (stream_id >> 24) & 0x7f,
-    (stream_id >> 16) & 0xff,
-    (stream_id >> 8) & 0xff,
-    stream_id & 0xff,
-    0, 0, 0, 0, // Associated stream id
-    (priority & 0x3) << 6, 0 // Priority and unused
-  };
+  uint8_t body[10];
+
+  *(uint32_t*) body = htonl(stream_id & 0x7fffffff);
+  *(uint32_t*) (body + 4) = 0;  // Associated stream_id
+
+  // Priority and unused
+  body[8] = (priority & 0x3) << 6;
+  body[9] = 0;
 
   [self controlHeader: kISpdySynStream
                 flags: 0
@@ -118,12 +123,12 @@
                fin: (BOOL) fin
           withData: (NSData*) data {
   NSUInteger len = [data length];
-  const uint8_t header[] = {
-    (stream_id >> 24) & 0x7f, (stream_id >> 16) & 0xff,
-    (stream_id >> 8) & 0xff, stream_id & 0xff,
-    fin == YES ? kISpdyFlagFin : 0,
-    (len >> 16) & 0xff, (len >> 8) & 0xff, len & 0xff
-  };
+  uint8_t header[8];
+
+  *(uint32_t*) header = htonl(stream_id & 0x7fffffff);
+  *(uint32_t*) (header + 4) = htonl(len & 0xffffff);
+  header[4] = fin == YES ? kISpdyFlagFin : 0;
+
   [output_ appendBytes: (const void*) header length: sizeof(header)];
   [output_ appendData: data];
 }
@@ -132,13 +137,10 @@
 - (void) rst: (uint32_t) stream_id code: (ISpdyRstCode) code {
   NSAssert(code <= 0xff, @"Incorrect RST code");
 
-  uint8_t body[] = {
-    (stream_id >> 24) & 0x7f,
-    (stream_id >> 16) & 0xff,
-    (stream_id >> 8) & 0xff,
-    stream_id & 0xff,
-    0, 0, 0, (code & 0xff)
-  };
+  uint8_t body[8];
+  *(uint32_t*) body = htonl(stream_id & 0x7fffffff);
+  *(uint32_t*) (body + 4) = htonl(code & 0xff);
+
   [self controlHeader: kISpdyRstStream flags: 0 length: sizeof(body)];
   [output_ appendBytes: (const void*) body length: sizeof(body)];
 }
