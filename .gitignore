@@ -21,3 +21,4 @@ DerivedData
 /build/gyp/
 /out/
 /deps/Kiwi/Kiwi
+*.xcodeproj/

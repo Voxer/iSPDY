@@ -6,7 +6,6 @@ import os
 import subprocess
 import sys
 
-CC = os.environ.get('CC', 'cc')
 script_dir = os.path.dirname(__file__)
 root = os.path.normpath(script_dir)
 output_dir = os.path.join(os.path.abspath(root), 'out')
@@ -28,9 +27,17 @@ def host_arch():
   return machine  # Return as-is and hope for the best.
 
 
+def run_cmd(args):
+  proc = subprocess.Popen(args, stdout=subprocess.PIPE)
+  ret = proc.communicate()[0].rstrip('\n')
+  if proc.returncode != 0:
+    print("Failed to run " + " ".join(args))
+    sys.exit(43)
+  return ret
+
+
 def compiler_version():
-  proc = subprocess.Popen(CC.split() + ['--version'], stdout=subprocess.PIPE)
-  is_clang = 'clang' in proc.communicate()[0].split('\n')[0]
+  is_clang = 'clang' in run_cmd(CC.split() + ['--version'])
   proc = subprocess.Popen(CC.split() + ['-dumpversion'], stdout=subprocess.PIPE)
   version = proc.communicate()[0].split('.')
   version = map(int, version[:2])
@@ -64,21 +71,16 @@ if __name__ == '__main__':
     sdk = 'macosx'
   else:
     sdk = 'iphoneos'
-  proc = subprocess.Popen(['xcodebuild', '-version',
-                           '-sdk', sdk, 'Path'],
-                          stdout=subprocess.PIPE)
-  sdk_path = proc.communicate()[0].rstrip('\n')
-  if proc.returncode != 0:
-    system.exit(43);
-  args.extend(['-Dsdk=' + sdk]);
-  args.extend(['-Dsdk_path=' + sdk_path]);
+  sdk_path = run_cmd(['xcodebuild', '-version', '-sdk', sdk, 'Path'])
+  args.extend(['-Dsdk=' + sdk])
+  args.extend(['-Dsdk_path=' + sdk_path])
 
-  proc = subprocess.Popen(['xcode-select', '-print-path'],
-                          stdout=subprocess.PIPE);
-  sdk_dev_path = proc.communicate()[0].rstrip('\n')
-  if proc.returncode != 0:
-    system.exit(44);
-  args.extend(['-Dsdk_dev_path=' + sdk_dev_path]);
+  sdk_dev_path = run_cmd(['xcode-select', '-print-path'])
+  args.extend(['-Dsdk_dev_path=' + sdk_dev_path])
+
+  CC = run_cmd(['xcrun', '-find', 'clang', '-sdk', sdk])
+  os.environ['CC'] = CC;
+  os.environ['CXX'] = run_cmd(['xcrun', '-find', 'clang++', '-sdk', sdk]);
 
   if '-f' not in args:
     args.extend('-f make'.split())
