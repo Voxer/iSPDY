@@ -3,6 +3,7 @@
 
 #import "ispdy.h"
 #import "framer.h"  // ISpdyFramer
+#import "parser.h"  // ISpdyParser
 
 @implementation ISpdy
 
@@ -13,6 +14,8 @@
 
   version_ = version;
   framer_ = [[ISpdyFramer alloc] init: version];
+  parser_ = [[ISpdyParser alloc] init: version];
+  [parser_ setDelegate: self];
   stream_id_ = 1;
 
   streams_ = [[NSMutableDictionary alloc] initWithCapacity: 100];
@@ -148,6 +151,13 @@
 }
 
 
+- (void) rst: (uint32_t) stream_id code: (uint8_t) code {
+  [framer_ clear];
+  [framer_ rst: stream_id code: code];
+  [self writeRaw: [framer_ output]];
+}
+
+
 - (void) end: (ISpdyRequest*) request {
   NSAssert(request.connection != nil, @"Request was already closed");
   NSAssert(request.closed_by_us == NO, @"Request already awaiting other side");
@@ -167,9 +177,7 @@
   request.connection = nil;
 
   if (!request.closed_by_us) {
-    [framer_ clear];
-    [framer_ rst: request.stream_id code: kISpdyRstCancel];
-    [self writeRaw: [framer_ output]];
+    [self rst: request.stream_id code: kISpdyRstCancel];
     request.closed_by_us = YES;
   }
   [streams_ removeObjectForKey: [NSNumber numberWithInt: request.stream_id]];
@@ -187,6 +195,8 @@
   }
 
   if (event == NSStreamEventHasSpaceAvailable && [buffer_ length] > 0) {
+    NSAssert(out_stream_ == stream, @"Write event on input stream?!");
+
     // Socket available for write
     NSInteger r = [out_stream_ write: [buffer_ bytes]
                            maxLength: [buffer_ length]];
@@ -201,8 +211,42 @@
     // Truncate
     [buffer_ setLength: [buffer_ length] - r];
   } else if (event == NSStreamEventHasBytesAvailable) {
+    NSAssert(in_stream_ == stream, @"Read event on output stream?!");
+
     // Socket available for read
+    uint8_t buf[1024];
+    while ([in_stream_ hasBytesAvailable]) {
+      NSInteger r = [in_stream_ read: buf maxLength: sizeof(buf)];
+      if (r == 0)
+        break;
+      else if (r < 0)
+        return [self handleError: [in_stream_ streamError]];
+
+      [parser_ execute: buf length: (NSUInteger) r];
+    }
   }
+}
+
+
+- (void) handleFrame: (ISpdyFrameType) type
+                body: (id) body
+               isFin: (BOOL) isFin
+           forStream: (uint32_t) stream_id {
+  ISpdyRequest* req =
+      [streams_ objectForKey: [NSNumber numberWithInt: stream_id]];
+  if (req == nil) {
+    [self rst: stream_id code: kISpdyRstProtocolError];
+    return [self handleError: [NSError errorWithDomain: @"spdy"
+                                                  code: kISpdyNoSuchStream
+                                              userInfo: nil]];
+  }
+
+  if (type == kISpdyData) {
+    [req.delegate request: req handleInput: (NSData*) body];
+  }
+
+  if (isFin)
+    [req.delegate handleEnd: req];
 }
 
 @end

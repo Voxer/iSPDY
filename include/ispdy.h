@@ -1,10 +1,12 @@
 #import <CoreFoundation/CFStream.h>
 #import <Foundation/Foundation.h>
+#import "ispdy-internal.h"  // Common internal parts
 
 // Forward-declarations
 @class ISpdy;
 @class ISpdyRequest;
 @class ISpdyFramer;
+@class ISpdyParser;
 
 // SPDY Protocol version
 typedef enum {
@@ -14,7 +16,8 @@ typedef enum {
 
 // Possible error codes in NSError with domain @"spdy"
 typedef enum {
-  kISpdyConnectionEnd
+  kISpdyConnectionEnd,
+  kISpdyNoSuchStream
 } ISpdyErrorCode;
 
 // Delegate for handling request-level events
@@ -72,11 +75,12 @@ typedef enum {
 // Connects to server and holds underlying socket, parsing incoming data and
 // generating outgoing protocol data. Should be instantiated in order to
 // send requests to the server.
-@interface ISpdy : NSObject <NSStreamDelegate> {
+@interface ISpdy : NSObject <NSStreamDelegate, ISpdyParserDelegate> {
   ISpdyVersion version_;
   NSInputStream* in_stream_;
   NSOutputStream* out_stream_;
   ISpdyFramer* framer_;
+  ISpdyParser* parser_;
 
   // Next stream's id
   uint32_t stream_id_;
@@ -109,5 +113,6 @@ typedef enum {
 - (void) end: (ISpdyRequest*) request;
 - (void) close: (ISpdyRequest*) request;
 - (void) writeData: (NSData*) data to: (ISpdyRequest*) request;
+- (void) rst: (uint32_t) stream_id code: (uint8_t) code;
 
 @end

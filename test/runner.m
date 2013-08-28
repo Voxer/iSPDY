@@ -4,60 +4,62 @@
 #import <ispdy.h>
 
 SPEC_BEGIN(ISpdySpec)
-  describe(@"ISpdy server", ^{
-    __block ISpdy* conn;
 
-    beforeAll(^{
-      conn = [[ISpdy alloc] init: kISpdyV2];
-      BOOL r = [conn connect:@"localhost" port:3232 secure: NO];
-      [[theValue(r) should] equal:theValue(YES)];
-    });
+describe(@"ISpdy server", ^{
+  __block ISpdy* conn;
 
-    afterAll(^{
-      conn = nil;
-    });
+  beforeAll(^{
+    conn = [[ISpdy alloc] init: kISpdyV2];
+    BOOL r = [conn connect:@"localhost" port:3232 secure: NO];
+    [[theValue(r) should] equal:theValue(YES)];
+  });
 
-    context(@"connecting", ^{
-      it(@"should not fail", ^{
-        __block BOOL ended = NO;
-        __block NSString* received = nil;
+  afterAll(^{
+    conn = nil;
+  });
 
-        ISpdyRequest* req = [[ISpdyRequest alloc] init: @"POST" url: @"/"];
+  context(@"connecting", ^{
+    it(@"should not fail", ^{
+      __block BOOL ended = NO;
+      __block NSString* received = nil;
 
-        id mock = [KWMock mockForProtocol: @protocol(ISpdyRequestDelegate)];
-        [mock stub: @selector(handleEnd:) withBlock: ^id (NSArray* args) {
-          ended = YES;
-          return nil;
-        }];
+      ISpdyRequest* req = [[ISpdyRequest alloc] init: @"POST" url: @"/"];
 
-        id (^onInput)(NSArray*) = ^id (NSArray* args) {
-          [[theValue(ended) shouldNot] equal: theValue(YES)];
-          [[theValue([args count]) should] equal: theValue(2)];
+      id mock = [KWMock mockForProtocol: @protocol(ISpdyRequestDelegate)];
+      [mock stub: @selector(handleEnd:) withBlock: ^id (NSArray* args) {
+        ended = YES;
+        return nil;
+      }];
 
-          NSData* input = [args objectAtIndex: 1];
-          NSString* str = [[NSString alloc] initWithData: input
-                                                encoding: NSUTF8StringEncoding];
-          if (received == nil)
-            received = str;
-          else
-            received = [received stringByAppendingString: str];
+      id (^onInput)(NSArray*) = ^id (NSArray* args) {
+        [[theValue(ended) shouldNot] equal: theValue(YES)];
+        [[theValue([args count]) should] equal: theValue(2)];
 
-          return nil;
-        };
-        [mock stub: @selector(request:handleInput:) withBlock: onInput];
-        [req setDelegate: mock];
+        NSData* input = [args objectAtIndex: 1];
+        NSString* str = [[NSString alloc] initWithData: input
+                                              encoding: NSUTF8StringEncoding];
+        if (received == nil)
+          received = str;
+        else
+          received = [received stringByAppendingString: str];
 
-        [conn send: req];
-        [req writeString: @"Hello strange world"];
-        [req end];
+        return nil;
+      };
+      [mock stub: @selector(request:handleInput:) withBlock: onInput];
+      [req setDelegate: mock];
 
-        [[expectFutureValue(theValue(ended)) shouldEventually]
-            equal: theValue(YES)];
-        [[expectFutureValue(received) shouldEventually]
-            equal: @"Hello world"];
-      });
+      NSString* body = @"Hello strange world";
+      [conn send: req];
+      [req writeString: body];
+      [req end];
+
+      [[expectFutureValue(theValue(ended)) shouldEventually]
+          equal: theValue(YES)];
+      [[expectFutureValue(received) shouldEventually] equal: body];
     });
   });
+});
+
 SPEC_END
 
 int main() {

@@ -1,22 +1,18 @@
 #import <Foundation/Foundation.h>
 
-#import "framer.h"
+#import "framer.h"  // ISpdyFramer
 #import "ispdy.h"  // ISpdyVersion
 #import "compressor.h"  // ISpdyCompressor
-
-typedef enum {
-  SYN_STREAM = 1,
-  SYN_REPLY = 2,
-  RST_STREAM = 3
-} ISpdyFrameType;
 
 @implementation ISpdyFramer
 
 - (id) init: (ISpdyVersion) version {
   NSAssert(version == kISpdyV2, @"Only spdyv2 is supported now");
+
   self = [super init];
   if (!self)
     return self;
+
   version_ = version;
   comp_ = [[ISpdyCompressor alloc] init: version];
   pairs_ = [[NSMutableData alloc] initWithCapacity: 4096];
@@ -110,7 +106,7 @@ typedef enum {
     (priority & 0x3) << 6, 0 // Priority and unused
   };
 
-  [self controlHeader: SYN_STREAM
+  [self controlHeader: kISpdySynStream
                 flags: 0
                length: sizeof(body) + [[comp_ output] length]];
   [output_ appendBytes: (const void*) body length: sizeof(body)];
@@ -125,7 +121,8 @@ typedef enum {
   const uint8_t header[] = {
     (stream_id >> 24) & 0x7f, (stream_id >> 16) & 0xff,
     (stream_id >> 8) & 0xff, stream_id & 0xff,
-    fin == YES ? 1 : 0, (len >> 16) & 0xff, (len >> 8) & 0xff, len & 0xff
+    fin == YES ? kISpdyFlagFin : 0,
+    (len >> 16) & 0xff, (len >> 8) & 0xff, len & 0xff
   };
   [output_ appendBytes: (const void*) header length: sizeof(header)];
   [output_ appendData: data];
@@ -142,7 +139,7 @@ typedef enum {
     stream_id & 0xff,
     0, 0, 0, (code & 0xff)
   };
-  [self controlHeader: RST_STREAM flags: 0 length: sizeof(body)];
+  [self controlHeader: kISpdyRstStream flags: 0 length: sizeof(body)];
   [output_ appendBytes: (const void*) body length: sizeof(body)];
 }
 
