@@ -101,10 +101,13 @@
   out_stream_ = nil;
 
   // Close all streams
-  for (ISpdyRequest* req in streams_) {
+  NSDictionary* streams = streams_;
+  streams_ = nil;
+  for (NSNumber* stream_id in streams) {
+    ISpdyRequest* req = [streams objectForKey: stream_id];
     [req.delegate request: req handleError: err];
+    [req.delegate handleEnd: req];
   }
-  [streams_ removeAllObjects];
 
   // Fire global error
   [self.delegate connection: self handleError: err];
@@ -174,7 +177,7 @@
 
 
 - (void) stream: (NSStream*) stream handleEvent: (NSStreamEvent) event {
-  if (event == NSStreamStatusError)
+  if (event == NSStreamEventErrorOccurred)
     return [self handleError: [stream streamError]];
 
   if (event == NSStreamEventEndEncountered) {
@@ -197,6 +200,8 @@
     }
     // Truncate
     [buffer_ setLength: [buffer_ length] - r];
+  } else if (event == NSStreamEventHasBytesAvailable) {
+    // Socket available for read
   }
 }
 
@@ -236,6 +241,7 @@
 
 - (void) _tryClose {
   if (self.closed_by_us && self.closed_by_them) {
+    [self.delegate handleEnd: self];
     [self close];
   }
 }
