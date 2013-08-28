@@ -20,7 +20,8 @@ typedef enum {
   kISpdyErrConnectionEnd,
   kISpdyErrNoSuchStream,
   kISpdyErrRst,
-  kISpdyErrParseError
+  kISpdyErrParseError,
+  kISpdyErrDoubleResponse
 } ISpdyErrorCode;
 
 // Response class
@@ -129,5 +130,6 @@ typedef enum {
 - (void) close: (ISpdyRequest*) request;
 - (void) writeData: (NSData*) data to: (ISpdyRequest*) request;
 - (void) rst: (uint32_t) stream_id code: (uint8_t) code;
+- (void) error: (ISpdyRequest*) request code: (ISpdyErrorCode) code;
 
 @end

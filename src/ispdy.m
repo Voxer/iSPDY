@@ -160,6 +160,15 @@
 }
 
 
+- (void) error: (ISpdyRequest*) request code: (ISpdyErrorCode) code {
+  [self rst: request.stream_id code: code];
+  NSError* err = [NSError errorWithDomain: @"spdy"
+                                     code: code
+                                 userInfo: nil];
+  [request.delegate request: request handleError: err];
+}
+
+
 - (void) end: (ISpdyRequest*) request {
   NSAssert(request.connection != nil, @"Request was already closed");
   NSAssert(request.closed_by_us == NO, @"Request already awaiting other side");
@@ -264,7 +273,7 @@
       break;
     case kISpdySynReply:
       if (req.seen_response)
-        return [self rst: req.stream_id code: kISpdyRstProtocolError];
+        return [self error: req code: kISpdyErrDoubleResponse];
       req.seen_response = YES;
       [req.delegate request: req handleResponse: body];
       break;
