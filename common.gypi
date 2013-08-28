@@ -29,7 +29,6 @@
       'GCC_VERSION': 'com.apple.compilers.llvm.clang.1_0',
       'GCC_WARN_ABOUT_MISSING_NEWLINE': 'YES',  # -Wnewline-eof
       'PREBINDING': 'NO',                       # No -Wl,-prebind
-      'HEADER_SEARCH_PATHS': '$(inherited)',
       'OTHER_CFLAGS': [
         '-fstrict-aliasing',
         '-F<(sdk_path)/Developer/Library/Frameworks',
