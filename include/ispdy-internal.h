@@ -31,7 +31,7 @@ typedef enum {
 @protocol ISpdyParserDelegate
 - (void) handleFrame: (ISpdyFrameType) type
                 body: (id) body
-               isFin: (BOOL) isFin
+              is_fin: (BOOL) is_fin
            forStream: (uint32_t) stream_id;
 - (void) handleParseError;
 @end

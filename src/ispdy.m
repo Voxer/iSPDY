@@ -255,7 +255,7 @@
 
 - (void) handleFrame: (ISpdyFrameType) type
                 body: (id) body
-               isFin: (BOOL) isFin
+              is_fin: (BOOL) is_fin
            forStream: (uint32_t) stream_id {
   ISpdyRequest* req = nil;
 
@@ -320,7 +320,7 @@
       break;
   }
 
-  if (isFin)
+  if (is_fin)
     [req.delegate handleEnd: req];
 }
 
