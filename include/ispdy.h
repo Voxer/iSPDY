@@ -46,7 +46,7 @@ typedef enum {
 // Should be used to initiate new request to the server, works only with
 // existing ISpdy connection.
 @interface ISpdyRequest : NSObject {
-  NSMutableData* buffer_;
+  NSMutableArray* data_queue_;
 }
 
 @property (weak) id <ISpdyRequestDelegate> delegate;
@@ -61,6 +61,10 @@ typedef enum {
 @property BOOL closed_by_us;
 @property BOOL closed_by_them;
 @property BOOL seen_response;
+
+// Internal too, window value for incoming and outgoing data
+@property NSInteger window_in;
+@property NSInteger window_out;
 
 // Initialize properties
 - (id) init: (NSString*) method url: (NSString*) url;
@@ -81,10 +85,16 @@ typedef enum {
 // us and them.
 - (void) _tryClose;
 
-// Bufferize frame data and fetch it
-- (void) buffer: (NSData*) data;
-- (void) clearBuffer;
-- (NSData*) buffer;
+// (Internal) sends `end` selector if the close is pending
+- (void) _tryPendingClose;
+
+// (Internal)
+- (void) _updateWindow: (NSInteger) delta;
+
+// (Internal) Bufferize frame data and fetch it
+- (void) _queueData: (NSData*) data;
+- (BOOL) _hasQueuedData;
+- (void) _unqueue;
 
 @end
 
@@ -108,6 +118,7 @@ typedef enum {
 
   // Next stream's id
   uint32_t stream_id_;
+  NSInteger initial_window_;
 
   // Dictionary of all streams
   NSMutableDictionary* streams_;

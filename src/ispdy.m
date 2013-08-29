@@ -6,6 +6,8 @@
 #import "framer.h"  // ISpdyFramer
 #import "parser.h"  // ISpdyParser
 
+static const NSInteger kInitialWindowSize = 65536;
+
 @implementation ISpdy
 
 - (id) init: (ISpdyVersion) version {
@@ -18,7 +20,9 @@
   framer_ = [[ISpdyFramer alloc] init: version compressor: comp_];
   parser_ = [[ISpdyParser alloc] init: version compressor: comp_];
   [parser_ setDelegate: self];
+
   stream_id_ = 1;
+  initial_window_ = kInitialWindowSize;
 
   streams_ = [[NSMutableDictionary alloc] initWithCapacity: 100];
 
@@ -55,6 +59,7 @@
   }
 
   NSRunLoop* loop = [NSRunLoop currentRunLoop];
+
   [in_stream_ setDelegate: self];
   [out_stream_ setDelegate: self];
   [in_stream_ scheduleInRunLoop: loop forMode: NSDefaultRunLoopMode];
@@ -67,6 +72,13 @@
   }
   [in_stream_ open];
   [out_stream_ open];
+
+  // Send initial window
+  if (version_ != kISpdyV2) {
+    [framer_ clear];
+    [framer_ initialWindow: kInitialWindowSize];
+    [self writeRaw: [framer_ output]];
+  }
 
   return YES;
 }
@@ -126,6 +138,8 @@
     return;
   request.stream_id = stream_id_;
   request.connection = self;
+  request.window_in = initial_window_;
+  request.window_out = kInitialWindowSize;
   stream_id_ += 2;
 
   [framer_ clear];
@@ -144,15 +158,44 @@
 - (void) writeData: (NSData*) data to: (ISpdyRequest*) request {
   NSAssert(request.connection != nil, @"Request was closed");
 
-  [framer_ clear];
-  [framer_ dataFrame: request.stream_id
-                 fin: 0
-            withData: data];
+  NSData* pending = data;
+  NSInteger pending_length = [pending length];
+  NSData* rest = nil;
 
-  if (request.seen_response)
+  if (request.seen_response && request.window_out != 0) {
+    // Perform flow control
+    if (version_ != kISpdyV2) {
+      // Only part of the data could be written now
+      if (pending_length > request.window_out) {
+        NSRange range;
+
+        range.location = request.window_out;
+        range.length = pending_length - request.window_out;
+        rest = [pending subdataWithRange: range];
+
+        range.location = 0;
+        range.length = request.window_out;
+        pending = [pending subdataWithRange: range];
+
+        pending_length = [pending length];
+      }
+      request.window_out -= pending_length;
+    }
+
+    [framer_ clear];
+    [framer_ dataFrame: request.stream_id
+                   fin: 0
+              withData: pending];
+
     [self writeRaw: [framer_ output]];
+  } else {
+    rest = data;
+  }
+
+  if (rest != nil)
+    [request _queueData: rest];
   else
-    [request buffer: [framer_ output]];
+    [request _tryPendingClose];
 }
 
 
@@ -182,13 +225,12 @@
   [framer_ dataFrame: request.stream_id
                  fin: 1
             withData: nil];
-  if (request.seen_response) {
+  if (request.seen_response && ![request _hasQueuedData]) {
     request.closed_by_us = YES;
     [self writeRaw: [framer_ output]];
     [request _tryClose];
   } else {
     request.pending_closed_by_us = YES;
-    [request buffer: [framer_ output]];
   }
 }
 
@@ -283,6 +325,19 @@
 
   switch (type) {
     case kISpdyData:
+      // Perform flow-control
+      if (version_ != kISpdyV2) {
+        req.window_in -= [body length];
+
+        // Send WINDOW_UPDATE if exhausted
+        if (req.window_in <= 0) {
+          uint32_t delta = kInitialWindowSize - req.window_in;
+          [framer_ clear];
+          [framer_ windowUpdate: stream_id update: delta];
+          [self writeRaw: [framer_ output]];
+          req.window_in += delta;
+        }
+      }
       [req.delegate request: req handleInput: (NSData*) body];
       break;
     case kISpdySynReply:
@@ -292,19 +347,7 @@
       [req.delegate request: req handleResponse: body];
 
       // Write queued data
-      if ([req buffer] != nil) {
-        [self writeRaw: [req buffer]];
-        [req clearBuffer];
-
-        // End request, if its pending
-        if (req.pending_closed_by_us) {
-          req.pending_closed_by_us = NO;
-          if (!req.closed_by_us) {
-            req.closed_by_us = YES;
-            [req _tryClose];
-          }
-        }
-      }
+      [req _unqueue];
       break;
     case kISpdyRstStream:
       {
@@ -315,13 +358,35 @@
         [req close];
       }
       break;
+    case kISpdyWindowUpdate:
+      [req _updateWindow: [body integerValue]];
+      break;
+    case kISpdySettings:
+      {
+        ISpdySettings* settings = (ISpdySettings*) body;
+        NSInteger delta = settings.initial_window - initial_window_;
+        initial_window_ = settings.initial_window;
+
+        // Update all streams' output window
+        if (delta != 0) {
+          for (NSNumber* stream_id in streams_) {
+            ISpdyRequest* req = [streams_ objectForKey: stream_id];
+            [req _updateWindow: delta];
+          }
+        }
+      }
     default:
       // Ignore
       break;
   }
 
-  if (is_fin)
-    [req.delegate handleEnd: req];
+  if (is_fin) {
+    req.closed_by_them = YES;
+    [req _tryClose];
+  }
+
+  // Try end request, if its pending
+  [req _tryPendingClose];
 }
 
 
@@ -367,6 +432,8 @@
 
 
 - (void) _tryClose {
+  if (self.connection == nil)
+    return;
   if (self.closed_by_us && self.closed_by_them) {
     [self.delegate handleEnd: self];
     [self close];
@@ -374,19 +441,47 @@
 }
 
 
-- (void) buffer: (NSData*) data {
-  if (buffer_ == nil)
-    buffer_ = [NSMutableData dataWithData: data];
-  else
-    [buffer_ appendData: data];
+- (void) _tryPendingClose {
+  if (self.pending_closed_by_us) {
+    self.pending_closed_by_us = NO;
+    [self end];
+  }
 }
 
-- (void) clearBuffer {
-  buffer_ = nil;
+
+- (void) _updateWindow: (NSInteger) delta {
+  self.window_out += delta;
+
+  // Try writing queued data
+  if (self.window_out > 0)
+    [self _unqueue];
 }
 
-- (NSData*) buffer {
-  return buffer_;
+
+- (void) _queueData: (NSData*) data {
+  if (data_queue_ == nil)
+    data_queue_ = [NSMutableArray arrayWithCapacity: 16];
+
+  [data_queue_ addObject: data];
+}
+
+
+- (BOOL) _hasQueuedData {
+  return [data_queue_ count] > 0;
+}
+
+
+- (void) _unqueue {
+  if (data_queue_ != nil) {
+    NSUInteger count = [data_queue_ count];
+    for (NSUInteger i = 0; i < count; i++)
+      [self.connection writeData: [data_queue_ objectAtIndex: i] to: self];
+
+    NSRange range;
+    range.location = 0;
+    range.length = count;
+    [data_queue_ removeObjectsInRange: range];
+  }
 }
 
 @end
