@@ -139,16 +139,16 @@ typedef enum {
 - (void) send: (ISpdyRequest*) request;
 
 // (Internal) Write raw data to the underlying socket
-- (void) writeRaw: (NSData*) data;
+- (void) _writeRaw: (NSData*) data;
 
 // (Internal) Handle global errors
-- (void) handleError: (NSError*) err;
+- (void) _handleError: (NSError*) err;
 
 // (Mostly internal) see ISpdyRequest for description
-- (void) end: (ISpdyRequest*) request;
-- (void) close: (ISpdyRequest*) request;
-- (void) writeData: (NSData*) data to: (ISpdyRequest*) request;
-- (void) rst: (uint32_t) stream_id code: (uint8_t) code;
-- (void) error: (ISpdyRequest*) request code: (ISpdyErrorCode) code;
+- (void) _end: (ISpdyRequest*) request;
+- (void) _close: (ISpdyRequest*) request;
+- (void) _writeData: (NSData*) data to: (ISpdyRequest*) request;
+- (void) _rst: (uint32_t) stream_id code: (uint8_t) code;
+- (void) _error: (ISpdyRequest*) request code: (ISpdyErrorCode) code;
 
 @end

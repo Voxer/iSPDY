@@ -77,14 +77,14 @@ static const NSInteger kInitialWindowSize = 65536;
   if (version_ != kISpdyV2) {
     [framer_ clear];
     [framer_ initialWindow: kInitialWindowSize];
-    [self writeRaw: [framer_ output]];
+    [self _writeRaw: [framer_ output]];
   }
 
   return YES;
 }
 
 
-- (void) writeRaw: (NSData*) data {
+- (void) _writeRaw: (NSData*) data {
   NSStreamStatus status = [out_stream_ streamStatus];
 
   // If stream is not open yet, or if there's already queued data -
@@ -98,7 +98,7 @@ static const NSInteger kInitialWindowSize = 65536;
   // Try writing to stream first
   NSInteger r = [out_stream_ write: [data bytes] maxLength: [data length]];
   if (r == -1)
-    return [self handleError: [out_stream_ streamError]];
+    return [self _handleError: [out_stream_ streamError]];
 
   // Only part of data was written, queue rest
   if (r < (NSInteger) [data length]) {
@@ -108,7 +108,7 @@ static const NSInteger kInitialWindowSize = 65536;
 }
 
 
-- (void) handleError: (NSError*) err {
+- (void) _handleError: (NSError*) err {
   // Already closed - ignore
   if (in_stream_ == nil || out_stream_ == nil)
     return;
@@ -148,14 +148,14 @@ static const NSInteger kInitialWindowSize = 65536;
               method: request.method
                   to: request.url
              headers: request.headers];
-  [self writeRaw: [framer_ output]];
+  [self _writeRaw: [framer_ output]];
 
   NSNumber* request_key = [NSNumber numberWithUnsignedInt: request.stream_id];
   [streams_ setObject: request forKey: request_key];
 }
 
 
-- (void) writeData: (NSData*) data to: (ISpdyRequest*) request {
+- (void) _writeData: (NSData*) data to: (ISpdyRequest*) request {
   NSAssert(request.connection != nil, @"Request was closed");
 
   NSData* pending = data;
@@ -187,7 +187,7 @@ static const NSInteger kInitialWindowSize = 65536;
                    fin: 0
               withData: pending];
 
-    [self writeRaw: [framer_ output]];
+    [self _writeRaw: [framer_ output]];
   } else {
     rest = data;
   }
@@ -199,15 +199,15 @@ static const NSInteger kInitialWindowSize = 65536;
 }
 
 
-- (void) rst: (uint32_t) stream_id code: (uint8_t) code {
+- (void) _rst: (uint32_t) stream_id code: (uint8_t) code {
   [framer_ clear];
   [framer_ rst: stream_id code: code];
-  [self writeRaw: [framer_ output]];
+  [self _writeRaw: [framer_ output]];
 }
 
 
-- (void) error: (ISpdyRequest*) request code: (ISpdyErrorCode) code {
-  [self rst: request.stream_id code: code];
+- (void) _error: (ISpdyRequest*) request code: (ISpdyErrorCode) code {
+  [self _rst: request.stream_id code: code];
   NSError* err = [NSError errorWithDomain: @"spdy"
                                      code: code
                                  userInfo: nil];
@@ -215,7 +215,7 @@ static const NSInteger kInitialWindowSize = 65536;
 }
 
 
-- (void) end: (ISpdyRequest*) request {
+- (void) _end: (ISpdyRequest*) request {
   NSAssert(request.connection != nil, @"Request was already closed");
   NSAssert(request.closed_by_us == NO, @"Request already awaiting other side");
   NSAssert(request.pending_closed_by_us == NO,
@@ -227,7 +227,7 @@ static const NSInteger kInitialWindowSize = 65536;
             withData: nil];
   if (request.seen_response && ![request _hasQueuedData]) {
     request.closed_by_us = YES;
-    [self writeRaw: [framer_ output]];
+    [self _writeRaw: [framer_ output]];
     [request _tryClose];
   } else {
     request.pending_closed_by_us = YES;
@@ -235,12 +235,12 @@ static const NSInteger kInitialWindowSize = 65536;
 }
 
 
-- (void) close: (ISpdyRequest*) request {
+- (void) _close: (ISpdyRequest*) request {
   NSAssert(request.connection != nil, @"Request was already closed");
   request.connection = nil;
 
   if (!request.closed_by_us) {
-    [self rst: request.stream_id code: kISpdyRstCancel];
+    [self _rst: request.stream_id code: kISpdyRstCancel];
     request.closed_by_us = YES;
   }
 
@@ -252,12 +252,13 @@ static const NSInteger kInitialWindowSize = 65536;
 
 - (void) stream: (NSStream*) stream handleEvent: (NSStreamEvent) event {
   if (event == NSStreamEventErrorOccurred)
-    return [self handleError: [stream streamError]];
+    return [self _handleError: [stream streamError]];
 
   if (event == NSStreamEventEndEncountered) {
-    return [self handleError: [NSError errorWithDomain: @"spdy"
-                                                  code: kISpdyErrConnectionEnd
-                                              userInfo: nil]];
+    NSError* err = [NSError errorWithDomain: @"spdy"
+                                       code: kISpdyErrConnectionEnd
+                                   userInfo: nil];
+    return [self _handleError: err];
   }
 
   if (event == NSStreamEventHasSpaceAvailable && [buffer_ length] > 0) {
@@ -267,7 +268,7 @@ static const NSInteger kInitialWindowSize = 65536;
     NSInteger r = [out_stream_ write: [buffer_ bytes]
                            maxLength: [buffer_ length]];
     if (r == -1)
-      return [self handleError: [out_stream_ streamError]];
+      return [self _handleError: [out_stream_ streamError]];
 
     // Shift data
     if (r < (NSInteger) [buffer_ length]) {
@@ -286,7 +287,7 @@ static const NSInteger kInitialWindowSize = 65536;
       if (r == 0)
         break;
       else if (r < 0)
-        return [self handleError: [in_stream_ streamError]];
+        return [self _handleError: [in_stream_ streamError]];
 
       [parser_ execute: buf length: (NSUInteger) r];
     }
@@ -310,11 +311,11 @@ static const NSInteger kInitialWindowSize = 65536;
     // but don't reply with RST for RST to prevent echoing each other
     // indefinitely.
     if (req == nil && type != kISpdyRstStream) {
-      [self rst: stream_id code: kISpdyRstProtocolError];
+      [self _rst: stream_id code: kISpdyRstProtocolError];
       NSError* err = [NSError errorWithDomain: @"spdy"
                                          code: kISpdyErrNoSuchStream
                                      userInfo: nil];
-      return [self handleError: err];
+      return [self _handleError: err];
     }
   }
 
@@ -334,7 +335,7 @@ static const NSInteger kInitialWindowSize = 65536;
           uint32_t delta = kInitialWindowSize - req.window_in;
           [framer_ clear];
           [framer_ windowUpdate: stream_id update: delta];
-          [self writeRaw: [framer_ output]];
+          [self _writeRaw: [framer_ output]];
           req.window_in += delta;
         }
       }
@@ -342,7 +343,7 @@ static const NSInteger kInitialWindowSize = 65536;
       break;
     case kISpdySynReply:
       if (req.seen_response)
-        return [self error: req code: kISpdyErrDoubleResponse];
+        return [self _error: req code: kISpdyErrDoubleResponse];
       req.seen_response = YES;
       [req.delegate request: req handleResponse: body];
 
@@ -391,10 +392,11 @@ static const NSInteger kInitialWindowSize = 65536;
 
 
 - (void) handleParseError {
-  // TODO(indutny): Propagate stream_id here and send RST
-  return [self handleError: [NSError errorWithDomain: @"spdy"
-                                                code: kISpdyErrParseError
-                                            userInfo: nil]];
+  // TODO(indutny): Propagate error message here
+  NSError* err = [NSError errorWithDomain: @"spdy"
+                                     code: kISpdyErrParseError
+                                 userInfo: nil];
+  return [self _handleError: err];
 }
 
 @end
@@ -411,23 +413,23 @@ static const NSInteger kInitialWindowSize = 65536;
 
 
 - (void) writeData: (NSData*) data {
-  [self.connection writeData: data to: self];
+  [self.connection _writeData: data to: self];
 }
 
 
 - (void) writeString: (NSString*) str {
-  [self.connection writeData: [str dataUsingEncoding: NSUTF8StringEncoding]
-                   to: self];
+  [self.connection _writeData: [str dataUsingEncoding: NSUTF8StringEncoding]
+                           to: self];
 }
 
 
 - (void) end {
-  [self.connection end: self];
+  [self.connection _end: self];
 }
 
 
 - (void) close {
-  [self.connection close: self];
+  [self.connection _close: self];
 }
 
 
@@ -475,7 +477,7 @@ static const NSInteger kInitialWindowSize = 65536;
   if (data_queue_ != nil) {
     NSUInteger count = [data_queue_ count];
     for (NSUInteger i = 0; i < count; i++)
-      [self.connection writeData: [data_queue_ objectAtIndex: i] to: self];
+      [self.connection _writeData: [data_queue_ objectAtIndex: i] to: self];
 
     NSRange range;
     range.location = 0;
