@@ -6,23 +6,24 @@
 SPEC_BEGIN(ISpdySpec)
 
 describe(@"ISpdy server", ^{
-  __block ISpdy* conn;
-
-  beforeEach(^{
-    conn = [[ISpdy alloc] init: kISpdyV2];
-    BOOL r = [conn connect:@"localhost" port:3232 secure: NO];
-    [[theValue(r) should] equal:theValue(YES)];
-  });
-
-  afterEach(^{
-    conn = nil;
-  });
+  void (^bothVersions)(void (^)(ISpdyVersion)) = ^(void (^b)(ISpdyVersion)) {
+    context(@"spdy-v2", ^{
+      b(kISpdyV2);
+    });
+    context(@"spdy-v3", ^{
+      b(kISpdyV3);
+    });
+  };
 
   context(@"sending requests to echo server", ^{
-    it(@"should return body that was sent", ^{
+    void (^pipe)(ISpdyVersion, NSData*) = ^(ISpdyVersion v, NSData* data) {
+      ISpdy* conn = [[ISpdy alloc] init: v];
+      BOOL r = [conn connect:@"localhost" port:3232 secure: NO];
+      [[theValue(r) should] equal:theValue(YES)];
+
       __block BOOL got_response = NO;
       __block BOOL ended = NO;
-      __block NSString* received = nil;
+      __block NSMutableData* received = nil;
 
       // Perform POST request to echo server
       ISpdyRequest* req = [[ISpdyRequest alloc] init: @"POST" url: @"/"];
@@ -34,12 +35,10 @@ describe(@"ISpdy server", ^{
         [[theValue([args count]) should] equal: theValue(2)];
 
         NSData* input = [args objectAtIndex: 1];
-        NSString* str = [[NSString alloc] initWithData: input
-                                              encoding: NSUTF8StringEncoding];
         if (received == nil)
-          received = str;
+          received = [NSMutableData dataWithData: input];
         else
-          received = [received stringByAppendingString: str];
+          [received appendData: input];
 
         return nil;
       };
@@ -70,9 +69,8 @@ describe(@"ISpdy server", ^{
       [req setDelegate: mock];
 
       // Send body
-      NSString* body = @"Hello strange world";
       [conn send: req];
-      [req writeString: body];
+      [req writeData: data];
       [req end];
 
       // And expect it to come back
@@ -80,7 +78,24 @@ describe(@"ISpdy server", ^{
           equal: theValue(YES)];
       [[expectFutureValue(theValue(ended)) shouldEventually]
           equal: theValue(YES)];
-      [[expectFutureValue(received) shouldEventually] equal: body];
+      [[expectFutureValue(received) shouldEventually] equal: data];
+    };
+
+    bothVersions(^(ISpdyVersion v) {
+      it(@"should return body that was sent", ^{
+        pipe(v, [@"hello world" dataUsingEncoding: NSUTF8StringEncoding]);
+      });
+
+      it(@"should return big body that was sent", ^{
+        int count = 100 * 1024;
+        NSData* str = [@"hello world" dataUsingEncoding: NSUTF8StringEncoding];
+        NSMutableData* body =
+            [NSMutableData dataWithCapacity: [str length] * count];
+        for (int i = 0; i < count; i++) {
+          [body appendData: str];
+        }
+        pipe(v, body);
+      });
     });
   });
 });
