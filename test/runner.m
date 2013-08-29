@@ -8,13 +8,13 @@ SPEC_BEGIN(ISpdySpec)
 describe(@"ISpdy server", ^{
   __block ISpdy* conn;
 
-  beforeAll(^{
+  beforeEach(^{
     conn = [[ISpdy alloc] init: kISpdyV2];
     BOOL r = [conn connect:@"localhost" port:3232 secure: NO];
     [[theValue(r) should] equal:theValue(YES)];
   });
 
-  afterAll(^{
+  afterEach(^{
     conn = nil;
   });
 
