@@ -4,7 +4,9 @@ spdy.createServer({
   plain: true,
   ssl: false
 }, function(req, res) {
-  if (!req.headers['content-length'] || req.headers['x-ispdy'] !== 'yikes')
+  if (!req.headers['content-length'] ||
+      req.headers['x-ispdy'] !== 'yikes' ||
+      req.method !== 'POST')
     return res.writeHead(400);
 
   res.writeHead(200);
