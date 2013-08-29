@@ -138,7 +138,12 @@
     *(uint32_t*) data = htonl(count);
 
   // And compress pairs
-  [comp_ deflate: pairs_];
+  BOOL ret = [comp_ deflate: pairs_];
+
+  // NOTE: this assertion can't be caused by any user input,
+  // if it happens - something terribly bad has happened to the
+  // ispdy state.
+  NSAssert(ret == YES, @"Deflate failed!");
 
   // Finally, write body
   uint8_t body[10];
