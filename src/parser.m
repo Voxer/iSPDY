@@ -28,6 +28,7 @@
   // Start parsing
   uint8_t* input = (uint8_t*) [buffer_ mutableBytes];
   NSUInteger len = [buffer_ length];
+  NSUInteger read = 0;
 
   while (len >= 8) {
     BOOL skip = NO;
@@ -60,6 +61,7 @@
     // Skip header
     len -= 8;
     input += 8;
+    read += 8;
 
     switch (frame_type) {
       case kISpdyData:
@@ -109,6 +111,7 @@
     // Skip body
     len -= body_len;
     input += body_len;
+    read += body_len;
 
     if (!skip) {
       [self.delegate handleFrame: frame_type
@@ -119,8 +122,12 @@
   }
 
   // Shift data
-  memmove(input, input + [buffer_ length] - len, len);
-  [buffer_ setLength: len];
+  if (read != 0) {
+    memmove([buffer_ mutableBytes],
+            [buffer_ bytes] + read,
+            [buffer_ length] - read);
+    [buffer_ setLength: [buffer_ length] - read];
+  }
 }
 
 - (ISpdyResponse*) parseSynReply: (const uint8_t*) data
