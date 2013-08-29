@@ -27,6 +27,15 @@ describe(@"ISpdy server", ^{
 
       // Perform POST request to echo server
       ISpdyRequest* req = [[ISpdyRequest alloc] init: @"POST" url: @"/"];
+      NSString* contentLength =
+          [NSString stringWithFormat: @"%u", (unsigned int) [data length]];
+
+      // Server expects and verifies this headers
+      NSMutableDictionary* headers =
+          [NSMutableDictionary dictionaryWithCapacity: 2];
+      [headers setValue: contentLength forKey: @"Content-Length"];
+      [headers setValue: @"yikes" forKey: @"X-ISpdy"];
+      req.headers = headers;
 
       // Concatenate all input into one string
       id (^onInput)(NSArray*) = ^id (NSArray* args) {
