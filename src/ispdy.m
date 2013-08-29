@@ -263,7 +263,11 @@
       type == kISpdyRstStream ||
       type == kISpdyData) {
     req = [streams_ objectForKey: [NSNumber numberWithUnsignedInt: stream_id]];
-    if (req == nil) {
+
+    // If stream isn't found - notify server about it,
+    // but don't reply with RST for RST to prevent echoing each other
+    // indefinitely.
+    if (req == nil && type != kISpdyRstStream) {
       [self rst: stream_id code: kISpdyRstProtocolError];
       NSError* err = [NSError errorWithDomain: @"spdy"
                                          code: kISpdyErrNoSuchStream
