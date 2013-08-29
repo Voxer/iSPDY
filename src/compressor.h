@@ -9,6 +9,7 @@
   const unsigned char* dict_;
   unsigned int dict_len_;
   NSMutableData* output_;
+  NSError* error_;
 }
 
 // Initialize compressor with specific protocol version
@@ -17,13 +18,16 @@
 // Get last operation's output
 - (NSMutableData*) output;
 
+// Get last operation's error
+- (NSError*) error;
+
 // Deflate input data
-- (void) deflate: (NSData*) input;
+- (BOOL) deflate: (NSData*) input;
 
 // Inflate input data
-- (void) inflate: (NSData*) input;
+- (BOOL) inflate: (NSData*) input;
 
 // (Internal) use deflate()/inflate() instead
-- (void) process: (BOOL) isDeflate in: (NSData*) input;
+- (BOOL) process: (BOOL) isDeflate in: (NSData*) input;
 
 @end

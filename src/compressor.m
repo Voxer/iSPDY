@@ -244,7 +244,12 @@ static const char spdy3_dict_[] = {
 }
 
 
-- (void) process: (BOOL) isDeflate in: (NSData*) input {
+- (NSError*) error {
+  return error_;
+}
+
+
+- (BOOL) process: (BOOL) isDeflate in: (NSData*) input {
   int ret;
   NSUInteger offset;
   z_stream* stream = isDeflate == YES ? &deflate_ : &inflate_;
@@ -254,6 +259,9 @@ static const char spdy3_dict_[] = {
 
   // Truncate output
   [output_ setLength: 0];
+
+  // Clear error
+  error_ = nil;
 
   // Set to initial length
   [output_ setLength: kCompBufferSize];
@@ -272,14 +280,13 @@ static const char spdy3_dict_[] = {
       // Load dictionary
       if (ret == Z_NEED_DICT) {
         ret = inflateSetDictionary(stream, dict_, dict_len_);
-        NSAssert(ret == Z_OK,
-                 @"inflateSetDictionary() failed with code %d",
-                 ret);
-
+        if (ret != Z_OK)
+          goto fatal;
         ret = inflate(stream, Z_FULL_FLUSH);
       }
     }
-    NSAssert(ret == Z_OK, @"deflate()/inflate() failed with code %d", ret);
+    if (ret != Z_OK)
+      goto fatal;
 
     // Shift offset
     offset += [output_ length] - offset - stream->avail_out;
@@ -292,16 +299,24 @@ static const char spdy3_dict_[] = {
   } while (stream->avail_in != 0);
 
   // Output was a bit bigger, shrink it's length to represent useful value
-  [output_ setLength:offset];
+  [output_ setLength: offset];
+  return YES;
+
+fatal:
+  [output_ setLength: 0];
+  error_ = [NSError errorWithDomain: @"spdy-compressor"
+                               code: ret
+                           userInfo: nil];
+  return NO;
 }
 
 
-- (void) deflate: (NSData*) input {
+- (BOOL) deflate: (NSData*) input {
   return [self process: YES in: input];
 }
 
 
-- (void) inflate: (NSData*) input {
+- (BOOL) inflate: (NSData*) input {
   return [self process: FALSE in: input];
 }
 
