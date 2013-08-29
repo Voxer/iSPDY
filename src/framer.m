@@ -199,7 +199,7 @@
   *(uint32_t*) body = htonl(1);
 
   // Id and flag
-  *(uint32_t*) (body + 4) = htonl(kISpdySettingInitialWindowSize) & 0x00ffffff;
+  *(uint32_t*) (body + 4) = htonl(kISpdySettingInitialWindowSize & 0x00ffffff);
   body[4] = 0;
 
   // Value
