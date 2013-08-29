@@ -281,7 +281,7 @@ static const NSInteger kInitialWindowSize = 65536;
     NSAssert(in_stream_ == stream, @"Read event on output stream?!");
 
     // Socket available for read
-    uint8_t buf[1024];
+    uint8_t buf[kInitialWindowSize];
     while ([in_stream_ hasBytesAvailable]) {
       NSInteger r = [in_stream_ read: buf maxLength: sizeof(buf)];
       if (r == 0)
