@@ -55,7 +55,11 @@ def run_gyp(args):
 if __name__ == '__main__':
   args = sys.argv[1:]
 
-  args.append(os.path.join(os.path.abspath(root), 'ispdy.gyp'))
+  if 'test' not in args:
+    args.append(os.path.join(os.path.abspath(root), 'ispdy.gyp'))
+  else:
+    args.append(os.path.join(os.path.abspath(root), 'test/test.gyp'))
+    args = filter(lambda arg: arg != 'test', args)
   common_fn  = os.path.join(os.path.abspath(root), 'common.gypi')
   options_fn = os.path.join(os.path.abspath(root), 'options.gypi')
 
@@ -67,12 +71,13 @@ if __name__ == '__main__':
 
   args.append('--depth=' + root)
 
-  if 'iphoneos' not in args:
+  if not any(a.startswith('-Dsdk=') for a in args):
     sdk = 'macosx'
+    args.append('-Dsdk=' + sdk);
   else:
-    sdk = 'iphoneos'
+    sdk = [arg for arg in args if arg.startswith('-Dsdk=')][0]
+    sdk = sdk.replace('-Dsdk=', '', 1)
   sdk_path = run_cmd(['xcodebuild', '-version', '-sdk', sdk, 'Path'])
-  args.extend(['-Dsdk=' + sdk])
   args.extend(['-Dsdk_path=' + sdk_path])
 
   sdk_dev_path = run_cmd(['xcode-select', '-print-path'])

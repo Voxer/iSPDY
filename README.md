@@ -18,6 +18,21 @@ int main() {
 }
 ```
 
+## Bulding for iOS
+
+Preparing:
+```
+svn co http://gyp.googlecode.com/svn/trunk build/gyp
+```
+
+Building:
+```
+./gyp_ispdy -f xcode -Dsdk=iosphone
+xcodebuild -configuration Release
+```
+
+The result will be located at: `./build/Release-iphoneos/libispdy.a`
+
 ## Running tests
 
 Preparing:
@@ -30,7 +45,7 @@ node test/server.js & # To start SPDY server
 
 Building and running test suite with [ninja][0]:
 ```
-./gyp_ispdy -f ninja
+./gyp_ispdy -f ninja test
 ninja -C out/Debug && ./out/Debug/test-runner
 ```
 
