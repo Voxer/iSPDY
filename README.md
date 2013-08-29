@@ -31,7 +31,10 @@ Building:
 xcodebuild -configuration Release
 ```
 
-The result will be located at: `./build/Release-iphoneos/libispdy.a`
+The result will be located at: `./build/Release-iphoneos/libispdy.a`.
+
+NOTE: you'll need to add `./deps/zlib/build/Release/libchrome_zlib.a` to the
+list of libraries, as `libispdy.a` depends on it.
 
 ## Running tests
 
@@ -58,7 +61,7 @@ make -C out && ./out/Debug/test-runner
 Building with [Xcode][2]:
 ```
 ./gyp_ispdy -f xcode
-xcodebuild && ./build/Debug/test-runner
+cd ./test && xcodebuild && ./build/Debug/test-runner
 ```
 
 [0]: http://martine.github.io/ninja/
