@@ -210,8 +210,8 @@
         break;
     }
 
-    data += 4;
-    length -= 4;
+    data += 8;
+    length -= 8;
     setting_count--;
   }
 
