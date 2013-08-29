@@ -37,6 +37,8 @@
                fin: (BOOL) fin
           withData: (NSData*) data;
 - (void) rst: (uint32_t) stream_id code: (ISpdyRstCode) code;
+- (void) initialWindow: (uint32_t) window;
+- (void) windowUpdate: (uint32_t) stream_id update: (uint32_t) update;
 
 // Utilities, not for public use
 - (void) controlHeader: (uint16_t) type

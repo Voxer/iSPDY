@@ -1,5 +1,5 @@
 #import <Foundation/Foundation.h>
-#import "ispdy.h"  // ISpdyVersion
+#import "ispdy.h"  // ISpdyVersion, ISpdyResponse, ISpdySettings, ...
 
 // Forward-declarations
 @class ISpdyCompressor;
@@ -27,6 +27,8 @@
 
 // Parse SYN_REPLY's body
 - (ISpdyResponse*) parseSynReply: (const uint8_t*) data
+                          length: (NSUInteger) length;
+- (ISpdySettings*) parseSettings: (const uint8_t*) data
                           length: (NSUInteger) length;
 
 @end

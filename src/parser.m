@@ -9,8 +9,6 @@
 @implementation ISpdyParser
 
 - (id) init: (ISpdyVersion) version compressor: (ISpdyCompressor*) comp {
-  NSAssert(version == kISpdyV2, @"Only spdyv2 is supported now");
-
   self = [super init];
   if (!self)
     return self;
@@ -32,6 +30,7 @@
   NSUInteger len = [buffer_ length];
 
   while (len >= 8) {
+    BOOL skip = NO;
     BOOL is_control = (input[0] & 0x80) != 0;
     ISpdyFrameType frame_type;
     id frame_body;
@@ -68,14 +67,36 @@
         break;
       case kISpdySynReply:
         stream_id = ntohl(*(uint32_t*) input) & 0x7fffffff;
-        frame_body = [self parseSynReply: input length: body_len];
+        if (version_ == kISpdyV2)
+          frame_body = [self parseSynReply: input + 6 length: body_len - 6];
+        else
+          frame_body = [self parseSynReply: input + 4 length: body_len - 4];
+        if (frame_body == nil)
+          return [self.delegate handleParseError];
+        break;
+      case kISpdySettings:
+        if (version_ == kISpdyV2) {
+          // SETTINGS in v2 has endianness problem, skip it
+          skip = YES;
+          break;
+        }
+        frame_body = [self parseSettings: input length: body_len];
         if (frame_body == nil)
           return [self.delegate handleParseError];
         break;
       case kISpdyRstStream:
+      case kISpdyWindowUpdate:
         {
+          if (len < 8)
+            return [self.delegate handleParseError];
           stream_id = ntohl(*(uint32_t*) input) & 0x7fffffff;
           uint32_t code = ntohl(*(uint32_t*) (input + 4));
+
+          // Mask window update, as its a 31bit value
+          if (frame_type == kISpdyWindowUpdate)
+            code = code & 0x7fffffff;
+
+          // And frame body is just a number
           frame_body = [NSNumber numberWithUnsignedInt: code];
         }
         break;
@@ -89,10 +110,12 @@
     len -= body_len;
     input += body_len;
 
-    [self.delegate handleFrame: frame_type
-                          body: frame_body
-                         isFin: (flags & kISpdyFlagFin) != 0
-                     forStream: stream_id];
+    if (!skip) {
+      [self.delegate handleFrame: frame_type
+                            body: frame_body
+                          is_fin: (flags & kISpdyFlagFin) != 0
+                       forStream: stream_id];
+    }
   }
 
   // Shift data
@@ -102,18 +125,21 @@
 
 - (ISpdyResponse*) parseSynReply: (const uint8_t*) data
                           length: (NSUInteger) length {
-  // Skip stream_id and unused
-  NSData* compressed_kvs = [NSData dataWithBytes: data + 6 length: length - 6];
+  NSData* compressed_kvs = [NSData dataWithBytes: data length: length];
   [comp_ inflate: compressed_kvs];
   const char* kvs = [[comp_ output] bytes];
   NSUInteger kvs_len = [[comp_ output] length];
 
+  // Size of length field in every location below
+  NSUInteger len_size = version_ == kISpdyV2 ? 2 : 4;
+
   // Get count of pairs
-  if (kvs_len < 2)
+  if (kvs_len < len_size)
     return nil;
-  uint16_t kv_count = ntohs(*(uint16_t*) kvs);
-  kvs += 2;
-  kvs_len -= 2;
+  uint32_t kv_count = len_size == 2 ? ntohs(*(uint16_t*) kvs) :
+                                      ntohl(*(uint32_t*) kvs);
+  kvs += len_size;
+  kvs_len -= len_size;
 
   ISpdyResponse* reply = [ISpdyResponse alloc];
   NSMutableDictionary* headers =
@@ -122,11 +148,12 @@
   while (kv_count > 0) {
     NSString* kv[] = { nil, nil };
     for (int i = 0; i < 2; i++) {
-      if (kvs_len < 2)
+      if (kvs_len < len_size)
         return nil;
-      uint16_t val_len  = ntohs(*(uint16_t*) kvs);
-      kvs += 2;
-      kvs_len -= 2;
+      uint32_t val_len = len_size == 2 ? ntohs(*(uint16_t*) kvs) :
+                                         ntohl(*(uint32_t*) kvs);
+      kvs += len_size;
+      kvs_len -= len_size;
 
       if (kvs_len < val_len)
         return nil;
@@ -137,7 +164,8 @@
       kvs_len -= val_len;
     }
 
-    if ([kv[0] isEqualToString: @"status"]) {
+    if ((version_ == kISpdyV2 && [kv[0] isEqualToString: @"status"]) ||
+        (version_ == kISpdyV3 && [kv[0] isEqualToString: @":status"])) {
       NSScanner* scanner = [NSScanner scannerWithString: kv[1]];
       NSInteger code;
       if (![scanner scanInteger: &code])
@@ -155,4 +183,43 @@
   return reply;
 }
 
+
+- (ISpdySettings*) parseSettings: (const uint8_t*) data
+                          length: (NSUInteger) length {
+  if (length < 4)
+    return nil;
+
+  uint32_t setting_count = ntohl(*(uint32_t*) data);
+  data += 4;
+  length -= 4;
+
+  if (length < setting_count * 8)
+    return nil;
+
+  ISpdySettings* settings = [ISpdySettings alloc];
+  while (setting_count > 0) {
+    uint32_t key = ntohl(*(uint32_t*) data) & 0x00ffffff;
+    uint32_t value = ntohl(*(uint32_t*) data + 4);
+
+    switch ((ISpdySetting) key) {
+      case kISpdySettingInitialWindowSize:
+        // NOTE: it can really be negative
+        settings.initial_window = (int32_t) value;
+        break;
+      default:
+        break;
+    }
+
+    data += 4;
+    length -= 4;
+    setting_count--;
+  }
+
+  return settings;
+}
+
+@end
+
+@implementation ISpdySettings
+// No-op, just to generate properties
 @end

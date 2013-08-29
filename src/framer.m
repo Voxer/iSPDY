@@ -5,11 +5,11 @@
 #import "ispdy.h"  // ISpdyVersion
 #import "compressor.h"  // ISpdyCompressor
 
+#define UNREACHABLE NSAssert(NO, @"Unreachable")
+
 @implementation ISpdyFramer
 
 - (id) init: (ISpdyVersion) version compressor: (ISpdyCompressor*) comp {
-  NSAssert(version == kISpdyV2, @"Only spdyv2 is supported now");
-
   self = [super init];
   if (!self)
     return self;
@@ -52,13 +52,26 @@
   NSUInteger cvalue_len =
       [value lengthOfBytesUsingEncoding: NSUTF8StringEncoding];
 
-  uint16_t ckey_repr = htons(ckey_len);
-  [pairs_ appendBytes: (const void*) &ckey_repr length: sizeof(ckey_repr)];
+  uint16_t len_repr16;
+  uint32_t len_repr32;
+
+  if (version_ == kISpdyV2) {
+    len_repr16 = htons(ckey_len);
+    [pairs_ appendBytes: (const void*) &len_repr16 length: sizeof(len_repr16)];
+  } else {
+    len_repr32 = htonl(ckey_len);
+    [pairs_ appendBytes: (const void*) &len_repr32 length: sizeof(len_repr32)];
+  }
   [pairs_ appendBytes: [key cStringUsingEncoding: NSUTF8StringEncoding]
                length: ckey_len];
 
-  uint16_t cvalue_repr = htons(cvalue_len);
-  [pairs_ appendBytes: (const void*) &cvalue_repr length: sizeof(cvalue_repr)];
+  if (version_ == kISpdyV2) {
+    len_repr16 = htons(cvalue_len);
+    [pairs_ appendBytes: (const void*) &len_repr16 length: sizeof(len_repr16)];
+  } else {
+    len_repr32 = htonl(cvalue_len);
+    [pairs_ appendBytes: (const void*) &len_repr32 length: sizeof(len_repr32)];
+  }
   [pairs_ appendBytes: [value cStringUsingEncoding: NSUTF8StringEncoding]
                length: cvalue_len];
 }
@@ -71,31 +84,58 @@
            headers: (NSDictionary*) headers {
   // Truncate pairs
   // Put some space for length ahead of time, we'll change it later
-  [pairs_ setLength: 2];
+  [pairs_ setLength: version_ == kISpdyV2 ? 2 : 4];
 
   // Put system headers
   __block NSInteger count = 4;
-  [self putValue: @"https" withKey: @"scheme"];
-  [self putValue: @"HTTP/1.1" withKey: @"version"];
-  [self putValue: method withKey: @"method"];
-  [self putValue: url withKey: @"url"];
+
+  if (version_ == kISpdyV2) {
+    [self putValue: @"https" withKey: @"scheme"];
+    [self putValue: @"HTTP/1.1" withKey: @"version"];
+    [self putValue: method withKey: @"method"];
+    [self putValue: url withKey: @"url"];
+  } else {
+    [self putValue: @"https" withKey: @":scheme"];
+    [self putValue: @"HTTP/1.1" withKey: @":version"];
+    [self putValue: method withKey: @":method"];
+    [self putValue: url withKey: @":path"];
+  }
 
   [headers enumerateKeysAndObjectsUsingBlock: ^(NSString* key,
                                                 NSString* val,
                                                 BOOL* stop) {
     NSString* lckey = [key lowercaseString];
-    if (![lckey isEqualToString: @"scheme"] &&
-        ![lckey isEqualToString: @"version"] &&
-        ![lckey isEqualToString: @"method"] &&
-        ![lckey isEqualToString: @"url"]) {
-      [self putValue: val withKey: lckey];
-      count++;
+
+    // Skip protocol headers
+    if (version_ == kISpdyV2) {
+      if (![lckey isEqualToString: @"scheme"] &&
+          ![lckey isEqualToString: @"version"] &&
+          ![lckey isEqualToString: @"method"] &&
+          ![lckey isEqualToString: @"url"]) {
+        [self putValue: val withKey: lckey];
+        count++;
+      }
+    } else {
+      if ([lckey isEqualToString: @"host"]) {
+        [self putValue: val withKey: @":host"];
+        count++;
+      } else if (![lckey isEqualToString: @":scheme"] &&
+          ![lckey isEqualToString: @":version"] &&
+          ![lckey isEqualToString: @":method"] &&
+          ![lckey isEqualToString: @":host"] &&
+          ![lckey isEqualToString: @":path"]) {
+        [self putValue: val withKey: lckey];
+        count++;
+      }
     }
   }];
 
   // Now insert a proper length
   uint8_t* data = [pairs_ mutableBytes];
-  *(uint16_t*) data = htons(count);
+  if (version_ == kISpdyV2)
+    *(uint16_t*) data = htons(count);
+  else
+    *(uint32_t*) data = htonl(count);
 
   // And compress pairs
   [comp_ deflate: pairs_];
@@ -107,7 +147,11 @@
   *(uint32_t*) (body + 4) = 0;  // Associated stream_id
 
   // Priority and unused
-  body[8] = (priority & 0x3) << 6;
+  if (version_ == kISpdyV2)
+    body[8] = (priority & 0x3) << 6;
+  else
+    body[8] = (priority & 0x7) << 5;
+
   body[9] = 0;
 
   [self controlHeader: kISpdySynStream
@@ -141,6 +185,37 @@
   *(uint32_t*) (body + 4) = htonl(code & 0x000000ff);
 
   [self controlHeader: kISpdyRstStream flags: 0 length: sizeof(body)];
+  [output_ appendBytes: (const void*) body length: sizeof(body)];
+}
+
+
+- (void) initialWindow: (uint32_t) window {
+  // V2 has endianness issue, don't support it
+  NSAssert(version_ != kISpdyV2, @"Settings frame unsupported in V2");
+
+  uint8_t body[12];
+
+  // Number of settings pairs
+  *(uint32_t*) body = htonl(1);
+
+  // Id and flag
+  *(uint32_t*) (body + 4) = htonl(kISpdySettingInitialWindowSize) & 0x00ffffff;
+  body[4] = 0;
+
+  // Value
+  *(uint32_t*) (body + 8) = htonl(window);
+
+  [self controlHeader: kISpdySettings flags: 0 length: sizeof(body)];
+  [output_ appendBytes: (const void*) body length: sizeof(body)];
+}
+
+
+- (void) windowUpdate: (uint32_t) stream_id update: (uint32_t) update {
+  uint8_t body[8];
+  *(uint32_t*) body = htonl(stream_id & 0x7fffffff);
+  *(uint32_t*) (body + 4) = htonl(update & 0x7fffffff);
+
+  [self controlHeader: kISpdyWindowUpdate flags: 0 length: sizeof(body)];
   [output_ appendBytes: (const void*) body length: sizeof(body)];
 }
 
