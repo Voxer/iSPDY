@@ -5,8 +5,8 @@
 #import "ispdy.h"  // ISpdyVersion
 #import "zlib.h"   // deflateInit2, inflateInit2 and friends
 
-#define ZLIB_BITS 11
-#define COMP_BUFFER_SIZE 4096
+static const NSInteger kZlibBits = 11;
+static const NSInteger kCompBufferSize = 4096;
 
 static const char spdy2_dict_[] =
     "optionsgetheadpostputdeletetraceacceptaccept-charsetaccept-encodingaccept-"
@@ -218,10 +218,10 @@ static const char spdy3_dict_[] = {
   deflateInit2(&deflate_,
                Z_DEFAULT_COMPRESSION,
                Z_DEFLATED,
-               ZLIB_BITS,
+               kZlibBits,
                8,
                Z_DEFAULT_STRATEGY);
-  inflateInit2(&inflate_, ZLIB_BITS);
+  inflateInit2(&inflate_, kZlibBits);
 
   const char* dict = version == kISpdyV2 ? spdy2_dict_ : spdy3_dict_;
 
@@ -233,7 +233,7 @@ static const char spdy3_dict_[] = {
   int r = deflateSetDictionary(&deflate_, dict_, dict_len_);
   NSAssert(r == Z_OK, @"deflateSetDictionary() failed with code %d", r);
 
-  output_ = [[NSMutableData alloc] initWithCapacity: COMP_BUFFER_SIZE];
+  output_ = [[NSMutableData alloc] initWithCapacity: kCompBufferSize];
 
   return self;
 }
@@ -256,7 +256,7 @@ static const char spdy3_dict_[] = {
   [output_ setLength: 0];
 
   // Set to initial length
-  [output_ setLength: COMP_BUFFER_SIZE];
+  [output_ setLength: kCompBufferSize];
 
   offset = 0;
   // TODO(indutny) fail gracefully, instead of assertions
@@ -286,7 +286,7 @@ static const char spdy3_dict_[] = {
 
     // Need to fit more data
     if (stream->avail_out == 0) {
-      [output_ increaseLengthBy: COMP_BUFFER_SIZE];
+      [output_ increaseLengthBy: kCompBufferSize];
       continue;
     }
   } while (stream->avail_in != 0);
