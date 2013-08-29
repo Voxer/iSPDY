@@ -391,11 +391,7 @@ static const NSInteger kInitialWindowSize = 65536;
 }
 
 
-- (void) handleParseError {
-  // TODO(indutny): Propagate error message here
-  NSError* err = [NSError errorWithDomain: @"spdy"
-                                     code: kISpdyErrParseError
-                                 userInfo: nil];
+- (void) handleParserError: (NSError*) err {
   return [self _handleError: err];
 }
 

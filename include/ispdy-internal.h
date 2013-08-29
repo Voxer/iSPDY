@@ -53,7 +53,7 @@ typedef enum {
                 body: (id) body
               is_fin: (BOOL) is_fin
            forStream: (uint32_t) stream_id;
-- (void) handleParseError;
+- (void) handleParserError: (NSError*) err;
 @end
 
 @interface ISpdySettings : NSObject

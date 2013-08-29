@@ -4,6 +4,14 @@
 // Forward-declarations
 @class ISpdyCompressor;
 
+typedef enum {
+  kISpdyParserErrInvalidVersion,
+  kISpdyParserErrRstOOB,
+  kISpdyParserErrKVsTooSmall,
+  kISpdyParserErrKeyLenOOB,
+  kISpdyParserErrKeyValueOOB,
+  kISpdyParserErrInvalidStatusHeader
+} ISpdyParserError;
 
 // SPDY Protocol parser class
 @interface ISpdyParser : NSObject {
@@ -24,6 +32,9 @@
 // times, if `data` contains multiple frames, or if start of one frame was
 // previously accumulated.
 - (void) execute: (const uint8_t*) data length: (NSUInteger) length;
+
+// Helper function
+- (void) error: (ISpdyParserError) err;
 
 // Parse SYN_REPLY's body
 - (ISpdyResponse*) parseSynReply: (const uint8_t*) data

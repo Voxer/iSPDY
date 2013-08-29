@@ -48,7 +48,7 @@
       uint16_t version = ntohs(*(uint16_t*) input) & 0x7fff;
       BOOL valid_version = version_ == kISpdyV2 ? version == 2 : version == 3;
       if (!valid_version)
-        return [self.delegate handleParseError];
+        return [self error: kISpdyParserErrInvalidVersion];
       frame_type = (ISpdyFrameType) ntohs(*(uint16_t*) (input + 2));
     }
     flags = input[4];
@@ -73,8 +73,10 @@
           frame_body = [self parseSynReply: input + 6 length: body_len - 6];
         else
           frame_body = [self parseSynReply: input + 4 length: body_len - 4];
+
+        // Error, but should be already handled by parseSynReply
         if (frame_body == nil)
-          return [self.delegate handleParseError];
+          return;
         break;
       case kISpdySettings:
         if (version_ == kISpdyV2) {
@@ -83,14 +85,16 @@
           break;
         }
         frame_body = [self parseSettings: input length: body_len];
+
+        // Should be handled by parseSettings
         if (frame_body == nil)
-          return [self.delegate handleParseError];
+          return;
         break;
       case kISpdyRstStream:
       case kISpdyWindowUpdate:
         {
           if (len < 8)
-            return [self.delegate handleParseError];
+            return [self error: kISpdyParserErrRstOOB];
           stream_id = ntohl(*(uint32_t*) input) & 0x7fffffff;
           uint32_t code = ntohl(*(uint32_t*) (input + 4));
 
@@ -130,10 +134,23 @@
   }
 }
 
+
+- (void) error: (ISpdyParserError) err {
+  NSError* error = [NSError errorWithDomain: @"spdy-parser"
+                                       code: err
+                                   userInfo: nil];
+  [self.delegate handleParserError: error];
+}
+
+
 - (ISpdyResponse*) parseSynReply: (const uint8_t*) data
                           length: (NSUInteger) length {
   NSData* compressed_kvs = [NSData dataWithBytes: data length: length];
-  [comp_ inflate: compressed_kvs];
+  if (![comp_ inflate: compressed_kvs]) {
+    [self.delegate handleParserError: [comp_ error]];
+    return nil;
+  }
+
   const char* kvs = [[comp_ output] bytes];
   NSUInteger kvs_len = [[comp_ output] length];
 
@@ -141,8 +158,10 @@
   NSUInteger len_size = version_ == kISpdyV2 ? 2 : 4;
 
   // Get count of pairs
-  if (kvs_len < len_size)
+  if (kvs_len < len_size) {
+    [self error: kISpdyParserErrKVsTooSmall];
     return nil;
+  }
   uint32_t kv_count = len_size == 2 ? ntohs(*(uint16_t*) kvs) :
                                       ntohl(*(uint32_t*) kvs);
   kvs += len_size;
@@ -155,15 +174,19 @@
   while (kv_count > 0) {
     NSString* kv[] = { nil, nil };
     for (int i = 0; i < 2; i++) {
-      if (kvs_len < len_size)
+      if (kvs_len < len_size) {
+        [self error: kISpdyParserErrKeyLenOOB];
         return nil;
+      }
       uint32_t val_len = len_size == 2 ? ntohs(*(uint16_t*) kvs) :
                                          ntohl(*(uint32_t*) kvs);
       kvs += len_size;
       kvs_len -= len_size;
 
-      if (kvs_len < val_len)
+      if (kvs_len < val_len) {
+        [self error: kISpdyParserErrKeyValueOOB];
         return nil;
+      }
       kv[i] = [[NSString alloc] initWithBytes: kvs
                                        length: val_len
                                      encoding: NSUTF8StringEncoding];
@@ -175,8 +198,10 @@
         (version_ == kISpdyV3 && [kv[0] isEqualToString: @":status"])) {
       NSScanner* scanner = [NSScanner scannerWithString: kv[1]];
       NSInteger code;
-      if (![scanner scanInteger: &code])
+      if (![scanner scanInteger: &code]) {
+        [self error: kISpdyParserErrInvalidStatusHeader];
         return nil;
+      }
 
       reply.code = code;
       reply.status = [kv[1] substringFromIndex: [scanner scanLocation] + 1];
