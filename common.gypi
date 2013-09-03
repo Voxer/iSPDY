@@ -47,7 +47,7 @@
       '<(sdk_dev_path)/Library/Frameworks',
     ],
     'conditions': [
-      ['sdk != "iphoneos"', {
+      ['sdk == "macosx"', {
         'conditions': [
           ['target_arch=="ia32"', {
             'xcode_settings': {'ARCHS': ['i386']},
