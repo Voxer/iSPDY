@@ -45,9 +45,7 @@ typedef enum {
 //
 // Should be used to initiate new request to the server, works only with
 // existing ISpdy connection.
-@interface ISpdyRequest : NSObject {
-  NSMutableArray* data_queue_;
-}
+@interface ISpdyRequest : NSObject
 
 @property (weak) id <ISpdyRequestDelegate> delegate;
 @property (weak) ISpdy* connection;
@@ -108,32 +106,28 @@ typedef enum {
 // Connects to server and holds underlying socket, parsing incoming data and
 // generating outgoing protocol data. Should be instantiated in order to
 // send requests to the server.
-@interface ISpdy : NSObject <NSStreamDelegate, ISpdyParserDelegate> {
-  ISpdyVersion version_;
-  NSInputStream* in_stream_;
-  NSOutputStream* out_stream_;
-  ISpdyCompressor* comp_;
-  ISpdyFramer* framer_;
-  ISpdyParser* parser_;
-
-  // Next stream's id
-  uint32_t stream_id_;
-  NSInteger initial_window_;
-
-  // Dictionary of all streams
-  NSMutableDictionary* streams_;
-
-  // Connection write buffer
-  NSMutableData* buffer_;
-}
+@interface ISpdy : NSObject <NSStreamDelegate, ISpdyParserDelegate>
 
 @property (weak) id <ISpdyDelegate> delegate;
 
 // Initialize connection to work with specified protocol version
-- (id) init: (ISpdyVersion) version;
+- (id) init: (ISpdyVersion) version
+       host: (NSString*) host
+       port: (UInt32) port
+     secure: (BOOL) secure;
+
+// Schedule connection in a run loop
+- (void) scheduleInRunLoop: (NSRunLoop*) loop forMode: (NSString*) mode;
+- (void) removeFromRunLoop: (NSRunLoop*) loop forMode: (NSString*) mode;
+
+// Set dispatch queue to run delegate callbacks
+- (void) setDelegateQueue: (dispatch_queue_t) queue;
 
 // Connect to remote server
-- (BOOL) connect: (NSString*) host port: (UInt32) port secure: (BOOL) secure;
+- (BOOL) connect;
+
+// Disconnect from remote server
+- (BOOL) close;
 
 // Send initialized request to the server
 - (void) send: (ISpdyRequest*) request;
@@ -150,5 +144,10 @@ typedef enum {
 - (void) _writeData: (NSData*) data to: (ISpdyRequest*) request;
 - (void) _rst: (uint32_t) stream_id code: (uint8_t) code;
 - (void) _error: (ISpdyRequest*) request code: (ISpdyErrorCode) code;
+
+// (Internal) dispatch delegate callback
+- (void) _delegateDispatch: (void (^)()) block;
+// (Internal) dispatch connection callback
+- (void) _connectionDispatch: (void (^)()) block;
 
 @end

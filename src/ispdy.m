@@ -1,16 +1,47 @@
 #import <CoreFoundation/CFStream.h>
+#import <dispatch/dispatch.h>  // dispatch_queue_t
 #import <string.h>  // memmove
 
 #import "ispdy.h"
 #import "compressor.h"  // ISpdyCompressor
 #import "framer.h"  // ISpdyFramer
+#import "loop.h"  // ISpdyLoop
 #import "parser.h"  // ISpdyParser
 
 static const NSInteger kInitialWindowSize = 65536;
 
-@implementation ISpdy
+@implementation ISpdy {
+  ISpdyVersion version_;
+  NSInputStream* in_stream_;
+  NSOutputStream* out_stream_;
+  ISpdyCompressor* comp_;
+  ISpdyFramer* framer_;
+  ISpdyParser* parser_;
 
-- (id) init: (ISpdyVersion) version {
+  // Run loop
+  NSMutableSet* scheduled_loops_;
+
+  // Next stream's id
+  uint32_t stream_id_;
+  NSInteger initial_window_;
+
+  // Dictionary of all streams
+  NSMutableDictionary* streams_;
+
+  // Connection write buffer
+  NSMutableData* buffer_;
+
+  // Dispatch queue for invoking methods on delegates
+  dispatch_queue_t delegate_queue_;
+
+  // Dispatch queue for invoking methods on parser loop
+  dispatch_queue_t connection_queue_;
+}
+
+- (id) init: (ISpdyVersion) version
+       host: (NSString*) host
+       port: (UInt32) port
+     secure: (BOOL) secure {
   self = [super init];
   if (!self)
     return self;
@@ -28,17 +59,10 @@ static const NSInteger kInitialWindowSize = 65536;
 
   buffer_ = [[NSMutableData alloc] initWithCapacity: 4096];
 
-  return self;
-}
+  // Initialize storage for loops
+  scheduled_loops_ = [NSMutableSet setWithCapacity: 1];
 
-
-- (void) dealloc {
-  [in_stream_ close];
-  [out_stream_ close];
-}
-
-
-- (BOOL) connect: (NSString*) host port: (UInt32) port secure: (BOOL) secure {
+  // Initialize connection
   CFReadStreamRef cf_in_stream;
   CFWriteStreamRef cf_out_stream;
 
@@ -55,21 +79,78 @@ static const NSInteger kInitialWindowSize = 65536;
   if (in_stream_ == nil || out_stream_ == nil) {
     in_stream_ = nil;
     out_stream_ = nil;
-    return NO;
+    return nil;
   }
-
-  NSRunLoop* loop = [NSRunLoop currentRunLoop];
 
   [in_stream_ setDelegate: self];
   [out_stream_ setDelegate: self];
-  [in_stream_ scheduleInRunLoop: loop forMode: NSDefaultRunLoopMode];
-  [out_stream_ scheduleInRunLoop: loop forMode: NSDefaultRunLoopMode];
+
+  // Initialize encryption
   if (secure) {
     [in_stream_ setProperty: NSStreamSocketSecurityLevelNegotiatedSSL
                      forKey: NSStreamSocketSecurityLevelKey];
     [out_stream_ setProperty: NSStreamSocketSecurityLevelNegotiatedSSL
                       forKey: NSStreamSocketSecurityLevelKey];
   }
+
+  // Initialize dispatch queue
+  delegate_queue_ = dispatch_get_main_queue();
+  NSAssert(delegate_queue_ != NULL, @"Failed to get main queue");
+  connection_queue_ = dispatch_queue_create("com.voxer.ispdy",
+                                            DISPATCH_QUEUE_SERIAL);
+  NSAssert(connection_queue_ != NULL, @"Failed to get main queue");
+
+
+  return self;
+}
+
+
+- (void) dealloc {
+  [self close];
+  delegate_queue_ = NULL;
+  connection_queue_ = NULL;
+}
+
+
+- (void) scheduleInRunLoop: (NSRunLoop*) loop forMode: (NSString*) mode {
+  [scheduled_loops_ addObject: loop];
+
+  [in_stream_ scheduleInRunLoop: loop forMode: mode];
+  [out_stream_ scheduleInRunLoop: loop forMode: mode];
+}
+
+
+- (void) removeFromRunLoop: (NSRunLoop*) loop forMode: (NSString*) mode {
+  [scheduled_loops_ removeObject: loop];
+
+  [in_stream_ removeFromRunLoop: loop forMode: mode];
+  [out_stream_ removeFromRunLoop: loop forMode: mode];
+}
+
+
+- (void) setDelegateQueue: (dispatch_queue_t) queue {
+  NSAssert(queue != NULL, @"Empty delegate queue!");
+  delegate_queue_ = queue;
+}
+
+
+- (void) _delegateDispatch: (void (^)()) block {
+  dispatch_async(delegate_queue_, block);
+}
+
+
+- (void) _connectionDispatch: (void (^)()) block {
+  dispatch_async(connection_queue_, block);
+}
+
+
+- (BOOL) connect {
+  /* Use default (off-thread) NS loop, if no was provided by user */
+  if ([scheduled_loops_ count] == 0) {
+    [self scheduleInRunLoop: [ISpdyLoop defaultLoop]
+                    forMode: NSDefaultRunLoopMode];
+  }
+
   [in_stream_ open];
   [out_stream_ open];
 
@@ -79,6 +160,19 @@ static const NSInteger kInitialWindowSize = 65536;
     [framer_ initialWindow: kInitialWindowSize];
     [self _writeRaw: [framer_ output]];
   }
+
+  return YES;
+}
+
+
+- (BOOL) close {
+  if (in_stream_ == nil || out_stream_ == nil)
+    return NO;
+
+  [in_stream_ close];
+  [out_stream_ close];
+  in_stream_ = nil;
+  out_stream_ = nil;
 
   return YES;
 }
@@ -110,24 +204,24 @@ static const NSInteger kInitialWindowSize = 65536;
 
 - (void) _handleError: (NSError*) err {
   // Already closed - ignore
-  if (in_stream_ == nil || out_stream_ == nil)
+  if (![self close])
     return;
-  [in_stream_ close];
-  [out_stream_ close];
-  in_stream_ = nil;
-  out_stream_ = nil;
 
   // Close all streams
   NSDictionary* streams = streams_;
   streams_ = nil;
   for (NSNumber* stream_id in streams) {
     ISpdyRequest* req = [streams objectForKey: stream_id];
-    [req.delegate request: req handleError: err];
-    [req.delegate handleEnd: req];
+    [self _delegateDispatch: ^{
+      [req.delegate request: req handleError: err];
+      [req.delegate handleEnd: req];
+    }];
   }
 
   // Fire global error
-  [self.delegate connection: self handleError: err];
+  [self _delegateDispatch: ^{
+    [self.delegate connection: self handleError: err];
+  }];
 }
 
 
@@ -136,31 +230,34 @@ static const NSInteger kInitialWindowSize = 65536;
 
   if (request.connection != nil)
     return;
-  request.stream_id = stream_id_;
   request.connection = self;
   request.window_in = initial_window_;
   request.window_out = kInitialWindowSize;
-  stream_id_ += 2;
-
-  [framer_ clear];
-  [framer_ synStream: request.stream_id
-            priority: 0
-              method: request.method
-                  to: request.url
-             headers: request.headers];
-  [self _writeRaw: [framer_ output]];
 
   NSNumber* request_key = [NSNumber numberWithUnsignedInt: request.stream_id];
   [streams_ setObject: request forKey: request_key];
+
+  dispatch_async(connection_queue_, ^{
+    request.stream_id = stream_id_;
+    stream_id_ += 2;
+
+    [framer_ clear];
+    [framer_ synStream: request.stream_id
+              priority: 0
+                method: request.method
+                    to: request.url
+               headers: request.headers];
+    [self _writeRaw: [framer_ output]];
+  });
 }
 
 
 - (void) _writeData: (NSData*) data to: (ISpdyRequest*) request {
-  NSAssert(request.connection != nil, @"Request was closed");
-
   NSData* pending = data;
   NSInteger pending_length = [pending length];
   NSData* rest = nil;
+
+  NSAssert(request.connection != nil, @"Request was closed");
 
   if (request.seen_response && request.window_out != 0) {
     // Perform flow control
@@ -208,16 +305,20 @@ static const NSInteger kInitialWindowSize = 65536;
 
 - (void) _error: (ISpdyRequest*) request code: (ISpdyErrorCode) code {
   [self _rst: request.stream_id code: code];
-  NSError* err = [NSError errorWithDomain: @"spdy"
-                                     code: code
-                                 userInfo: nil];
-  [request.delegate request: request handleError: err];
+
+  [self _delegateDispatch: ^{
+    NSError* err = [NSError errorWithDomain: @"spdy"
+                                       code: code
+                                   userInfo: nil];
+    [request.delegate request: request handleError: err];
+  }];
 }
 
 
 - (void) _end: (ISpdyRequest*) request {
   NSAssert(request.connection != nil, @"Request was already closed");
-  NSAssert(request.closed_by_us == NO, @"Request already awaiting other side");
+  NSAssert(request.closed_by_us == NO,
+           @"Request already awaiting other side");
   NSAssert(request.pending_closed_by_us == NO,
            @"Request already awaiting other side");
 
@@ -251,47 +352,49 @@ static const NSInteger kInitialWindowSize = 65536;
 // NSSocket delegate methods
 
 - (void) stream: (NSStream*) stream handleEvent: (NSStreamEvent) event {
-  if (event == NSStreamEventErrorOccurred)
-    return [self _handleError: [stream streamError]];
+  [self _connectionDispatch: ^{
+    if (event == NSStreamEventErrorOccurred)
+      return [self _handleError: [stream streamError]];
 
-  if (event == NSStreamEventEndEncountered) {
-    NSError* err = [NSError errorWithDomain: @"spdy"
-                                       code: kISpdyErrConnectionEnd
-                                   userInfo: nil];
-    return [self _handleError: err];
-  }
-
-  if (event == NSStreamEventHasSpaceAvailable && [buffer_ length] > 0) {
-    NSAssert(out_stream_ == stream, @"Write event on input stream?!");
-
-    // Socket available for write
-    NSInteger r = [out_stream_ write: [buffer_ bytes]
-                           maxLength: [buffer_ length]];
-    if (r == -1)
-      return [self _handleError: [out_stream_ streamError]];
-
-    // Shift data
-    if (r < (NSInteger) [buffer_ length]) {
-      void* bytes = [buffer_ mutableBytes];
-      memmove(bytes, bytes + r, [buffer_ length] - r);
+    if (event == NSStreamEventEndEncountered) {
+      NSError* err = [NSError errorWithDomain: @"spdy"
+                                         code: kISpdyErrConnectionEnd
+                                     userInfo: nil];
+      return [self _handleError: err];
     }
-    // Truncate
-    [buffer_ setLength: [buffer_ length] - r];
-  } else if (event == NSStreamEventHasBytesAvailable) {
-    NSAssert(in_stream_ == stream, @"Read event on output stream?!");
 
-    // Socket available for read
-    uint8_t buf[kInitialWindowSize];
-    while ([in_stream_ hasBytesAvailable]) {
-      NSInteger r = [in_stream_ read: buf maxLength: sizeof(buf)];
-      if (r == 0)
-        break;
-      else if (r < 0)
-        return [self _handleError: [in_stream_ streamError]];
+    if (event == NSStreamEventHasSpaceAvailable && [buffer_ length] > 0) {
+      NSAssert(out_stream_ == stream, @"Write event on input stream?!");
 
-      [parser_ execute: buf length: (NSUInteger) r];
+      // Socket available for write
+      NSInteger r = [out_stream_ write: [buffer_ bytes]
+                             maxLength: [buffer_ length]];
+      if (r == -1)
+        return [self _handleError: [out_stream_ streamError]];
+
+      // Shift data
+      if (r < (NSInteger) [buffer_ length]) {
+        void* bytes = [buffer_ mutableBytes];
+        memmove(bytes, bytes + r, [buffer_ length] - r);
+      }
+      // Truncate
+      [buffer_ setLength: [buffer_ length] - r];
+    } else if (event == NSStreamEventHasBytesAvailable) {
+      NSAssert(in_stream_ == stream, @"Read event on output stream?!");
+
+      // Socket available for read
+      uint8_t buf[kInitialWindowSize];
+      while ([in_stream_ hasBytesAvailable]) {
+        NSInteger r = [in_stream_ read: buf maxLength: sizeof(buf)];
+        if (r == 0)
+          break;
+        else if (r < 0)
+          return [self _handleError: [in_stream_ streamError]];
+
+        [parser_ execute: buf length: (NSUInteger) r];
+      }
     }
-  }
+  }];
 }
 
 // Parser delegate methods
@@ -305,7 +408,8 @@ static const NSInteger kInitialWindowSize = 65536;
   if (type == kISpdySynReply ||
       type == kISpdyRstStream ||
       type == kISpdyData) {
-    req = [streams_ objectForKey: [NSNumber numberWithUnsignedInt: stream_id]];
+    req =
+        [streams_ objectForKey: [NSNumber numberWithUnsignedInt: stream_id]];
 
     // If stream isn't found - notify server about it,
     // but don't reply with RST for RST to prevent echoing each other
@@ -326,36 +430,46 @@ static const NSInteger kInitialWindowSize = 65536;
 
   switch (type) {
     case kISpdyData:
-      // Perform flow-control
-      if (version_ != kISpdyV2) {
-        req.window_in -= [body length];
+      {
+        // Perform flow-control
+        if (version_ != kISpdyV2) {
+          req.window_in -= [body length];
 
-        // Send WINDOW_UPDATE if exhausted
-        if (req.window_in <= 0) {
-          uint32_t delta = kInitialWindowSize - req.window_in;
-          [framer_ clear];
-          [framer_ windowUpdate: stream_id update: delta];
-          [self _writeRaw: [framer_ output]];
-          req.window_in += delta;
+          // Send WINDOW_UPDATE if exhausted
+          if (req.window_in <= 0) {
+            uint32_t delta = kInitialWindowSize - req.window_in;
+            [framer_ clear];
+            [framer_ windowUpdate: stream_id update: delta];
+            [self _writeRaw: [framer_ output]];
+            req.window_in += delta;
+          }
         }
+        [self _delegateDispatch: ^{
+          [req.delegate request: req handleInput: (NSData*) body];
+        }];
       }
-      [req.delegate request: req handleInput: (NSData*) body];
       break;
     case kISpdySynReply:
-      if (req.seen_response)
-        return [self _error: req code: kISpdyErrDoubleResponse];
-      req.seen_response = YES;
-      [req.delegate request: req handleResponse: body];
+      {
+        if (req.seen_response)
+          return [self _error: req code: kISpdyErrDoubleResponse];
+        req.seen_response = YES;
+        [self _delegateDispatch: ^{
+          [req.delegate request: req handleResponse: body];
+        }];
 
-      // Write queued data
-      [req _unqueue];
+        // Write queued data
+        [req _unqueue];
+      }
       break;
     case kISpdyRstStream:
       {
         NSError* err = [NSError errorWithDomain: @"spdy"
                                            code: kISpdyErrRst
                                        userInfo: nil];
-        [req.delegate request: req handleError: err];
+        [self _delegateDispatch: ^{
+          [req.delegate request: req handleError: err];
+        }];
         [req close];
       }
       break;
@@ -398,7 +512,9 @@ static const NSInteger kInitialWindowSize = 65536;
 @end
 
 
-@implementation ISpdyRequest
+@implementation ISpdyRequest {
+  NSMutableArray* data_queue_;
+}
 
 - (id) init: (NSString*) method url: (NSString*) url {
   self = [self init];
@@ -409,23 +525,28 @@ static const NSInteger kInitialWindowSize = 65536;
 
 
 - (void) writeData: (NSData*) data {
-  [self.connection _writeData: data to: self];
+  [self.connection _connectionDispatch: ^{
+    [self.connection _writeData: data to: self];
+  }];
 }
 
 
 - (void) writeString: (NSString*) str {
-  [self.connection _writeData: [str dataUsingEncoding: NSUTF8StringEncoding]
-                           to: self];
+  [self writeData: [str dataUsingEncoding: NSUTF8StringEncoding]];
 }
 
 
 - (void) end {
-  [self.connection _end: self];
+  [self.connection _connectionDispatch: ^{
+    [self.connection _end: self];
+  }];
 }
 
 
 - (void) close {
-  [self.connection _close: self];
+  [self.connection _connectionDispatch: ^{
+    [self.connection _close: self];
+  }];
 }
 
 
@@ -433,7 +554,9 @@ static const NSInteger kInitialWindowSize = 65536;
   if (self.connection == nil)
     return;
   if (self.closed_by_us && self.closed_by_them) {
-    [self.delegate handleEnd: self];
+    [self.connection _delegateDispatch: ^{
+      [self.delegate handleEnd: self];
+    }];
     [self close];
   }
 }

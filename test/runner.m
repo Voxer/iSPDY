@@ -17,8 +17,12 @@ describe(@"ISpdy server", ^{
 
   context(@"sending requests to echo server", ^{
     void (^pipe)(ISpdyVersion, NSData*) = ^(ISpdyVersion v, NSData* data) {
-      ISpdy* conn = [[ISpdy alloc] init: v];
-      BOOL r = [conn connect:@"localhost" port:3232 secure: NO];
+      ISpdy* conn = [[ISpdy alloc] init: v
+                                   host: @"localhost"
+                                   port:3232
+                                 secure: NO];
+
+      BOOL r = [conn connect];
       [[theValue(r) should] equal:theValue(YES)];
 
       __block BOOL got_response = NO;
@@ -97,7 +101,7 @@ describe(@"ISpdy server", ^{
 
       it(@"should return big body that was sent", ^{
         int count = 100 * 1024;
-        NSData* str = [@"hello world" dataUsingEncoding: NSUTF8StringEncoding];
+        NSData* str = [@"hello world\n" dataUsingEncoding: NSUTF8StringEncoding];
         NSMutableData* body =
             [NSMutableData dataWithCapacity: [str length] * count];
         for (int i = 0; i < count; i++) {

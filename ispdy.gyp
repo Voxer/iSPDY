@@ -17,6 +17,7 @@
       "src/ispdy.m",
       "src/compressor.m",
       "src/framer.m",
+      "src/loop.m",
       "src/parser.m",
     ],
     "xcode_settings": {
