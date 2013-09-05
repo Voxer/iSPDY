@@ -37,10 +37,24 @@
             "action_name": "link_with_zlib",
             "conditions": [
               ["GENERATOR == 'xcode'", {
-                "inputs": [
-                  "<(PRODUCT_DIR)/libispdy.a",
-                  "deps/zlib/build/<(CONFIGURATION_NAME)/libchrome_zlib.a",
-                ],
+                "conditions": [["sdk.startswith('iphoneos')", {
+                  "inputs": [
+                    "<(PRODUCT_DIR)/libispdy.a",
+                    "deps/zlib/build/<(CONFIGURATION_NAME)-iphoneos/libchrome_zlib.a",
+                  ],
+                }, {
+                  "conditions": [["sdk.startswith('iphonesimulator')", {
+                    "inputs": [
+                      "<(PRODUCT_DIR)/libispdy.a",
+                      "deps/zlib/build/<(CONFIGURATION_NAME)-iphonesimulator/libchrome_zlib.a",
+                    ],
+                  }, {
+                    "inputs": [
+                      "<(PRODUCT_DIR)/libispdy.a",
+                      "deps/zlib/build/<(CONFIGURATION_NAME)/libchrome_zlib.a",
+                    ],
+                  }]],
+                }]],
               }, {
                 "inputs": [
                   "<(PRODUCT_DIR)/libispdy.a",
