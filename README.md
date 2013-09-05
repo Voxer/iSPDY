@@ -8,10 +8,14 @@ spdy-ios
 #import <ispdy.h>
 
 int main() {
-  ISpdy* conn = [[ISpdy alloc] init: kISpdyV2];
-  [conn connect: @"voxer.com" port:443 secure: YES];
+  ISpdy* conn = [[ISpdy alloc] init: kISpdyV3
+                               host: @"voxer.com"
+                               port: 443
+                             secure: YES];
 
   ISpdyRequest* req = [[ISpdyRequest alloc] init: @"POST" url: @"/"];
+  [conn send: req];
+
   [req writeString: @"omg this is spdy body"];
   [req writeString: @"and another chunk"];
   [req end];
