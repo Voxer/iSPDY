@@ -49,7 +49,7 @@ typedef enum {
 @interface ISpdyRequest : NSObject
 
 @property (weak) id <ISpdyRequestDelegate> delegate;
-@property (weak) ISpdy* connection;
+@property ISpdy* connection;
 @property NSString* method;
 @property NSString* url;
 @property NSDictionary* headers;
