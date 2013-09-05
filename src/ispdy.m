@@ -542,6 +542,9 @@ static const NSInteger kInitialWindowSize = 65536;
 
 
 - (void) writeData: (NSData*) data {
+  if (self.connection == nil)
+    return [self _queueData: data];
+
   [self.connection _connectionDispatch: ^{
     [self.connection _writeData: data to: self];
   }];
