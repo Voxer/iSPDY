@@ -248,10 +248,10 @@ static const NSInteger kInitialWindowSize = 65536;
   if (request.connection != nil)
     return;
   request.connection = self;
-  request.window_in = initial_window_;
-  request.window_out = kInitialWindowSize;
 
   [self _connectionDispatch: ^{
+    request.window_in = initial_window_;
+    request.window_out = kInitialWindowSize;
     request.stream_id = stream_id_;
     stream_id_ += 2;
 
@@ -265,6 +265,9 @@ static const NSInteger kInitialWindowSize = 65536;
                     to: request.url
                headers: request.headers];
     [self _writeRaw: [framer_ output]];
+
+    // Send body if accumulated
+    [request _unqueue];
   }];
 }
 
@@ -474,9 +477,6 @@ static const NSInteger kInitialWindowSize = 65536;
         [self _delegateDispatch: ^{
           [req.delegate request: req handleResponse: body];
         }];
-
-        // Write queued data
-        [req _unqueue];
       }
       break;
     case kISpdyRstStream:
