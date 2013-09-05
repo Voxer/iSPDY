@@ -19,6 +19,7 @@ static const NSInteger kInitialWindowSize = 65536;
   ISpdyParser* parser_;
 
   // Run loop
+  BOOL on_ispdy_loop_;
   NSMutableSet* scheduled_loops_;
 
   // Next stream's id
@@ -107,6 +108,16 @@ static const NSInteger kInitialWindowSize = 65536;
 
 - (void) dealloc {
   [self close];
+  if (on_ispdy_loop_) {
+    [self removeFromRunLoop: [ISpdyLoop defaultLoop]
+                    forMode: NSDefaultRunLoopMode];
+  }
+
+  NSError* err = [NSError errorWithDomain: @"spdy"
+                                     code: kISpdyErrDealloc
+                                 userInfo: nil];
+  [self _closeStreams: err];
+
   delegate_queue_ = NULL;
   connection_queue_ = NULL;
 }
@@ -147,6 +158,7 @@ static const NSInteger kInitialWindowSize = 65536;
 - (BOOL) connect {
   /* Use default (off-thread) NS loop, if no was provided by user */
   if ([scheduled_loops_ count] == 0) {
+    on_ispdy_loop_ = YES;
     [self scheduleInRunLoop: [ISpdyLoop defaultLoop]
                     forMode: NSDefaultRunLoopMode];
   }
@@ -207,6 +219,16 @@ static const NSInteger kInitialWindowSize = 65536;
   if (![self close])
     return;
 
+  [self _closeStreams: err];
+
+  // Fire global error
+  [self _delegateDispatch: ^{
+    [self.delegate connection: self handleError: err];
+  }];
+}
+
+
+- (void) _closeStreams: (NSError*) err {
   // Close all streams
   NSDictionary* streams = streams_;
   streams_ = nil;
@@ -217,11 +239,6 @@ static const NSInteger kInitialWindowSize = 65536;
       [req.delegate handleEnd: req];
     }];
   }
-
-  // Fire global error
-  [self _delegateDispatch: ^{
-    [self.delegate connection: self handleError: err];
-  }];
 }
 
 
@@ -234,12 +251,12 @@ static const NSInteger kInitialWindowSize = 65536;
   request.window_in = initial_window_;
   request.window_out = kInitialWindowSize;
 
-  NSNumber* request_key = [NSNumber numberWithUnsignedInt: request.stream_id];
-  [streams_ setObject: request forKey: request_key];
-
-  dispatch_async(connection_queue_, ^{
+  [self _connectionDispatch: ^{
     request.stream_id = stream_id_;
     stream_id_ += 2;
+
+    NSNumber* request_key = [NSNumber numberWithUnsignedInt: request.stream_id];
+    [streams_ setObject: request forKey: request_key];
 
     [framer_ clear];
     [framer_ synStream: request.stream_id
@@ -248,7 +265,7 @@ static const NSInteger kInitialWindowSize = 65536;
                     to: request.url
                headers: request.headers];
     [self _writeRaw: [framer_ output]];
-  });
+  }];
 }
 
 
@@ -352,6 +369,7 @@ static const NSInteger kInitialWindowSize = 65536;
 // NSSocket delegate methods
 
 - (void) stream: (NSStream*) stream handleEvent: (NSStreamEvent) event {
+  NSLog(@"handleEvent %@ %d", self, event);
   [self _connectionDispatch: ^{
     if (event == NSStreamEventErrorOccurred)
       return [self _handleError: [stream streamError]];

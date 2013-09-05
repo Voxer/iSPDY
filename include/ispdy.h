@@ -18,6 +18,7 @@ typedef enum {
 // Possible error codes in NSError with domain @"spdy"
 typedef enum {
   kISpdyErrConnectionEnd,
+  kISpdyErrDealloc,
   kISpdyErrNoSuchStream,
   kISpdyErrRst,
   kISpdyErrParseError,
@@ -137,6 +138,9 @@ typedef enum {
 
 // (Internal) Handle global errors
 - (void) _handleError: (NSError*) err;
+
+// (Internal) Close all streams and send error to each of them
+- (void) _closeStreams: (NSError*) err;
 
 // (Mostly internal) see ISpdyRequest for description
 - (void) _end: (ISpdyRequest*) request;
