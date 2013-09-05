@@ -26,7 +26,10 @@
   }, {
     "target_name": "ispdy-bundled",
     "type": "none",
-    "dependencies": [ "ispdy" ],
+    "dependencies": [
+      "ispdy",
+      "deps/zlib/zlib.gyp:zlib",
+    ],
     "conditions": [
       ["library == 'static_library'", {
         "actions": [
@@ -36,7 +39,7 @@
               ["GENERATOR == 'xcode'", {
                 "inputs": [
                   "<(PRODUCT_DIR)/libispdy.a",
-                  "deps/zlib/build/Release/libchrome_zlib.a",
+                  "deps/zlib/build/<(CONFIGURATION_NAME)/libchrome_zlib.a",
                 ],
               }, {
                 "inputs": [
