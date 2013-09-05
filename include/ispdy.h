@@ -1,4 +1,3 @@
-#import <CoreFoundation/CFStream.h>
 #import <Foundation/Foundation.h>
 #import "ispdy-internal.h"  // Common internal parts
 
@@ -114,6 +113,15 @@ typedef enum {
 // Initialize connection to work with specified protocol version
 - (id) init: (ISpdyVersion) version
        host: (NSString*) host
+       port: (UInt32) port
+     secure: (BOOL) secure;
+
+// Extended version of init, with `hostname` argument added.
+// Use it if you need to specify for SSL certificate validations if `hostname`
+// differs with `host`.
+- (id) init: (ISpdyVersion) version
+       host: (NSString*) host
+   hostname: (NSString*) hostname
        port: (UInt32) port
      secure: (BOOL) secure;
 

@@ -20,6 +20,11 @@
       "src/loop.m",
       "src/parser.m",
     ],
+    "link_settings": {
+      "libraries": [
+        "CoreServices.framework",
+      ],
+    },
     "xcode_settings": {
       "CLANG_ENABLE_OBJC_ARC": "YES",
     },

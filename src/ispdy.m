@@ -1,4 +1,5 @@
 #import <CoreFoundation/CFStream.h>
+#import <CFNetwork/CFSocketStream.h>
 #import <dispatch/dispatch.h>  // dispatch_queue_t
 #import <string.h>  // memmove
 
@@ -41,6 +42,7 @@ static const NSInteger kInitialWindowSize = 65536;
 
 - (id) init: (ISpdyVersion) version
        host: (NSString*) host
+   hostname: (NSString*) hostname
        port: (UInt32) port
      secure: (BOOL) secure {
   self = [super init];
@@ -92,6 +94,18 @@ static const NSInteger kInitialWindowSize = 65536;
                      forKey: NSStreamSocketSecurityLevelKey];
     [out_stream_ setProperty: NSStreamSocketSecurityLevelNegotiatedSSL
                       forKey: NSStreamSocketSecurityLevelKey];
+    if (![host isEqualToString: hostname]) {
+      NSString* peer_name = (__bridge NSString*) kCFStreamSSLPeerName;
+      NSString* ssl_settings =
+          (__bridge NSString*) kCFStreamPropertySSLSettings;
+      NSDictionary* settings =
+          [NSDictionary dictionaryWithObject: hostname forKey: peer_name];
+      if (![in_stream_ setProperty: settings forKey: ssl_settings] ||
+          ![out_stream_ setProperty: settings forKey: ssl_settings]) {
+        NSAssert(NO, @"Failed to set SSL hostname");
+      }
+    }
+
   }
 
   // Initialize dispatch queue
@@ -103,6 +117,17 @@ static const NSInteger kInitialWindowSize = 65536;
 
 
   return self;
+}
+
+- (id) init: (ISpdyVersion) version
+       host: (NSString*) host
+       port: (UInt32) port
+     secure: (BOOL) secure {
+  return [self init: version
+               host: host
+           hostname: host
+               port: port
+             secure: secure];
 }
 
 
