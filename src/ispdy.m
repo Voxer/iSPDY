@@ -369,7 +369,6 @@ static const NSInteger kInitialWindowSize = 65536;
 // NSSocket delegate methods
 
 - (void) stream: (NSStream*) stream handleEvent: (NSStreamEvent) event {
-  NSLog(@"handleEvent %@ %d", self, event);
   [self _connectionDispatch: ^{
     if (event == NSStreamEventErrorOccurred)
       return [self _handleError: [stream streamError]];
