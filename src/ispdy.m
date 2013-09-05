@@ -276,7 +276,7 @@ static const NSInteger kInitialWindowSize = 65536;
 
   NSAssert(request.connection != nil, @"Request was closed");
 
-  if (request.seen_response && request.window_out != 0) {
+  if (request.window_out != 0) {
     // Perform flow control
     if (version_ != kISpdyV2) {
       // Only part of the data could be written now
@@ -343,7 +343,7 @@ static const NSInteger kInitialWindowSize = 65536;
   [framer_ dataFrame: request.stream_id
                  fin: 1
             withData: nil];
-  if (request.seen_response && ![request _hasQueuedData]) {
+  if (![request _hasQueuedData]) {
     request.closed_by_us = YES;
     [self _writeRaw: [framer_ output]];
     [request _tryClose];
