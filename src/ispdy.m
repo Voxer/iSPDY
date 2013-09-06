@@ -22,6 +22,7 @@ static const NSInteger kInitialWindowSize = 65536;
   // Run loop
   BOOL on_ispdy_loop_;
   NSMutableSet* scheduled_loops_;
+  NSTimer* timeout_;
 
   // Next stream's id
   uint32_t stream_id_;
@@ -362,17 +363,16 @@ static const NSInteger kInitialWindowSize = 65536;
 
 
 - (void) _end: (ISpdyRequest*) request {
-  NSAssert(request.connection != nil, @"Request was already closed");
   NSAssert(request.closed_by_us == NO,
            @"Request already awaiting other side");
   NSAssert(request.pending_closed_by_us == NO,
            @"Request already awaiting other side");
 
-  [framer_ clear];
-  [framer_ dataFrame: request.stream_id
-                 fin: 1
-            withData: nil];
   if (![request _hasQueuedData]) {
+    [framer_ clear];
+    [framer_ dataFrame: request.stream_id
+                   fin: 1
+              withData: nil];
     request.closed_by_us = YES;
     [self _writeRaw: [framer_ output]];
     [request _tryClose];
@@ -583,6 +583,11 @@ static const NSInteger kInitialWindowSize = 65536;
 
 
 - (void) end {
+  // Request was either closed, or not opened yet, queue end.
+  if (self.connection == nil) {
+    self.pending_closed_by_us = YES;
+    return;
+  }
   [self.connection _connectionDispatch: ^{
     [self.connection _end: self];
   }];
