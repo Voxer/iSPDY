@@ -490,9 +490,11 @@ static const NSInteger kInitialWindowSize = 65536;
             req.window_in += delta;
           }
         }
-        [self _delegateDispatch: ^{
-          [req.delegate request: req handleInput: (NSData*) body];
-        }];
+        if ([body length] != 0) {
+          [self _delegateDispatch: ^{
+            [req.delegate request: req handleInput: (NSData*) body];
+          }];
+        }
       }
       break;
     case kISpdySynReply:
