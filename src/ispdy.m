@@ -595,6 +595,7 @@ static const NSInteger kInitialWindowSize = 65536;
 
 
 - (void) close {
+  NSAssert(self.connection != nil, @"Request closed or not sent");
   [self.connection _connectionDispatch: ^{
     [self.connection _close: self];
   }];
