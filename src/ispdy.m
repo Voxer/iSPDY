@@ -15,7 +15,8 @@ static const NSInteger kInitialWindowSize = 65536;
   ISpdyVersion version_;
   NSInputStream* in_stream_;
   NSOutputStream* out_stream_;
-  ISpdyCompressor* comp_;
+  ISpdyCompressor* in_comp_;
+  ISpdyCompressor* out_comp_;
   ISpdyFramer* framer_;
   ISpdyParser* parser_;
 
@@ -51,9 +52,10 @@ static const NSInteger kInitialWindowSize = 65536;
     return self;
 
   version_ = version;
-  comp_ = [[ISpdyCompressor alloc] init: version];
-  framer_ = [[ISpdyFramer alloc] init: version compressor: comp_];
-  parser_ = [[ISpdyParser alloc] init: version compressor: comp_];
+  in_comp_ = [[ISpdyCompressor alloc] init: version];
+  out_comp_ = [[ISpdyCompressor alloc] init: version];
+  framer_ = [[ISpdyFramer alloc] init: version compressor: out_comp_];
+  parser_ = [[ISpdyParser alloc] init: version compressor: in_comp_];
   [parser_ setDelegate: self];
 
   stream_id_ = 1;

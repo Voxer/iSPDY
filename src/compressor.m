@@ -205,7 +205,14 @@ static const char spdy3_dict_[] = {
 };
 
 
-@implementation ISpdyCompressor
+@implementation ISpdyCompressor {
+  z_stream deflate_;
+  z_stream inflate_;
+  const unsigned char* dict_;
+  unsigned int dict_len_;
+  NSMutableData* output_;
+  NSError* error_;
+}
 
 - (id) init: (ISpdyVersion) version {
   self = [super init];
@@ -309,6 +316,10 @@ fatal:
                            userInfo: nil];
   return NO;
 }
+
+
+#undef deflate
+#undef inflate
 
 
 - (BOOL) deflate: (NSData*) input {

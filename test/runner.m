@@ -2,8 +2,31 @@
 #import "Kiwi.h"
 #import <SenTestingKit/SenTestingKit.h>
 #import <ispdy.h>
+#import "compressor.h"
 
 SPEC_BEGIN(ISpdySpec)
+
+describe(@"ISpdy compressor", ^{
+  context(@"compressing/decompressing stream", ^{
+    it(@"should work", ^{
+      BOOL r;
+      ISpdyCompressor* input = [[ISpdyCompressor alloc] init: kISpdyV3];
+      ISpdyCompressor* output = [[ISpdyCompressor alloc] init: kISpdyV3];
+
+      NSData* str = [@"hello world\n" dataUsingEncoding: NSUTF8StringEncoding];
+
+      for (int i = 0; i < 100; i++) {
+        r = [input deflate: str];
+        [[theValue(r) should] equal: theValue(YES)];
+        [[input.error should] beNil];
+
+        r = [output inflate: input.output];
+        [[theValue(r) should] equal: theValue(YES)];
+        [[output.error should] beNil];
+      }
+    });
+  });
+});
 
 describe(@"ISpdy server", ^{
   void (^bothVersions)(void (^)(ISpdyVersion)) = ^(void (^b)(ISpdyVersion)) {

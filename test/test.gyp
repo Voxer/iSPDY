@@ -6,6 +6,9 @@
       "../ispdy.gyp:ispdy",
       "../deps/Kiwi/kiwi.gyp:Kiwi",
     ],
+    "include_dirs": [
+      "../src",
+    ],
     "link_settings": {
       "libraries": [
         "Foundation.framework",
