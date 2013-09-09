@@ -3,6 +3,7 @@
 
 #import "framer.h"  // ISpdyFramer
 #import "ispdy.h"  // ISpdyVersion
+#import "common.h"  // Common internal parts
 #import "compressor.h"  // ISpdyCompressor
 
 #define UNREACHABLE NSAssert(NO, @"Unreachable")

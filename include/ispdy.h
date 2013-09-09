@@ -1,5 +1,4 @@
 #import <Foundation/Foundation.h>
-#import "ispdy-internal.h"  // Common internal parts
 
 // Forward-declarations
 @class ISpdy;
@@ -8,13 +7,17 @@
 @class ISpdyParser;
 @class ISpdyRequest;
 
-// SPDY Protocol version
+/**
+ * SPDY Protocol version
+ */
 typedef enum {
   kISpdyV2,
   kISpdyV3
 } ISpdyVersion;
 
-// Possible error codes in NSError with domain @"spdy"
+/**
+ * Possible error codes in NSError with domain @"spdy"
+ */
 typedef enum {
   kISpdyErrConnectionEnd,
   kISpdyErrDealloc,
@@ -24,7 +27,9 @@ typedef enum {
   kISpdyErrDoubleResponse
 } ISpdyErrorCode;
 
-// Response class
+/**
+ * Response class
+ */
 @interface ISpdyResponse : NSObject
 
 @property NSInteger code;
@@ -33,7 +38,9 @@ typedef enum {
 
 @end
 
-// Delegate for handling request-level events
+/**
+ * Delegate for handling request-level events
+ */
 @protocol ISpdyRequestDelegate
 - (void) request: (ISpdyRequest*) req handleResponse: (ISpdyResponse*) res;
 - (void) request: (ISpdyRequest*) req handleError: (NSError*) err;
@@ -41,10 +48,12 @@ typedef enum {
 - (void) handleEnd: (ISpdyRequest*) req;
 @end
 
-// Request class.
-//
-// Should be used to initiate new request to the server, works only with
-// existing ISpdy connection.
+/**
+ * Request class.
+ *
+ * Should be used to initiate new request to the server, works only with
+ * existing ISpdy connection.
+ */
 @interface ISpdyRequest : NSObject
 
 @property (weak) id <ISpdyRequestDelegate> delegate;
@@ -53,113 +62,153 @@ typedef enum {
 @property NSString* url;
 @property NSDictionary* headers;
 
-// Mostly internal fields
-@property uint32_t stream_id;
-@property BOOL pending_closed_by_us;
-@property BOOL closed_by_us;
-@property BOOL closed_by_them;
-@property BOOL seen_response;
+/**
+ * Initialize properties.
+ *
+ * @param method  HTTP method to use when sending request
+ * @param url     Request url `@"/some/relative/url"`
+ *
+ * @return Initialized instance of ISpdyRequest
+ */
 
-// Internal too, window value for incoming and outgoing data
-@property NSInteger window_in;
-@property NSInteger window_out;
-
-// Initialize properties
 - (id) init: (NSString*) method url: (NSString*) url;
 
-// Write raw data to the underlying stream
+/**
+ * Write raw data to the underlying stream.
+ *
+ * NOTE: The best option would be to call this after doing `[conn send: req];`,
+ * otherwise all data will be buffered until it.
+ *
+ * @param data  Data to send
+ */
 - (void) writeData: (NSData*) data;
 
-// Write string to the underlying stream
+/**
+ * Write string to the underlying stream. Same as `writeData:`.
+ *
+ * @param data  String to send
+ */
 - (void) writeString: (NSString*) data;
 
-// Gracefully end stream/request
+/**
+ * Gracefully end stream/request.
+ *
+ * NOTE: Could be called before `[conn send: req]`, but again it'll be buffered
+ * until actual send.
+ */
 - (void) end;
 
-// Shutdown stream (CANCEL error code will be used)
+/**
+ * Shutdown stream (CANCEL error code will be used).
+ *
+ * NOTE: Can't be called before `[conn send: req]`
+ */
 - (void) close;
-
-// Mostly internal method, calls `[req close]` if the stream is closed by both
-// us and them.
-- (void) _tryClose;
-
-// (Internal) sends `end` selector if the close is pending
-- (void) _tryPendingClose;
-
-// (Internal)
-- (void) _updateWindow: (NSInteger) delta;
-
-// (Internal) Bufferize frame data and fetch it
-- (void) _queueData: (NSData*) data;
-- (BOOL) _hasQueuedData;
-- (void) _unqueue;
 
 @end
 
-// Delegate for handling connection-level events
+/**
+ * Delegate for handling connection-level events
+ */
 @protocol ISpdyDelegate
+
+/**
+ * Invoked on global, connection-level error.
+ *
+ * @param conn  ISpdy connection on which the error has happened
+ * @param err   The error itself
+ */
 - (void) connection: (ISpdy*) conn handleError: (NSError*) err;
 @end
 
-// ISpdy connection class
-//
-// Connects to server and holds underlying socket, parsing incoming data and
-// generating outgoing protocol data. Should be instantiated in order to
-// send requests to the server.
-@interface ISpdy : NSObject <NSStreamDelegate, ISpdyParserDelegate>
+/** ISpdy connection class
+ *
+ * Connects to server and holds underlying socket, parsing incoming data and
+ * generating outgoing protocol data. Should be instantiated in order to
+ * send requests to the server.
+ */
+@interface ISpdy : NSObject
 
 @property (weak) id <ISpdyDelegate> delegate;
 
-// Initialize connection to work with specified protocol version
+/**
+ * Initialize connection to work with specified protocol version.
+ *
+ * @param version  SPDY protocol version, recommended value `ISpdyV3`
+ * @param host     Remote host
+ * @param port     Remote port
+ * @param secure   `YES` if connecting to TLS server
+ */
 - (id) init: (ISpdyVersion) version
        host: (NSString*) host
        port: (UInt32) port
      secure: (BOOL) secure;
 
-// Extended version of init, with `hostname` argument added.
-// Use it if you need to specify for SSL certificate validations if `hostname`
-// differs with `host`.
+/**
+ * Extended version of init, with `hostname` argument added.
+ * Use it if you need to specify for SSL certificate validations if `hostname`
+ * differs with `host`.
+ *
+ * @param version   SPDY protocol version, recommended value `ISpdyV3`
+ * @param host      Remote host
+ * @param hostname  Remote hostname for certificate verification
+ * @param port      Remote port
+ * @param secure    `YES` if connecting to TLS server
+ *
+ * @return Initialized connection
+ */
 - (id) init: (ISpdyVersion) version
        host: (NSString*) host
    hostname: (NSString*) hostname
        port: (UInt32) port
      secure: (BOOL) secure;
 
-// Schedule connection in a run loop
+/**
+ * Schedule connection in a run loop.
+ * NOTE: If not invoked - default loop (running in separate thread) will be
+ * used (one per application).
+ *
+ * @param loop  Loop to schedule connection in
+ * @param mode  Mode to use
+ */
 - (void) scheduleInRunLoop: (NSRunLoop*) loop forMode: (NSString*) mode;
+
+/**
+ * Unschedule connection from a run loop.
+ *
+ * @param loop  Loop to schedule connection in
+ * @param mode  Mode to use
+ */
 - (void) removeFromRunLoop: (NSRunLoop*) loop forMode: (NSString*) mode;
 
-// Set dispatch queue to run delegate callbacks
+/**
+ * Set dispatch queue to run delegate callbacks in.
+ *
+ * @param queue  Dispatch queue
+ */
 - (void) setDelegateQueue: (dispatch_queue_t) queue;
 
-// Connect to remote server
+/**
+ * Connect to remote server.
+ *
+ * @return `YES` - If socket initialization was successful
+ */
 - (BOOL) connect;
 
-// Disconnect from remote server
+/**
+ * Disconnect from remote server.
+ * NOTE: Connection will be automatically closed at `dealloc`, so do it if you
+ * want it to be closed right now
+ *
+ * @return `YES` - IF socket deinitialization was successful
+ */
 - (BOOL) close;
 
-// Send initialized request to the server
+/**
+ * Send initialized request to the server.
+ *
+ * @param request  `ISpdyRequest` to send to the server
+ */
 - (void) send: (ISpdyRequest*) request;
-
-// (Internal) Write raw data to the underlying socket
-- (void) _writeRaw: (NSData*) data;
-
-// (Internal) Handle global errors
-- (void) _handleError: (NSError*) err;
-
-// (Internal) Close all streams and send error to each of them
-- (void) _closeStreams: (NSError*) err;
-
-// (Mostly internal) see ISpdyRequest for description
-- (void) _end: (ISpdyRequest*) request;
-- (void) _close: (ISpdyRequest*) request;
-- (void) _writeData: (NSData*) data to: (ISpdyRequest*) request;
-- (void) _rst: (uint32_t) stream_id code: (uint8_t) code;
-- (void) _error: (ISpdyRequest*) request code: (ISpdyErrorCode) code;
-
-// (Internal) dispatch delegate callback
-- (void) _delegateDispatch: (void (^)()) block;
-// (Internal) dispatch connection callback
-- (void) _connectionDispatch: (void (^)()) block;
 
 @end

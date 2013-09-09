@@ -4,12 +4,72 @@
 #import <string.h>  // memmove
 
 #import "ispdy.h"
+#import "common.h"  // Common internal parts
 #import "compressor.h"  // ISpdyCompressor
 #import "framer.h"  // ISpdyFramer
 #import "loop.h"  // ISpdyLoop
 #import "parser.h"  // ISpdyParser
 
 static const NSInteger kInitialWindowSize = 65536;
+
+// Private interfaces first
+
+@interface ISpdy (ISpdyPrivate) <NSStreamDelegate, ISpdyParserDelegate>
+
+// Write raw data to the underlying socket
+- (void) _writeRaw: (NSData*) data;
+
+// Handle global errors
+- (void) _handleError: (NSError*) err;
+
+// Close all streams and send error to each of them
+- (void) _closeStreams: (NSError*) err;
+
+// See ISpdyRequest for description
+- (void) _end: (ISpdyRequest*) request;
+- (void) _close: (ISpdyRequest*) request;
+- (void) _writeData: (NSData*) data to: (ISpdyRequest*) request;
+- (void) _rst: (uint32_t) stream_id code: (uint8_t) code;
+- (void) _error: (ISpdyRequest*) request code: (ISpdyErrorCode) code;
+
+// dispatch delegate callback
+- (void) _delegateDispatch: (void (^)()) block;
+// dispatch connection callback
+- (void) _connectionDispatch: (void (^)()) block;
+
+@end
+
+// Request state
+@interface ISpdyRequest ()
+  @property uint32_t stream_id;
+  @property BOOL pending_closed_by_us;
+  @property BOOL closed_by_us;
+  @property BOOL closed_by_them;
+  @property BOOL seen_response;
+  @property NSInteger window_in;
+  @property NSInteger window_out;
+@end
+
+@interface ISpdyRequest (ISpdyRequestPrivate)
+
+// Calls `[req close]` if the stream is closed by both
+// us and them.
+- (void) _tryClose;
+
+// Sends `end` selector if the close is pending
+- (void) _tryPendingClose;
+
+// Update outgoing window size
+- (void) _updateWindow: (NSInteger) delta;
+
+// Bufferize frame data and fetch it
+- (void) _queueData: (NSData*) data;
+- (BOOL) _hasQueuedData;
+- (void) _unqueue;
+
+@end
+
+// Implementations
 
 @implementation ISpdy {
   ISpdyVersion version_;
@@ -174,16 +234,6 @@ static const NSInteger kInitialWindowSize = 65536;
 }
 
 
-- (void) _delegateDispatch: (void (^)()) block {
-  dispatch_async(delegate_queue_, block);
-}
-
-
-- (void) _connectionDispatch: (void (^)()) block {
-  dispatch_async(connection_queue_, block);
-}
-
-
 - (BOOL) connect {
   /* Use default (off-thread) NS loop, if no was provided by user */
   if ([scheduled_loops_ count] == 0) {
@@ -216,6 +266,49 @@ static const NSInteger kInitialWindowSize = 65536;
   out_stream_ = nil;
 
   return YES;
+}
+
+
+- (void) send: (ISpdyRequest*) request {
+  NSAssert(request.connection == nil, @"Request was already sent");
+
+  if (request.connection != nil)
+    return;
+  request.connection = self;
+
+  [self _connectionDispatch: ^{
+    request.window_in = initial_window_;
+    request.window_out = kInitialWindowSize;
+    request.stream_id = stream_id_;
+    stream_id_ += 2;
+
+    NSNumber* request_key = [NSNumber numberWithUnsignedInt: request.stream_id];
+    [streams_ setObject: request forKey: request_key];
+
+    [framer_ clear];
+    [framer_ synStream: request.stream_id
+              priority: 0
+                method: request.method
+                    to: request.url
+               headers: request.headers];
+    [self _writeRaw: [framer_ output]];
+
+    // Send body if accumulated
+    [request _unqueue];
+  }];
+}
+
+@end
+
+@implementation ISpdy (ISpdyPrivate)
+
+- (void) _delegateDispatch: (void (^)()) block {
+  dispatch_async(delegate_queue_, block);
+}
+
+
+- (void) _connectionDispatch: (void (^)()) block {
+  dispatch_async(connection_queue_, block);
 }
 
 
@@ -268,36 +361,6 @@ static const NSInteger kInitialWindowSize = 65536;
       [req.delegate handleEnd: req];
     }];
   }
-}
-
-
-- (void) send: (ISpdyRequest*) request {
-  NSAssert(request.connection == nil, @"Request was already sent");
-
-  if (request.connection != nil)
-    return;
-  request.connection = self;
-
-  [self _connectionDispatch: ^{
-    request.window_in = initial_window_;
-    request.window_out = kInitialWindowSize;
-    request.stream_id = stream_id_;
-    stream_id_ += 2;
-
-    NSNumber* request_key = [NSNumber numberWithUnsignedInt: request.stream_id];
-    [streams_ setObject: request forKey: request_key];
-
-    [framer_ clear];
-    [framer_ synStream: request.stream_id
-              priority: 0
-                method: request.method
-                    to: request.url
-               headers: request.headers];
-    [self _writeRaw: [framer_ output]];
-
-    // Send body if accumulated
-    [request _unqueue];
-  }];
 }
 
 
@@ -558,7 +621,6 @@ static const NSInteger kInitialWindowSize = 65536;
 
 @end
 
-
 @implementation ISpdyRequest {
   NSMutableArray* data_queue_;
 }
@@ -604,7 +666,9 @@ static const NSInteger kInitialWindowSize = 65536;
     [self.connection _close: self];
   }];
 }
+@end
 
+@implementation ISpdyRequest (ISpdyRequestPrivate)
 
 - (void) _tryClose {
   if (self.connection == nil)

@@ -1,5 +1,6 @@
 #import <Foundation/Foundation.h>
 #import "ispdy.h"  // ISpdyVersion, ISpdyResponse, ISpdySettings, ...
+#import "common.h"  // Common internal parts
 
 // Forward-declarations
 @class ISpdyCompressor;

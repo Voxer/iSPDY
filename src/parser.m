@@ -3,6 +3,7 @@
 #import <string.h>  // memmove
 
 #import "parser.h"
+#import "common.h"  // Common internal parts
 #import "compressor.h"  // ISpdyCompressor
 #import "ispdy.h"  // ISpdyVersion
 
