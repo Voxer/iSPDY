@@ -2,7 +2,7 @@
   "targets": [{
     "target_name": "ispdy",
     "type": "<(library)",
-    "standalone_static_library": 1,
+    "mac_bundle": 1,
     "direct_dependent_settings": {
       "include_dirs": [ "include" ],
     },
@@ -28,6 +28,16 @@
     "xcode_settings": {
       "CLANG_ENABLE_OBJC_ARC": "YES",
     },
+    "conditions": [
+      ["library == 'static_library'", {
+        "standalone_static_library": 1,
+      }],
+      ["library == 'shared_library'", {
+        "mac_framework_headers": [
+          "include/ispdy.h",
+        ],
+      }]
+    ],
   }, {
     "target_name": "ispdy-bundled",
     "type": "none",

@@ -63,6 +63,10 @@ if __name__ == '__main__':
   common_fn  = os.path.join(os.path.abspath(root), 'common.gypi')
   options_fn = os.path.join(os.path.abspath(root), 'options.gypi')
 
+  if 'framework' in args:
+    args.append('-Dlibrary=shared_library')
+    args = filter(lambda arg: arg != 'framework', args)
+
   if os.path.exists(common_fn):
     args.extend(['-I', common_fn])
 
