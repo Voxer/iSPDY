@@ -56,11 +56,31 @@ typedef enum {
  */
 @interface ISpdyRequest : NSObject
 
+/**
+ * Reference to user-provided delegate.
+ * Should be provided in order to receive input/end/error events.
+ */
 @property (weak) id <ISpdyRequestDelegate> delegate;
-@property ISpdy* connection;
+
+/**
+ * Request method, should be initialized using `init: url:` selector.
+ */
 @property NSString* method;
+
+/**
+ * Request url, should be initialized using `init: url:` selector.
+ */
 @property NSString* url;
+
+/**
+ * HTTP Headers
+ */
 @property NSDictionary* headers;
+
+/**
+ * Just a property to store user-defined reference, not used internally.
+ */
+@property (weak) id opaque;
 
 /**
  * Initialize properties.
@@ -129,6 +149,9 @@ typedef enum {
  */
 @interface ISpdy : NSObject
 
+/**
+ * Connection-level delegate, should be provided to handle global errors.
+ */
 @property (weak) id <ISpdyDelegate> delegate;
 
 /**

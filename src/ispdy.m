@@ -41,6 +41,7 @@ static const NSInteger kInitialWindowSize = 65536;
 
 // Request state
 @interface ISpdyRequest ()
+  @property ISpdy* connection;
   @property uint32_t stream_id;
   @property BOOL pending_closed_by_us;
   @property BOOL closed_by_us;

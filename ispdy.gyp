@@ -2,7 +2,6 @@
   "targets": [{
     "target_name": "ispdy",
     "type": "<(library)",
-    "mac_bundle": 1,
     "direct_dependent_settings": {
       "include_dirs": [ "include" ],
     },
@@ -32,7 +31,8 @@
       ["library == 'static_library'", {
         "standalone_static_library": 1,
       }],
-      ["library == 'shared_library'", {
+      ["library == 'shared_library' and GENERATOR == 'xcode'", {
+        "mac_bundle": 1,
         "mac_framework_headers": [
           "include/ispdy.h",
         ],
