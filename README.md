@@ -40,6 +40,15 @@ The result will be located at: `./build/Release-iphoneos/libispdy-bundled.a`.
 NOTE: you'll need to add `./deps/zlib/build/Release/libchrome_zlib.a` to the
 list of libraries, as `libispdy.a` depends on it.
 
+## Building framework
+
+```
+./gyp_ispdy -f xcode framework ...
+xcodebuild -configuration Release
+```
+
+The result will be located at `./build/Release-(sdktarget)/ispdy.framework`.
+
 ## Running tests
 
 Preparing:
