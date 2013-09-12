@@ -19,6 +19,7 @@ typedef enum {
  * Possible error codes in NSError with domain @"spdy"
  */
 typedef enum {
+  kISpdyErrConnectionTimeout,
   kISpdyErrConnectionEnd,
   kISpdyErrDealloc,
   kISpdyErrNoSuchStream,
@@ -233,5 +234,13 @@ typedef enum {
  * @param request  `ISpdyRequest` to send to the server
  */
 - (void) send: (ISpdyRequest*) request;
+
+/**
+ * Set connection timeout (default value: 1 minute)
+ *
+ * @param timeout  if non-zero - how much to wait until throwing an error,
+ *                 if zero - reset timeout
+ */
+- (void) setTimeout: (NSTimeInterval) timeout;
 
 @end

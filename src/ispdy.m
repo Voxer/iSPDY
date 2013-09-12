@@ -11,10 +11,18 @@
 #import "parser.h"  // ISpdyParser
 
 static const NSInteger kInitialWindowSize = 65536;
+static const NSTimeInterval kConnectTimeout = 60.0;  // 1 minute
+static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 // Private interfaces first
 
 @interface ISpdy (ISpdyPrivate) <NSStreamDelegate, ISpdyParserDelegate>
+
+// Invoked on connection timeout
+- (void) _onTimeout;
+
+// Use default (off-thread) NS loop, if no was provided by user
+- (void) _lazySchedule;
 
 // Write raw data to the underlying socket
 - (void) _writeRaw: (NSData*) data;
@@ -41,14 +49,16 @@ static const NSInteger kInitialWindowSize = 65536;
 
 // Request state
 @interface ISpdyRequest ()
-  @property ISpdy* connection;
-  @property uint32_t stream_id;
-  @property BOOL pending_closed_by_us;
-  @property BOOL closed_by_us;
-  @property BOOL closed_by_them;
-  @property BOOL seen_response;
-  @property NSInteger window_in;
-  @property NSInteger window_out;
+
+@property ISpdy* connection;
+@property uint32_t stream_id;
+@property BOOL pending_closed_by_us;
+@property BOOL closed_by_us;
+@property BOOL closed_by_them;
+@property BOOL seen_response;
+@property NSInteger window_in;
+@property NSInteger window_out;
+
 @end
 
 @interface ISpdyRequest (ISpdyRequestPrivate)
@@ -70,6 +80,16 @@ static const NSInteger kInitialWindowSize = 65536;
 
 @end
 
+@interface ISpdyLoopWrap : NSObject
+
+@property NSRunLoop* loop;
+@property NSString* mode;
+
++ (ISpdyLoopWrap*) stateForLoop: (NSRunLoop*) loop andMode: (NSString*) mode;
+- (BOOL) isEqual: (id) anObject;
+
+@end
+
 // Implementations
 
 @implementation ISpdy {
@@ -84,7 +104,7 @@ static const NSInteger kInitialWindowSize = 65536;
   // Run loop
   BOOL on_ispdy_loop_;
   NSMutableSet* scheduled_loops_;
-  NSTimer* timeout_;
+  NSTimer* connection_timeout_;
 
   // Next stream's id
   uint32_t stream_id_;
@@ -214,18 +234,20 @@ static const NSInteger kInitialWindowSize = 65536;
 
 
 - (void) scheduleInRunLoop: (NSRunLoop*) loop forMode: (NSString*) mode {
-  [scheduled_loops_ addObject: loop];
+  ISpdyLoopWrap* wrap = [ISpdyLoopWrap stateForLoop: loop andMode: mode];
+  [scheduled_loops_ addObject: wrap];
 
-  [in_stream_ scheduleInRunLoop: loop forMode: mode];
-  [out_stream_ scheduleInRunLoop: loop forMode: mode];
+  [in_stream_ scheduleInRunLoop: wrap.loop forMode: wrap.mode];
+  [out_stream_ scheduleInRunLoop: wrap.loop forMode: wrap.mode];
 }
 
 
 - (void) removeFromRunLoop: (NSRunLoop*) loop forMode: (NSString*) mode {
-  [scheduled_loops_ removeObject: loop];
+  ISpdyLoopWrap* wrap = [ISpdyLoopWrap stateForLoop: loop andMode: mode];
+  [scheduled_loops_ removeObject: wrap];
 
-  [in_stream_ removeFromRunLoop: loop forMode: mode];
-  [out_stream_ removeFromRunLoop: loop forMode: mode];
+  [in_stream_ removeFromRunLoop: wrap.loop forMode: wrap.mode];
+  [out_stream_ removeFromRunLoop: wrap.loop forMode: wrap.mode];
 }
 
 
@@ -236,12 +258,7 @@ static const NSInteger kInitialWindowSize = 65536;
 
 
 - (BOOL) connect {
-  /* Use default (off-thread) NS loop, if no was provided by user */
-  if ([scheduled_loops_ count] == 0) {
-    on_ispdy_loop_ = YES;
-    [self scheduleInRunLoop: [ISpdyLoop defaultLoop]
-                    forMode: NSDefaultRunLoopMode];
-  }
+  [self _lazySchedule];
 
   [in_stream_ open];
   [out_stream_ open];
@@ -252,6 +269,9 @@ static const NSInteger kInitialWindowSize = 65536;
     [framer_ initialWindow: kInitialWindowSize];
     [self _writeRaw: [framer_ output]];
   }
+
+  // Start timer
+  [self setTimeout: kConnectTimeout];
 
   return YES;
 }
@@ -299,6 +319,23 @@ static const NSInteger kInitialWindowSize = 65536;
   }];
 }
 
+
+- (void) setTimeout: (NSTimeInterval) timeout {
+  [connection_timeout_ invalidate];
+  if (timeout == 0.0) {
+    connection_timeout_ = nil;
+    return;
+  }
+  connection_timeout_ = [NSTimer timerWithTimeInterval: timeout
+                                                target: self
+                                              selector: @selector(_onTimeout)
+                                              userInfo: nil
+                                               repeats: NO];
+  [self _lazySchedule];
+  for (ISpdyLoopWrap* wrap in scheduled_loops_)
+    [wrap.loop addTimer: connection_timeout_ forMode: wrap.mode];
+}
+
 @end
 
 @implementation ISpdy (ISpdyPrivate)
@@ -310,6 +347,23 @@ static const NSInteger kInitialWindowSize = 65536;
 
 - (void) _connectionDispatch: (void (^)()) block {
   dispatch_async(connection_queue_, block);
+}
+
+
+- (void) _onTimeout {
+  NSError* err = [NSError errorWithDomain: @"spdy"
+                                     code: kISpdyErrConnectionTimeout
+                                 userInfo: nil];
+  [self _handleError: err];
+}
+
+
+- (void) _lazySchedule {
+  if ([scheduled_loops_ count] == 0) {
+    on_ispdy_loop_ = YES;
+    [self scheduleInRunLoop: [ISpdyLoop defaultLoop]
+                    forMode: NSDefaultRunLoopMode];
+  }
 }
 
 
@@ -474,6 +528,9 @@ static const NSInteger kInitialWindowSize = 65536;
                                      userInfo: nil];
       return [self _handleError: err];
     }
+
+    if (event == NSStreamEventOpenCompleted && stream == out_stream_)
+      [self setTimeout: 0];
 
     if (event == NSStreamEventHasSpaceAvailable && [buffer_ length] > 0) {
       NSAssert(out_stream_ == stream, @"Write event on input stream?!");
@@ -731,5 +788,25 @@ static const NSInteger kInitialWindowSize = 65536;
 @implementation ISpdyResponse
 
 // No-op, only to generate properties' accessors
+
+@end
+
+@implementation ISpdyLoopWrap
+
++ (ISpdyLoopWrap*) stateForLoop: (NSRunLoop*) loop andMode: (NSString*) mode {
+  ISpdyLoopWrap* wrap = [ISpdyLoopWrap alloc];
+  wrap.loop = loop;
+  wrap.mode = mode;
+  return wrap;
+}
+
+- (BOOL) isEqual: (id) anObject {
+  if (![anObject isMemberOfClass: [ISpdyLoopWrap class]])
+    return NO;
+
+  ISpdyLoopWrap* wrap = (ISpdyLoopWrap*) anObject;
+  return [wrap.loop isEqual: self.loop] &&
+         [wrap.mode isEqualToString: self.mode];
+}
 
 @end
