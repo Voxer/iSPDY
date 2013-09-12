@@ -11,7 +11,7 @@
 #import "parser.h"  // ISpdyParser
 
 static const NSInteger kInitialWindowSize = 65536;
-static const NSTimeInterval kConnectTimeout = 60.0;  // 1 minute
+static const NSTimeInterval kConnectTimeout = 2.0;  // 2 seconds
 static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 // Private interfaces first

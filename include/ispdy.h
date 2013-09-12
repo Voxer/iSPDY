@@ -245,7 +245,7 @@ typedef enum {
 - (void) send: (ISpdyRequest*) request;
 
 /**
- * Set connection timeout (default value: 1 minute)
+ * Set connection timeout (default value: 2 seconds)
  *
  * @param timeout  if non-zero - how much to wait until throwing an error,
  *                 if zero - reset timeout
