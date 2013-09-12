@@ -24,6 +24,11 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 // Use default (off-thread) NS loop, if no was provided by user
 - (void) _lazySchedule;
 
+// Create and schedule timer
+- (NSTimer*) _timerWithTimeInterval: (NSTimeInterval) interval
+                             target: (id) target
+                           selector: (SEL) selector;
+
 // Write raw data to the underlying socket
 - (void) _writeRaw: (NSData*) data;
 
@@ -69,6 +74,9 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 // Sends `end` selector if the close is pending
 - (void) _tryPendingClose;
+
+// Set queued timeout
+- (void) _trySetTimeout;
 
 // Update outgoing window size
 - (void) _updateWindow: (NSInteger) delta;
@@ -316,24 +324,22 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
     // Send body if accumulated
     [request _unqueue];
+
+    // Start timer, if needed
+    [request _trySetTimeout];
   }];
 }
 
 
 - (void) setTimeout: (NSTimeInterval) timeout {
   [connection_timeout_ invalidate];
-  if (timeout == 0.0) {
-    connection_timeout_ = nil;
+  connection_timeout_ = nil;
+  if (timeout == 0.0)
     return;
-  }
-  connection_timeout_ = [NSTimer timerWithTimeInterval: timeout
-                                                target: self
-                                              selector: @selector(_onTimeout)
-                                              userInfo: nil
-                                               repeats: NO];
-  [self _lazySchedule];
-  for (ISpdyLoopWrap* wrap in scheduled_loops_)
-    [wrap.loop addTimer: connection_timeout_ forMode: wrap.mode];
+
+  connection_timeout_ = [self _timerWithTimeInterval: timeout
+                                              target: self
+                                            selector: @selector(_onTimeout)];
 }
 
 @end
@@ -364,6 +370,22 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
     [self scheduleInRunLoop: [ISpdyLoop defaultLoop]
                     forMode: NSDefaultRunLoopMode];
   }
+}
+
+
+- (NSTimer*) _timerWithTimeInterval: (NSTimeInterval) interval
+                             target: (id) target
+                           selector: (SEL) selector {
+  NSTimer* timer = [NSTimer timerWithTimeInterval: interval
+                                           target: target
+                                         selector: selector
+                                         userInfo: nil
+                                          repeats: NO];
+  [self _lazySchedule];
+  for (ISpdyLoopWrap* wrap in scheduled_loops_)
+    [wrap.loop addTimer: timer forMode: wrap.mode];
+
+  return timer;
 }
 
 
@@ -684,6 +706,9 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 @implementation ISpdyRequest {
   NSMutableArray* data_queue_;
+  NSTimer* response_timeout_;
+  NSTimeInterval response_timeout_interval_;
+  BOOL response_timeout_set_;
 }
 
 - (id) init: (NSString*) method url: (NSString*) url {
@@ -727,6 +752,27 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
     [self.connection _close: self];
   }];
 }
+
+
+- (void) setTimeout: (NSTimeInterval) timeout {
+  [response_timeout_ invalidate];
+  response_timeout_ = nil;
+  if (timeout == 0.0)
+    return;
+
+  response_timeout_set_ = YES;
+
+  // Queue timeout until sent
+  if (self.connection == nil) {
+    response_timeout_interval_ = timeout;
+    return;
+  }
+  response_timeout_ =
+    [self.connection _timerWithTimeInterval: timeout
+                                     target: self
+                                   selector: @selector(_onTimeout)];
+}
+
 @end
 
 @implementation ISpdyRequest (ISpdyRequestPrivate)
@@ -748,6 +794,16 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
     self.pending_closed_by_us = NO;
     [self end];
   }
+}
+
+
+- (void) _trySetTimeout {
+  if (response_timeout_interval_ == 0.0)
+    return;
+
+  [self setTimeout: response_timeout_set_ ? response_timeout_interval_ :
+                                            kResponseTimeout];
+  response_timeout_interval_ = 0.0;
 }
 
 

@@ -126,6 +126,15 @@ typedef enum {
  */
 - (void) close;
 
+/**
+ * Set response timeout (default value: 1 minute)
+ *
+ * @param timeout  if non-zero - how much to wait until throwing an error and
+ *                               closing stream
+ *                 if zero - reset timeout
+ */
+- (void) setTimeout: (NSTimeInterval) timeout;
+
 @end
 
 /**
