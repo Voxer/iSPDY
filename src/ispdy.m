@@ -519,6 +519,12 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 - (void) stream: (NSStream*) stream handleEvent: (NSStreamEvent) event {
   [self _connectionDispatch: ^{
+    if (event == NSStreamEventOpenCompleted ||
+        event == NSStreamEventErrorOccurred ||
+        event == NSStreamEventEndEncountered) {
+      [self setTimeout: 0];
+    }
+
     if (event == NSStreamEventErrorOccurred)
       return [self _handleError: [stream streamError]];
 
@@ -528,9 +534,6 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
                                      userInfo: nil];
       return [self _handleError: err];
     }
-
-    if (event == NSStreamEventOpenCompleted && stream == out_stream_)
-      [self setTimeout: 0];
 
     if (event == NSStreamEventHasSpaceAvailable && [buffer_ length] > 0) {
       NSAssert(out_stream_ == stream, @"Write event on input stream?!");
