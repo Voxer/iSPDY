@@ -58,7 +58,7 @@
         ],
       }],
       ['sdk.startswith("iphoneos")', {
-        'xcode_settings': {'ARCHS': ['armv7', 'armv7s', 'armv8']},
+        'xcode_settings': {'ARCHS': ['armv7', 'armv7s', 'arm64']},
       }],
       ['sdk.startswith("iphonesimulator") and GENERATOR != "xcode"', {
         'xcode_settings': {'ARCHS': ['x86_64']},
