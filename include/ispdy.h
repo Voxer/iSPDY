@@ -164,7 +164,7 @@ typedef enum {
  */
 - (id) init: (ISpdyVersion) version
        host: (NSString*) host
-       port: (UInt32) port
+       port: (UInt16) port
      secure: (BOOL) secure;
 
 /**
@@ -183,7 +183,7 @@ typedef enum {
 - (id) init: (ISpdyVersion) version
        host: (NSString*) host
    hostname: (NSString*) hostname
-       port: (UInt32) port
+       port: (UInt16) port
      secure: (BOOL) secure;
 
 /**

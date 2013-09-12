@@ -106,7 +106,7 @@ static const NSInteger kInitialWindowSize = 65536;
 - (id) init: (ISpdyVersion) version
        host: (NSString*) host
    hostname: (NSString*) hostname
-       port: (UInt32) port
+       port: (UInt16) port
      secure: (BOOL) secure {
   self = [super init];
   if (!self)
@@ -186,7 +186,7 @@ static const NSInteger kInitialWindowSize = 65536;
 
 - (id) init: (ISpdyVersion) version
        host: (NSString*) host
-       port: (UInt32) port
+       port: (UInt16) port
      secure: (BOOL) secure {
   return [self init: version
                host: host
