@@ -18,6 +18,7 @@
       "src/framer.m",
       "src/loop.m",
       "src/parser.m",
+      "src/scheduler.m",
     ],
     "link_settings": {
       "libraries": [

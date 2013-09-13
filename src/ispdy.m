@@ -9,14 +9,23 @@
 #import "framer.h"  // ISpdyFramer
 #import "loop.h"  // ISpdyLoop
 #import "parser.h"  // ISpdyParser
+#import "scheduler.h"  // ISpdyScheduler
+
+typedef enum {
+  kISpdyWriteNoChunkBuffering,
+  kISpdyWriteChunkBuffering
+} ISpdyWriteMode;
 
 static const NSInteger kInitialWindowSize = 65536;
+static const NSUInteger kMaxPriority = 7;
 static const NSTimeInterval kConnectTimeout = 2.0;  // 2 seconds
 static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 // Private interfaces first
 
-@interface ISpdy (ISpdyPrivate) <NSStreamDelegate, ISpdyParserDelegate>
+@interface ISpdy (ISpdyPrivate) <NSStreamDelegate,
+                                 ISpdyParserDelegate,
+                                 ISpdySchedulerDelegate>
 
 // Invoked on connection timeout
 - (void) _onTimeout;
@@ -29,8 +38,8 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
                              target: (id) target
                            selector: (SEL) selector;
 
-// Write raw data to the underlying socket
-- (void) _writeRaw: (NSData*) data;
+// Write raw data to the underlying socket, returns YES if write wasn't buffered
+- (NSInteger) _writeRaw: (NSData*) data withMode: (ISpdyWriteMode) mode;
 
 // Handle global errors
 - (void) _handleError: (NSError*) err;
@@ -108,6 +117,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   ISpdyCompressor* out_comp_;
   ISpdyFramer* framer_;
   ISpdyParser* parser_;
+  ISpdyScheduler* scheduler_;
 
   // Run loop
   BOOL on_ispdy_loop_;
@@ -145,7 +155,10 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   out_comp_ = [[ISpdyCompressor alloc] init: version];
   framer_ = [[ISpdyFramer alloc] init: version compressor: out_comp_];
   parser_ = [[ISpdyParser alloc] init: version compressor: in_comp_];
-  [parser_ setDelegate: self];
+  scheduler_ = [ISpdyScheduler schedulerWithMaxPriority: kMaxPriority];
+
+  scheduler_.delegate = self;
+  parser_.delegate = self;
 
   stream_id_ = 1;
   initial_window_ = kInitialWindowSize;
@@ -177,8 +190,8 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
     return nil;
   }
 
-  [in_stream_ setDelegate: self];
-  [out_stream_ setDelegate: self];
+  in_stream_.delegate = self;
+  out_stream_.delegate = self;
 
   // Initialize encryption
   if (secure) {
@@ -273,9 +286,11 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
   // Send initial window
   if (version_ != kISpdyV2) {
-    [framer_ clear];
-    [framer_ initialWindow: kInitialWindowSize];
-    [self _writeRaw: [framer_ output]];
+    [self _connectionDispatch: ^{
+      [framer_ clear];
+      [framer_ initialWindow: kInitialWindowSize];
+      [self _writeRaw: [framer_ output] withMode: kISpdyWriteChunkBuffering];
+    }];
   }
 
   // Start timer
@@ -316,11 +331,11 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
     [framer_ clear];
     [framer_ synStream: request.stream_id
-              priority: 0
+              priority: request.priority
                 method: request.method
                     to: request.url
                headers: request.headers];
-    [self _writeRaw: [framer_ output]];
+    [self _writeRaw: [framer_ output] withMode: kISpdyWriteChunkBuffering];
 
     // Send body if accumulated
     [request _unqueue];
@@ -389,27 +404,42 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 }
 
 
-- (void) _writeRaw: (NSData*) data {
+- (NSInteger) scheduledWrite: (NSData*) data {
+  return [self _writeRaw: data withMode: kISpdyWriteNoChunkBuffering];
+}
+
+
+- (NSInteger) _writeRaw: (NSData*) data withMode: (ISpdyWriteMode) mode {
   NSStreamStatus status = [out_stream_ streamStatus];
 
   // If stream is not open yet, or if there's already queued data -
   // queue more.
   if ((status != NSStreamStatusOpen && status != NSStreamStatusWriting) ||
       [buffer_ length] > 0) {
-    [buffer_ appendData: data];
-    return;
+    if (mode != kISpdyWriteNoChunkBuffering) {
+      [buffer_ appendData: data];
+      return [data length];
+    }
+    return 0;
   }
 
   // Try writing to stream first
   NSInteger r = [out_stream_ write: [data bytes] maxLength: [data length]];
+
+  // Error will be handled on socket level, no need in buffering
   if (r == -1)
-    return [self _handleError: [out_stream_ streamError]];
+    return [data length];
+
+  if (mode == kISpdyWriteNoChunkBuffering)
+    return r;
 
   // Only part of data was written, queue rest
   if (r < (NSInteger) [data length]) {
     const void* input = [data bytes] + r;
     [buffer_ appendBytes: input length: [data length] - r];
   }
+
+  return r;
 }
 
 
@@ -453,15 +483,14 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
     if (version_ != kISpdyV2) {
       // Only part of the data could be written now
       if (pending_length > request.window_out) {
-        NSRange range;
+        // Queue tail
+        rest = [pending subdataWithRange: NSMakeRange(
+            request.window_out,
+            pending_length - request.window_out)];
 
-        range.location = request.window_out;
-        range.length = pending_length - request.window_out;
-        rest = [pending subdataWithRange: range];
-
-        range.location = 0;
-        range.length = request.window_out;
-        pending = [pending subdataWithRange: range];
+        // Send head
+        pending =
+            [pending subdataWithRange: NSMakeRange(0, request.window_out)];
 
         pending_length = [pending length];
       }
@@ -473,7 +502,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
                    fin: 0
               withData: pending];
 
-    [self _writeRaw: [framer_ output]];
+    [scheduler_ schedule: [framer_ output] withPriority: request.priority];
   } else {
     rest = data;
   }
@@ -488,7 +517,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 - (void) _rst: (uint32_t) stream_id code: (uint8_t) code {
   [framer_ clear];
   [framer_ rst: stream_id code: code];
-  [self _writeRaw: [framer_ output]];
+  [self _writeRaw: [framer_ output] withMode: kISpdyWriteChunkBuffering];
 }
 
 
@@ -516,7 +545,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
                    fin: 1
               withData: nil];
     request.closed_by_us = YES;
-    [self _writeRaw: [framer_ output]];
+    [scheduler_ schedule: [framer_ output] withPriority: request.priority];
     [request _tryClose];
   } else {
     request.pending_closed_by_us = YES;
@@ -541,6 +570,10 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 - (void) stream: (NSStream*) stream handleEvent: (NSStreamEvent) event {
   [self _connectionDispatch: ^{
+    // Already closed, just return
+    if (in_stream_ == nil || out_stream_ == nil)
+      return;
+
     if (event == NSStreamEventOpenCompleted ||
         event == NSStreamEventErrorOccurred ||
         event == NSStreamEventEndEncountered) {
@@ -557,7 +590,11 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
       return [self _handleError: err];
     }
 
-    if (event == NSStreamEventHasSpaceAvailable && [buffer_ length] > 0) {
+    if (event == NSStreamEventHasSpaceAvailable) {
+      // If there're no control frames to send - send data
+      if ([buffer_ length] == 0)
+        return [scheduler_ unschedule];
+
       NSAssert(out_stream_ == stream, @"Write event on input stream?!");
 
       // Socket available for write
@@ -634,7 +671,8 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
             uint32_t delta = kInitialWindowSize - req.window_in;
             [framer_ clear];
             [framer_ windowUpdate: stream_id update: delta];
-            [self _writeRaw: [framer_ output]];
+            [self _writeRaw: [framer_ output]
+                   withMode: kISpdyWriteChunkBuffering];
             req.window_in += delta;
           }
         }
@@ -835,10 +873,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
     for (NSUInteger i = 0; i < count; i++)
       [self.connection _writeData: [data_queue_ objectAtIndex: i] to: self];
 
-    NSRange range;
-    range.location = 0;
-    range.length = count;
-    [data_queue_ removeObjectsInRange: range];
+    [data_queue_ removeObjectsInRange: NSMakeRange(0, count)];
   }
 }
 

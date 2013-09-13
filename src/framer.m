@@ -154,9 +154,9 @@
 
   // Priority and unused
   if (version_ == kISpdyV2)
-    body[8] = (priority & 0x3) << 6;
+    body[8] = (priority > 3 ? 3 : priority) << 6;
   else
-    body[8] = (priority & 0x7) << 5;
+    body[8] = (priority > 7 ? 7 : priority) << 5;
 
   body[9] = 0;
 

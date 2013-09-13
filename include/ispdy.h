@@ -79,6 +79,11 @@ typedef enum {
 @property NSDictionary* headers;
 
 /**
+ * Stream priority (highest: 0, lowest: 7)
+ */
+@property NSUInteger priority;
+
+/**
  * Just a property to store user-defined reference, not used internally.
  */
 @property (weak) id opaque;
