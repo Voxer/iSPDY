@@ -40,6 +40,12 @@ The result will be located at: `./build/Release-iphoneos/libispdy-bundled.a`.
 NOTE: you'll need to add `./deps/zlib/build/Release/libchrome_zlib.a` to the
 list of libraries, as `libispdy.a` depends on it.
 
+## Building lipo version for both iOS and simulator
+
+```
+make all
+```
+
 ## Building framework
 
 ```
