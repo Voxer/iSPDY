@@ -185,6 +185,11 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
 @property (weak) id <ISpdyDelegate> delegate;
 
 /**
+ * Hostname passed to `init:host:port:secure:`
+ */
+@property (readonly) NSString* hostname;
+
+/**
  * Initialize connection to work with specified protocol version.
  *
  * @param version  SPDY protocol version, recommended value `ISpdyV3`
