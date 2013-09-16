@@ -158,6 +158,11 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
 @protocol ISpdyDelegate
 
 /**
+ * Invoked on TCP connection establishment.
+ */
+-(void) handleConnect: (ISpdy*) conn;
+
+/**
  * Invoked on global, connection-level error.
  *
  * @param conn  ISpdy connection on which the error has happened

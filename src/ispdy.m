@@ -644,6 +644,13 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
     if (in_stream_ == nil || out_stream_ == nil)
       return;
 
+    // Notify delegate about connection establishment
+    if (event == NSStreamEventOpenCompleted && stream == in_stream_) {
+      [self _delegateDispatch: ^{
+        [self.delegate handleConnect: self];
+      }];
+    }
+
     if (event == NSStreamEventOpenCompleted ||
         event == NSStreamEventErrorOccurred ||
         event == NSStreamEventEndEncountered) {
