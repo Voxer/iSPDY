@@ -225,4 +225,11 @@
   [output_ appendBytes: (const void*) body length: sizeof(body)];
 }
 
+- (void) ping: (uint32_t) ping_id {
+  uint32_t body;
+  body = htonl(ping_id);
+  [self controlHeader: kISpdyPing flags: 0 length: sizeof(body)];
+  [output_ appendBytes: (const void*) &body length: sizeof(body)];
+}
+
 @end
