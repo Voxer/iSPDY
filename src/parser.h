@@ -8,6 +8,7 @@
 typedef enum {
   kISpdyParserErrInvalidVersion,
   kISpdyParserErrRstOOB,
+  kISpdyParserErrPingOOB,
   kISpdyParserErrKVsTooSmall,
   kISpdyParserErrKeyLenOOB,
   kISpdyParserErrKeyValueOOB,

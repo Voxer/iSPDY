@@ -107,6 +107,14 @@
           frame_body = [NSNumber numberWithUnsignedInt: code];
         }
         break;
+      case kISpdyPing:
+        {
+          if (len < 4)
+            return [self error: kISpdyParserErrPingOOB];
+          uint32_t ping_id = ntohl(*(uint32_t*) input);
+          frame_body = [NSNumber numberWithUnsignedInt: ping_id];
+        }
+        break;
       default:
         // Ignore other frame's body
         frame_body = nil;
