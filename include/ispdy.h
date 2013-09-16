@@ -28,6 +28,16 @@ typedef enum {
   kISpdyErrDoubleResponse
 } ISpdyErrorCode;
 
+typedef enum {
+  kISpdyPingOk,
+  kISpdyPingTimedOut
+} ISpdyPingStatus;
+
+/**
+ * Callback for ping method.
+ */
+typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
+
 /**
  * Response class
  */
@@ -248,6 +258,14 @@ typedef enum {
  * @param request  `ISpdyRequest` to send to the server
  */
 - (void) send: (ISpdyRequest*) request;
+
+/**
+ * Send ping and measure RTT
+ *
+ * @param block    Block to execute upon receival of ping
+ * @param waitMax  Max time to wait until giving up
+ */
+- (void) ping: (ISpdyPingCallback) block waitMax: (NSTimeInterval) wait;
 
 /**
  * Set connection timeout (default value: 2 seconds)

@@ -23,6 +23,9 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 // Private interfaces first
 
+// Forward-declarations
+@class ISpdyPing;
+
 @interface ISpdy (ISpdyPrivate) <NSStreamDelegate,
                                  ISpdyParserDelegate,
                                  ISpdySchedulerDelegate>
@@ -30,13 +33,17 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 // Invoked on connection timeout
 - (void) _onTimeout;
 
+// Invoked on ping timeout
+- (void) _onPingTimeout: (ISpdyPing*) ping;
+
 // Use default (off-thread) NS loop, if no was provided by user
 - (void) _lazySchedule;
 
 // Create and schedule timer
 - (NSTimer*) _timerWithTimeInterval: (NSTimeInterval) interval
                              target: (id) target
-                           selector: (SEL) selector;
+                           selector: (SEL) selector
+                           userInfo: (id) info;
 
 // Write raw data to the underlying socket, returns YES if write wasn't buffered
 - (NSInteger) _writeRaw: (NSData*) data withMode: (ISpdyWriteMode) mode;
@@ -53,6 +60,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 - (void) _writeData: (NSData*) data to: (ISpdyRequest*) request;
 - (void) _rst: (uint32_t) stream_id code: (uint8_t) code;
 - (void) _error: (ISpdyRequest*) request code: (ISpdyErrorCode) code;
+- (void) _handlePing: (NSNumber*) ping_id;
 
 // dispatch delegate callback
 - (void) _delegateDispatch: (void (^)()) block;
@@ -107,6 +115,15 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 @end
 
+@interface ISpdyPing : NSObject
+
+@property NSNumber* ping_id;
+@property (strong) ISpdyPingCallback block;
+@property NSTimer* timeout;
+@property NSDate* start_date;
+
+@end
+
 // Implementations
 
 @implementation ISpdy {
@@ -128,8 +145,14 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   uint32_t stream_id_;
   NSInteger initial_window_;
 
+  // Next ping's id
+  uint32_t ping_id_;
+
   // Dictionary of all streams
   NSMutableDictionary* streams_;
+
+  // Dictionary of all client-initiated pings pings
+  NSMutableDictionary* pings_;
 
   // Connection write buffer
   NSMutableData* buffer_;
@@ -161,9 +184,11 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   parser_.delegate = self;
 
   stream_id_ = 1;
+  ping_id_ = 1;
   initial_window_ = kInitialWindowSize;
 
   streams_ = [[NSMutableDictionary alloc] initWithCapacity: 100];
+  pings_ = [[NSMutableDictionary alloc] initWithCapacity: 10];
 
   buffer_ = [[NSMutableData alloc] initWithCapacity: 4096];
 
@@ -346,6 +371,28 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 }
 
 
+- (void) ping: (ISpdyPingCallback) block waitMax: (NSTimeInterval) wait {
+  [self _connectionDispatch: ^{
+    ISpdyPing* ping = [ISpdyPing alloc];
+
+    ping.ping_id = [NSNumber numberWithUnsignedInt: ping_id_];
+    ping_id_ += 2;
+    ping.block = block;
+    ping.timeout = [self _timerWithTimeInterval: wait
+                                         target: self
+                                       selector: @selector(_onPingTimeout:)
+                                       userInfo: ping];
+    ping.start_date = [NSDate date];
+    [pings_ setObject: ping forKey: ping.ping_id];
+
+    [framer_ clear];
+    [framer_ ping: [ping.ping_id integerValue]];
+    [self _writeRaw: [framer_ output]
+           withMode: kISpdyWriteChunkBuffering];
+  }];
+}
+
+
 - (void) setTimeout: (NSTimeInterval) timeout {
   [connection_timeout_ invalidate];
   connection_timeout_ = nil;
@@ -354,7 +401,8 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
   connection_timeout_ = [self _timerWithTimeInterval: timeout
                                               target: self
-                                            selector: @selector(_onTimeout)];
+                                            selector: @selector(_onTimeout)
+                                            userInfo: nil];
 }
 
 @end
@@ -379,6 +427,13 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 }
 
 
+- (void) _onPingTimeout: (ISpdyPing*) ping {
+  NSAssert(ping != nil, @"Incorrect timeout callback invocation");
+  [pings_ removeObjectForKey: ping.ping_id];
+  ping.block(kISpdyPingTimedOut, -1.0);
+}
+
+
 - (void) _lazySchedule {
   if ([scheduled_loops_ count] == 0) {
     on_ispdy_loop_ = YES;
@@ -390,7 +445,8 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 - (NSTimer*) _timerWithTimeInterval: (NSTimeInterval) interval
                              target: (id) target
-                           selector: (SEL) selector {
+                           selector: (SEL) selector
+                           userInfo: (id) info {
   NSTimer* timer = [NSTimer timerWithTimeInterval: interval
                                            target: target
                                          selector: selector
@@ -566,6 +622,20 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   [streams_ removeObjectForKey: request_key];
 }
 
+
+- (void) _handlePing: (NSNumber*) ping_id {
+  ISpdyPing* ping = [pings_ objectForKey: ping_id];
+
+  // Ignore non-initiated pings
+  if (ping == nil)
+    return;
+
+  [pings_ removeObjectForKey: ping_id];
+  [ping.timeout invalidate];
+  ping.block(kISpdyPingOk,
+             [[NSDate date] timeIntervalSinceDate: ping.start_date]);
+}
+
 // NSSocket delegate methods
 
 - (void) stream: (NSStream*) stream handleEvent: (NSStreamEvent) event {
@@ -721,6 +791,25 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
           }
         }
       }
+      break;
+    case kISpdyPing:
+      {
+        NSInteger ping_id = [body integerValue];
+
+        // Server-initiated ping
+        if (ping_id % 2 == 0) {
+          // Just reply
+          [framer_ clear];
+          [framer_ ping: ping_id];
+          [self _writeRaw: [framer_ output]
+                 withMode: kISpdyWriteChunkBuffering];
+
+        // Client-initiated ping
+        } else {
+          [self _handlePing: (NSNumber*) body];
+        }
+      }
+      break;
     default:
       // Ignore
       break;
@@ -808,7 +897,8 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   response_timeout_ =
     [self.connection _timerWithTimeInterval: timeout
                                      target: self
-                                   selector: @selector(_onTimeout)];
+                                   selector: @selector(_onTimeout)
+                                   userInfo: nil];
 }
 
 @end
@@ -882,6 +972,12 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 @implementation ISpdyResponse
 
 // No-op, only to generate properties' accessors
+
+@end
+
+@implementation ISpdyPing
+
+// No-op too
 
 @end
 

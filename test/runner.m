@@ -115,6 +115,14 @@ describe(@"ISpdy server", ^{
       [[expectFutureValue(theValue(ended)) shouldEventually]
           equal: theValue(YES)];
       [[expectFutureValue(received) shouldEventually] equal: data];
+
+      // Send ping
+      __block BOOL received_pong = NO;
+      [conn ping: ^(ISpdyPingStatus status, NSTimeInterval interval) {
+        received_pong = YES;
+      } waitMax: 10000];
+      [[expectFutureValue(theValue(received_pong)) shouldEventually]
+          equal: theValue(YES)];
     };
 
     bothVersions(^(ISpdyVersion v) {
