@@ -183,7 +183,9 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   scheduler_.delegate = self;
   parser_.delegate = self;
 
+  _host = host;
   _hostname = hostname;
+
   stream_id_ = 1;
   ping_id_ = 1;
   initial_window_ = kInitialWindowSize;

@@ -185,6 +185,11 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
 @property (weak) id <ISpdyDelegate> delegate;
 
 /**
+ * Host passed to `init:host:port:secure:`
+ */
+@property (readonly) NSString* host;
+
+/**
  * Hostname passed to `init:host:port:secure:`
  */
 @property (readonly) NSString* hostname;
