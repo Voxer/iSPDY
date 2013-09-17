@@ -968,9 +968,6 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 
 - (void) _resetTimeout {
-  if (response_timeout_interval_ == 0.0)
-    return;
-
   [self setTimeout: response_timeout_set_ ? response_timeout_interval_ :
                                             kResponseTimeout];
   response_timeout_interval_ = 0.0;
