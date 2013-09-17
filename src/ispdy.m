@@ -92,8 +92,8 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 // Sends `end` selector if the close is pending
 - (void) _tryPendingClose;
 
-// Set queued timeout
-- (void) _trySetTimeout;
+// Set queued timeout, or reset existing one
+- (void) _resetTimeout;
 
 // Update outgoing window size
 - (void) _updateWindow: (NSInteger) delta;
@@ -369,7 +369,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
     [request _unqueue];
 
     // Start timer, if needed
-    [request _trySetTimeout];
+    [request _resetTimeout];
   }];
 }
 
@@ -531,6 +531,9 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 
 - (void) _writeData: (NSData*) data to: (ISpdyRequest*) request {
+  // Reset timeout
+  [request _resetTimeout];
+
   NSData* pending = data;
   NSInteger pending_length = [pending length];
   NSData* rest = nil;
@@ -742,6 +745,9 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   switch (type) {
     case kISpdyData:
       {
+        // Reset timeout
+        [req _resetTimeout];
+
         // Perform flow-control
         if (version_ != kISpdyV2) {
           req.window_in -= [body length];
@@ -935,7 +941,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 }
 
 
-- (void) _trySetTimeout {
+- (void) _resetTimeout {
   if (response_timeout_interval_ == 0.0)
     return;
 
