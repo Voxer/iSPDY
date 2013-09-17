@@ -2,7 +2,7 @@ IOS_SDK ?= iphoneos
 SIMULATOR_SDK ?= iphonesimulator
 CONFIGURATION ?= Release
 LIPO ?= `xcrun -find lipo -sdk $(IOS_SDK)`
-OUTPUT ?= ./build/$(CONFIGURATION)-iphoneos/libispdy-combinded.a
+OUTPUT ?= ./build/$(CONFIGURATION)-iphoneos/libispdy-combined.a
 
 all:
 	./gyp_ispdy -f xcode -Dsdk=$(IOS_SDK)
