@@ -135,6 +135,16 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
 - (void) end;
 
 /**
+ * Send data and gracefully end stream/request.
+ */
+- (void) endWithData: (NSData*) data;
+
+/**
+ * Send data and gracefully end stream/request.
+ */
+- (void) endWithString: (NSString*) data;
+
+/**
  * Shutdown stream (CANCEL error code will be used).
  *
  * NOTE: Can't be called before `[conn send: req]`

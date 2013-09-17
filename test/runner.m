@@ -106,8 +106,7 @@ describe(@"ISpdy server", ^{
 
       // Send body
       [conn send: req];
-      [req writeData: data];
-      [req end];
+      [req endWithData: data];
 
       // And expect it to come back
       [[expectFutureValue(theValue(got_response)) shouldEventually]

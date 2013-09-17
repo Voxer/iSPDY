@@ -57,7 +57,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 // See ISpdyRequest for description
 - (void) _end: (ISpdyRequest*) request;
 - (void) _close: (ISpdyRequest*) request;
-- (void) _writeData: (NSData*) data to: (ISpdyRequest*) request;
+- (void) _writeData: (NSData*) data to: (ISpdyRequest*) request fin: (BOOL) fin;
 - (void) _rst: (uint32_t) stream_id code: (uint8_t) code;
 - (void) _error: (ISpdyRequest*) request code: (ISpdyErrorCode) code;
 - (void) _handlePing: (NSNumber*) ping_id;
@@ -74,6 +74,8 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 @property ISpdy* connection;
 @property uint32_t stream_id;
+
+// Indicates queued end
 @property BOOL pending_closed_by_us;
 @property BOOL closed_by_us;
 @property BOOL closed_by_them;
@@ -530,7 +532,9 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 }
 
 
-- (void) _writeData: (NSData*) data to: (ISpdyRequest*) request {
+- (void) _writeData: (NSData*) data
+                 to: (ISpdyRequest*) request
+                fin: (BOOL) fin {
   // Reset timeout
   [request _resetTimeout];
 
@@ -559,20 +563,28 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
       request.window_out -= pending_length;
     }
 
+    BOOL write_fin = fin || request.pending_closed_by_us;
     [framer_ clear];
     [framer_ dataFrame: request.stream_id
-                   fin: 0
+                   fin: rest == nil && write_fin
               withData: pending];
-
     [scheduler_ schedule: [framer_ output] withPriority: request.priority];
+
+    if (write_fin) {
+      NSAssert(request.closed_by_us == NO, @"Already closed!");
+      if (rest == nil) {
+        request.closed_by_us = YES;
+        request.pending_closed_by_us = NO;
+      } else {
+        request.pending_closed_by_us = YES;
+      }
+    }
   } else {
     rest = data;
   }
 
   if (rest != nil)
     [request _queueData: rest];
-  else
-    [request _tryPendingClose];
 }
 
 
@@ -596,10 +608,8 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 
 - (void) _end: (ISpdyRequest*) request {
-  NSAssert(request.closed_by_us == NO,
-           @"Request already awaiting other side");
-  NSAssert(request.pending_closed_by_us == NO,
-           @"Request already awaiting other side");
+  if (request.closed_by_us || request.pending_closed_by_us)
+    return;
 
   if (![request _hasQueuedData]) {
     [framer_ clear];
@@ -867,7 +877,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
     return [self _queueData: data];
 
   [self.connection _connectionDispatch: ^{
-    [self.connection _writeData: data to: self];
+    [self.connection _writeData: data to: self fin: NO];
   }];
 }
 
@@ -886,6 +896,22 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   [self.connection _connectionDispatch: ^{
     [self.connection _end: self];
   }];
+}
+
+- (void) endWithData: (NSData*) data {
+  if (self.connection == nil) {
+    [self _queueData: data];
+    [self end];
+    return;
+  }
+
+  [self.connection _connectionDispatch: ^{
+    [self.connection _writeData: data to: self fin: YES];
+  }];
+}
+
+- (void) endWithString: (NSString*) str {
+  [self endWithData: [str dataUsingEncoding: NSUTF8StringEncoding]];
 }
 
 
@@ -977,7 +1003,9 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   if (data_queue_ != nil) {
     NSUInteger count = [data_queue_ count];
     for (NSUInteger i = 0; i < count; i++)
-      [self.connection _writeData: [data_queue_ objectAtIndex: i] to: self];
+      [self.connection _writeData: [data_queue_ objectAtIndex: i]
+                               to: self
+                              fin: NO];
 
     [data_queue_ removeObjectsInRange: NSMakeRange(0, count)];
   }
