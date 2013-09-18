@@ -930,8 +930,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   NSAssert(self.connection == nil, @"Request closed or not sent");
   [self.connection _connectionDispatch: ^{
     [self.connection _close: self];
-    [response_timeout_ invalidate];
-    response_timeout_ = nil;
+    [self setTimeout: 0.0];
   }];
 }
 
@@ -962,9 +961,8 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 - (void) _tryClose {
   if (self.connection == nil)
     return;
-  if (self.closed_by_us && self.closed_by_them) {
+  if (self.closed_by_us && self.closed_by_them)
     [self _forceClose];
-  }
 }
 
 
@@ -972,8 +970,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   if (self.connection == nil)
     return;
 
-  [response_timeout_ invalidate];
-  response_timeout_ = nil;
+  [self setTimeout: 0.0];
 
   [self.connection _delegateDispatch: ^{
     [self.delegate handleEnd: self];
