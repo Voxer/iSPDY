@@ -42,7 +42,7 @@ describe(@"ISpdy server", ^{
     void (^pipe)(ISpdyVersion, NSData*) = ^(ISpdyVersion v, NSData* data) {
       ISpdy* conn = [[ISpdy alloc] init: v
                                    host: @"localhost"
-                                   port:3232
+                                   port: 3232
                                  secure: NO];
 
       BOOL r = [conn connect];
@@ -124,6 +124,41 @@ describe(@"ISpdy server", ^{
           equal: theValue(YES)];
     };
 
+    void (^slow_response)(ISpdyVersion) = ^(ISpdyVersion v) {
+      ISpdy* conn = [[ISpdy alloc] init: v
+                                   host: @"localhost"
+                                   port: 3232
+                                 secure: NO];
+
+      BOOL r = [conn connect];
+      [[theValue(r) should] equal:theValue(YES)];
+
+      // Perform POST request to echo server
+      ISpdyRequest* req = [[ISpdyRequest alloc] init: @"POST" url: @"/"];
+
+      // Create delegate with mocked handlers
+      id mock = [KWMock mockForProtocol: @protocol(ISpdyRequestDelegate)];
+
+      __block NSError* err;
+      id (^onError)(NSArray*) = ^id (NSArray* args) {
+        [[theValue([args count]) should] equal: theValue(2)];
+
+        err = [args objectAtIndex: 1];
+
+        return nil;
+      };
+      [mock stub: @selector(request:handleResponse:) withBlock: nil];
+      [mock stub: @selector(request:handleError:) withBlock: onError];
+      [mock stub: @selector(handleEnd:) withBlock: nil];
+      req.delegate = mock;
+
+      [conn send: req];
+      [req setTimeout: 0.5];
+
+      [[expectFutureValue(err) shouldEventuallyBeforeTimingOutAfter(5.0)]
+          beNonNil];
+    };
+
     bothVersions(^(ISpdyVersion v) {
       it(@"should return body that was sent", ^{
         pipe(v, [@"hello world" dataUsingEncoding: NSUTF8StringEncoding]);
@@ -138,6 +173,10 @@ describe(@"ISpdy server", ^{
           [body appendData: str];
         }
         pipe(v, body);
+      });
+
+      it(@"should timeout on slow responses", ^{
+        slow_response(v);
       });
     });
   });

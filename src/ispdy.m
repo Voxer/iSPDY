@@ -87,9 +87,15 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 @interface ISpdyRequest (ISpdyRequestPrivate)
 
+// Invoked on request timeout
+- (void) _onTimeout;
+
 // Calls `[req close]` if the stream is closed by both
 // us and them.
 - (void) _tryClose;
+
+// Sets all required flags and closes without notification for other side
+- (void) _forceClose;
 
 // Sends `end` selector if the close is pending
 - (void) _tryPendingClose;
@@ -596,6 +602,10 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 
 - (void) _error: (ISpdyRequest*) request code: (ISpdyErrorCode) code {
+  // Ignore double-errors
+  if (request.connection == nil)
+    return;
+
   [self _rst: request.stream_id code: code];
 
   [self _delegateDispatch: ^{
@@ -604,6 +614,8 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
                                    userInfo: nil];
     [request.delegate request: request handleError: err];
   }];
+
+  [request _forceClose];
 }
 
 
@@ -861,7 +873,6 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   NSMutableArray* data_queue_;
   NSTimer* response_timeout_;
   NSTimeInterval response_timeout_interval_;
-  BOOL response_timeout_set_;
 }
 
 - (id) init: (NSString*) method url: (NSString*) url {
@@ -916,9 +927,11 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 
 - (void) close {
-  NSAssert(self.connection != nil, @"Request closed or not sent");
+  NSAssert(self.connection == nil, @"Request closed or not sent");
   [self.connection _connectionDispatch: ^{
     [self.connection _close: self];
+    [response_timeout_ invalidate];
+    response_timeout_ = nil;
   }];
 }
 
@@ -929,13 +942,12 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   if (timeout == 0.0)
     return;
 
-  response_timeout_set_ = YES;
+  response_timeout_interval_ = timeout;
 
   // Queue timeout until sent
-  if (self.connection == nil) {
-    response_timeout_interval_ = timeout;
+  if (self.connection == nil)
     return;
-  }
+
   response_timeout_ =
     [self.connection _timerWithTimeInterval: timeout
                                      target: self
@@ -954,8 +966,26 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
     [self.connection _delegateDispatch: ^{
       [self.delegate handleEnd: self];
     }];
-    [self close];
+    [self _forceClose];
   }
+}
+
+
+- (void) _forceClose {
+  if (self.connection == nil)
+    return;
+
+  [response_timeout_ invalidate];
+  response_timeout_ = nil;
+
+  [self.connection _delegateDispatch: ^{
+    [self.delegate handleEnd: self];
+  }];
+  self.closed_by_us = YES;
+  self.closed_by_them = YES;
+  self.pending_closed_by_us = NO;
+
+  [self.connection _close: self];
 }
 
 
@@ -968,9 +998,16 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 
 - (void) _resetTimeout {
-  [self setTimeout: response_timeout_set_ ? response_timeout_interval_ :
-                                            kResponseTimeout];
-  response_timeout_interval_ = 0.0;
+  [self setTimeout: response_timeout_interval_ != 0.0 ?
+      response_timeout_interval_ : kResponseTimeout];
+}
+
+
+- (void) _onTimeout {
+  NSAssert(self.connection != nil, @"Request closed before timeout callback");
+  [self.connection _connectionDispatch: ^{
+    [self.connection _error: self code: kISpdyErrRequestTimeout];
+  }];
 }
 
 

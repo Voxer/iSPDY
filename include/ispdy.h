@@ -21,6 +21,7 @@ typedef enum {
 typedef enum {
   kISpdyErrConnectionTimeout,
   kISpdyErrConnectionEnd,
+  kISpdyErrRequestTimeout,
   kISpdyErrDealloc,
   kISpdyErrNoSuchStream,
   kISpdyErrRst,
@@ -179,6 +180,7 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
  * @param err   The error itself
  */
 - (void) connection: (ISpdy*) conn handleError: (NSError*) err;
+
 @end
 
 /** ISpdy connection class
