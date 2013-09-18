@@ -963,9 +963,6 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   if (self.connection == nil)
     return;
   if (self.closed_by_us && self.closed_by_them) {
-    [self.connection _delegateDispatch: ^{
-      [self.delegate handleEnd: self];
-    }];
     [self _forceClose];
   }
 }

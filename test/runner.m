@@ -99,6 +99,7 @@ describe(@"ISpdy server", ^{
       [mock stub: @selector(request:handleInput:) withBlock: onInput];
       [mock stub: @selector(request:handleResponse:) withBlock: onResponse];
       [mock stub: @selector(handleEnd:) withBlock: ^id (NSArray* args) {
+        NSAssert(ended == NO, @"Double-end");
         ended = YES;
         return nil;
       }];
