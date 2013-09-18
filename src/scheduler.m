@@ -37,7 +37,7 @@ static const NSUInteger kBufferCapacity = 1024;
 
     // Part of data wasn't written right now, slice it and buffer
     [buffer appendBytes: [data bytes] + r length: [data length] - r];
-    length_ += r;
+    length_ += [data length] - r;
   } else {
     [buffer appendData: data];
     length_ += [data length];
