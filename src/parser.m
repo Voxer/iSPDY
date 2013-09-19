@@ -240,7 +240,7 @@
   ISpdySettings* settings = [ISpdySettings alloc];
   while (setting_count > 0) {
     uint32_t key = ntohl(*(uint32_t*) data) & 0x00ffffff;
-    uint32_t value = ntohl(*(uint32_t*) data + 4);
+    uint32_t value = ntohl(*(uint32_t*) (data + 4));
 
     switch ((ISpdySetting) key) {
       case kISpdySettingInitialWindowSize:
