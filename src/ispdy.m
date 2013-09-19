@@ -357,8 +357,8 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   request.connection = self;
 
   [self _connectionDispatch: ^{
-    request.window_in = initial_window_;
-    request.window_out = kInitialWindowSize;
+    request.window_in = kInitialWindowSize;
+    request.window_out = initial_window_;
     request.stream_id = stream_id_;
     stream_id_ += 2;
 
