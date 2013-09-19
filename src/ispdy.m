@@ -809,7 +809,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
         [self _delegateDispatch: ^{
           [req.delegate request: req handleError: err];
         }];
-        [req close];
+        [req _forceClose];
       }
       break;
     case kISpdyWindowUpdate:
@@ -927,10 +927,11 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 
 - (void) close {
-  NSAssert(self.connection == nil, @"Request closed or not sent");
+  if (self.connection == nil)
+    return;
+
   [self.connection _connectionDispatch: ^{
-    [self.connection _close: self];
-    [self setTimeout: 0.0];
+    [self _forceClose];
   }];
 }
 
