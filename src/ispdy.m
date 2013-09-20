@@ -82,6 +82,8 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 @property BOOL closed_by_us;
 @property BOOL closed_by_them;
 @property BOOL seen_response;
+@property NSInteger initial_window_in;
+@property NSInteger initial_window_out;
 @property NSInteger window_in;
 @property NSInteger window_out;
 
@@ -359,8 +361,10 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   request.connection = self;
 
   [self _connectionDispatch: ^{
-    request.window_in = kInitialWindowSizeIn;
-    request.window_out = initial_window_;
+    request.initial_window_in = kInitialWindowSizeIn;
+    request.initial_window_out = initial_window_;
+    request.window_in = request.initial_window_in;
+    request.window_out = request.initial_window_out;
     request.stream_id = stream_id_;
     stream_id_ += 2;
 
@@ -779,7 +783,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
           // Send WINDOW_UPDATE if exhausted
           if (req.window_in <= 0) {
-            uint32_t delta = kInitialWindowSizeIn - req.window_in;
+            uint32_t delta = req.initial_window_in - req.window_in;
             [framer_ clear];
             [framer_ windowUpdate: stream_id update: delta];
             [self _writeRaw: [framer_ output]
@@ -827,6 +831,9 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
         // Update all streams' output window
         if (delta != 0) {
           for (NSNumber* stream_id in streams_) {
+            // Skip push streams
+            if ([stream_id integerValue] % 2 == 0)
+              continue;
             ISpdyRequest* req = [streams_ objectForKey: stream_id];
             [req _updateWindow: delta];
           }
