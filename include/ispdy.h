@@ -76,6 +76,11 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
 - (void) setDelegate: (id <ISpdyRequestDelegate>) delegate;
 
 /**
+ * Indicates presence of error.
+ */
+@property NSError* error;
+
+/**
  * Request method, should be initialized using `init: url:` selector.
  */
 @property NSString* method;

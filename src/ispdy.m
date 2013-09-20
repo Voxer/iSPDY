@@ -110,6 +110,9 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 // Update outgoing window size
 - (void) _updateWindow: (NSInteger) delta;
 
+// Invoke delegate's method and set error property
+- (void) _handleError: (NSError*) err;
+
 // Bufferize frame data and fetch it
 - (void) _queueOutput: (NSData*) data;
 - (void) _queueInput: (NSData*) data;
@@ -540,7 +543,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   for (NSNumber* stream_id in streams) {
     ISpdyRequest* req = [streams objectForKey: stream_id];
     [self _delegateDispatch: ^{
-      [req.delegate request: req handleError: err];
+      [req _handleError: err];
       [req.delegate handleEnd: req];
     }];
   }
@@ -622,7 +625,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
     NSError* err = [NSError errorWithDomain: @"spdy"
                                        code: code
                                    userInfo: nil];
-    [request.delegate request: request handleError: err];
+    [request _handleError: err];
   }];
 
   [request _forceClose];
@@ -852,7 +855,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
                                            code: kISpdyErrRst
                                        userInfo: nil];
         [self _delegateDispatch: ^{
-          [req.delegate request: req handleError: err];
+          [req _handleError: err];
         }];
         [req _forceClose];
       }
@@ -1085,6 +1088,12 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   // Try writing queued data
   if (self.window_out > 0)
     [self _unqueueOutput];
+}
+
+
+- (void) _handleError: (NSError*) err {
+  self.error = err;
+  [self.delegate request: self handleError: err];
 }
 
 
