@@ -743,7 +743,8 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
   if (type == kISpdySynReply ||
       type == kISpdyRstStream ||
-      type == kISpdyData) {
+      type == kISpdyData ||
+      type == kISpdyWindowUpdate) {
     req =
         [streams_ objectForKey: [NSNumber numberWithUnsignedInt: stream_id]];
 
