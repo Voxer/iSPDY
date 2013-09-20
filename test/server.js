@@ -9,6 +9,16 @@ spdy.createServer({
       req.method !== 'POST')
     return res.writeHead(400);
 
+  res.push('/push', { hasHeaders: true }, function(err, stream) {
+    if (err)
+      return;
+
+    stream.on('error', function(err) {
+      console.log('Push error: %j', err.toString());
+    });
+    stream.end('push data');
+  });
+
   res.writeHead(200);
   req.pipe(res);
 }).listen(3232, function() {

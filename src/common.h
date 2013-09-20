@@ -62,7 +62,13 @@ typedef enum {
 
 @end
 
-@interface ISpdyPush (ISpdyPushPrivate)
+@interface ISpdyRequest ()
+
+@property uint32_t stream_id;
+
+@end
+
+@interface ISpdyPush ()
 
 @property uint32_t associated_id;
 

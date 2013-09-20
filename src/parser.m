@@ -69,14 +69,19 @@
         frame_body = [NSData dataWithBytes: input length: body_len];
         break;
       case kISpdySynStream:
-        stream_id = ntohl(*(uint32_t*) input) & 0x7fffffff;
-        frame_body = [self parseSynStream: input + 4 length: body_len - 4];
+        if (body_len < 4)
+          return [self error: kISpdyParserErrSynStreamOOB];
+        // NOTE: Actually, it is an associated stream id
+        stream_id = ntohl(*(uint32_t*) (input + 4)) & 0x7fffffff;
+        frame_body = [self parseSynStream: input length: body_len];
 
         // Error, but should be already handled by parseSynStream
         if (frame_body == nil)
           return;
         break;
       case kISpdySynReply:
+        if (body_len < 6)
+          return [self error: kISpdyParserErrSynReplyOOB];
         stream_id = ntohl(*(uint32_t*) input) & 0x7fffffff;
         if (version_ == kISpdyV2)
           frame_body = [self parseSynReply: input + 6 length: body_len - 6];
@@ -255,16 +260,17 @@
     return nil;
 
   __block ISpdyPush* push = [ISpdyPush alloc];
-  push.associated_id = ntohl(*(uint32_t*) data) & 0x7fffffff;
-  push.priority = data[5];
+  push.stream_id = ntohl(*(uint32_t*) data) & 0x7fffffff;
+  push.associated_id = ntohl(*(uint32_t*) (data + 4)) & 0x7fffffff;
+  push.priority = data[8];
 
   if (version_ == kISpdyV2)
     push.priority >>= 6;
   else
     push.priority >>= 5;
 
-  NSDictionary* headers = [self parseKVs: data + 6
-                                  length: length - 6
+  NSDictionary* headers = [self parseKVs: data + 10
+                                  length: length - 10
                               withFilter: ^BOOL (NSString* key, NSString* val) {
     if ((version_ == kISpdyV2 && [key isEqualToString: @"method"]) ||
         (version_ == kISpdyV3 && [key isEqualToString: @":method"])) {

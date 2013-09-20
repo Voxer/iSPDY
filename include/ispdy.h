@@ -176,6 +176,11 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
 @property NSString* version;
 @property NSDictionary* headers;
 
+/**
+ * Accept PUSH stream
+ */
+- (void) accept: (ISpdyResponse*) response;
+
 @end
 
 /**
@@ -185,11 +190,17 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
 
 /**
  * Invoked on TCP connection establishment.
+ *
+ * @param conn  ISpdy connection on which the error has happened
  */
 - (void) handleConnect: (ISpdy*) conn;
 
 /**
- * Invoked on incoming PUSH stream
+ * Invoked on incoming PUSH stream (OPTIONAL)
+ * You MUST call `[push accept: response];` before writing any data to it
+ *
+ * @param conn  ISpdy connection on which the error has happened
+ * @param push  PUSH request
  */
 - (void) connection: (ISpdy*) conn handlePush: (ISpdyPush*) push;
 

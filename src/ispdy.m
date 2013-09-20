@@ -63,6 +63,8 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 - (void) _rst: (uint32_t) stream_id code: (uint8_t) code;
 - (void) _error: (ISpdyRequest*) request code: (ISpdyErrorCode) code;
 - (void) _handlePing: (NSNumber*) ping_id;
+- (void) _handlePush: (ISpdyPush*) push forRequest: (ISpdyRequest*) req;
+- (void) _acceptPush: (ISpdyPush*) push withResponse: (ISpdyResponse*) resp;
 
 // dispatch delegate callback
 - (void) _delegateDispatch: (void (^)()) block;
@@ -75,7 +77,6 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 @interface ISpdyRequest ()
 
 @property ISpdy* connection;
-@property uint32_t stream_id;
 
 // Indicates queued end
 @property BOOL pending_closed_by_us;
@@ -670,6 +671,41 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
              [[NSDate date] timeIntervalSinceDate: ping.start_date]);
 }
 
+
+- (void) _handlePush: (ISpdyPush*) push forRequest: (ISpdyRequest*) req {
+  push.associated = req;
+
+  push.initial_window_in = initial_window_;
+  push.initial_window_out = kInitialWindowSizeIn;
+  push.window_in = push.initial_window_in;
+  push.window_out = push.initial_window_out;
+
+  NSNumber* request_key = [NSNumber numberWithUnsignedInt: push.stream_id];
+  [streams_ setObject: push forKey: request_key];
+
+  NSObject* delegate = (NSObject*) self.delegate;
+  if ([delegate respondsToSelector: @selector(connection:handlePush:)]) {
+    [self.delegate connection: self handlePush: push];
+  }
+}
+
+
+- (void) _acceptPush: (ISpdyPush*) push withResponse: (ISpdyResponse*) resp {
+  [self _connectionDispatch: ^{
+    NSString* status = [NSString stringWithFormat: @"%d %@",
+        (int) resp.code,
+        resp.status];
+    [framer_ clear];
+    [framer_ synReply: push.stream_id
+               status: status
+              headers: resp.headers];
+    [self _writeRaw: [framer_ output] withMode: kISpdyWriteChunkBuffering];
+
+    // Start timer, if needed
+    [push _resetTimeout];
+  }];
+}
+
 // NSSocket delegate methods
 
 - (void) stream: (NSStream*) stream handleEvent: (NSStreamEvent) event {
@@ -750,7 +786,8 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   if (type == kISpdySynReply ||
       type == kISpdyRstStream ||
       type == kISpdyData ||
-      type == kISpdyWindowUpdate) {
+      type == kISpdyWindowUpdate ||
+      type == kISpdySynStream) {
     req =
         [streams_ objectForKey: [NSNumber numberWithUnsignedInt: stream_id]];
 
@@ -807,6 +844,9 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
           [req.delegate request: req handleResponse: body];
         }];
       }
+      break;
+    case kISpdySynStream:
+      [self _handlePush: body forRequest: req];
       break;
     case kISpdyRstStream:
       {
@@ -1060,7 +1100,9 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 @implementation ISpdyPush
 
-// No-op, only to generate properties' accessors
+- (void) accept: (ISpdyResponse*) response {
+  [self.connection _acceptPush: self withResponse: response];
+}
 
 @end
 
