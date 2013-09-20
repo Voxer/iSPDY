@@ -16,7 +16,9 @@ typedef enum {
   kISpdyWriteChunkBuffering
 } ISpdyWriteMode;
 
-static const NSInteger kInitialWindowSize = 65536;
+static const NSInteger kSocketInBufSize = 65536;
+static const NSInteger kInitialWindowSizeIn = 1048576;
+static const NSInteger kInitialWindowSizeOut = 65536;
 static const NSUInteger kMaxPriority = 7;
 static const NSTimeInterval kConnectTimeout = 2.0;  // 2 seconds
 static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
@@ -196,7 +198,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
   stream_id_ = 1;
   ping_id_ = 1;
-  initial_window_ = kInitialWindowSize;
+  initial_window_ = kInitialWindowSizeOut;
 
   streams_ = [[NSMutableDictionary alloc] initWithCapacity: 100];
   pings_ = [[NSMutableDictionary alloc] initWithCapacity: 10];
@@ -324,7 +326,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   if (version_ != kISpdyV2) {
     [self _connectionDispatch: ^{
       [framer_ clear];
-      [framer_ initialWindow: kInitialWindowSize];
+      [framer_ initialWindow: kInitialWindowSizeIn];
       [self _writeRaw: [framer_ output] withMode: kISpdyWriteChunkBuffering];
     }];
   }
@@ -357,7 +359,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   request.connection = self;
 
   [self _connectionDispatch: ^{
-    request.window_in = kInitialWindowSize;
+    request.window_in = kInitialWindowSizeIn;
     request.window_out = initial_window_;
     request.stream_id = stream_id_;
     stream_id_ += 2;
@@ -719,7 +721,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
       NSAssert(in_stream_ == stream, @"Read event on output stream?!");
 
       // Socket available for read
-      uint8_t buf[kInitialWindowSize];
+      uint8_t buf[kSocketInBufSize];
       while ([in_stream_ hasBytesAvailable]) {
         NSInteger r = [in_stream_ read: buf maxLength: sizeof(buf)];
         if (r == 0)
@@ -777,7 +779,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
           // Send WINDOW_UPDATE if exhausted
           if (req.window_in <= 0) {
-            uint32_t delta = kInitialWindowSize - req.window_in;
+            uint32_t delta = kInitialWindowSizeIn - req.window_in;
             [framer_ clear];
             [framer_ windowUpdate: stream_id update: delta];
             [self _writeRaw: [framer_ output]
