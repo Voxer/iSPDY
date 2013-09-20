@@ -61,3 +61,9 @@ typedef enum {
 @property int32_t initial_window;
 
 @end
+
+@interface ISpdyPush (ISpdyPushPrivate)
+
+@property uint32_t associated_id;
+
+@end

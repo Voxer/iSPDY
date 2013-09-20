@@ -251,7 +251,18 @@
 
 - (ISpdyPush*) parseSynStream: (const uint8_t*) data
                        length: (NSUInteger) length {
+  if (length < 6)
+    return nil;
+
   __block ISpdyPush* push = [ISpdyPush alloc];
+  push.associated_id = ntohl(*(uint32_t*) data) & 0x7fffffff;
+  push.priority = data[5];
+
+  if (version_ == kISpdyV2)
+    push.priority >>= 6;
+  else
+    push.priority >>= 5;
+
   NSDictionary* headers = [self parseKVs: data + 6
                                   length: length - 6
                               withFilter: ^BOOL (NSString* key, NSString* val) {

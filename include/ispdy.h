@@ -50,16 +50,6 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
 
 @end
 
-@interface ISpdyPush : NSObject
-
-@property NSString* method;
-@property NSString* url;
-@property NSString* scheme;
-@property NSString* version;
-@property NSDictionary* headers;
-
-@end
-
 /**
  * Delegate for handling request-level events
  */
@@ -174,6 +164,21 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
 @end
 
 /**
+ * Server PUSH class
+ */
+
+@interface ISpdyPush : ISpdyRequest
+
+@property ISpdyRequest* associated;
+@property NSString* method;
+@property NSString* url;
+@property NSString* scheme;
+@property NSString* version;
+@property NSDictionary* headers;
+
+@end
+
+/**
  * Delegate for handling connection-level events
  */
 @protocol ISpdyDelegate
@@ -181,7 +186,12 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
 /**
  * Invoked on TCP connection establishment.
  */
--(void) handleConnect: (ISpdy*) conn;
+- (void) handleConnect: (ISpdy*) conn;
+
+/**
+ * Invoked on incoming PUSH stream
+ */
+- (void) connection: (ISpdy*) conn handlePush: (ISpdyPush*) push;
 
 /**
  * Invoked on global, connection-level error.
