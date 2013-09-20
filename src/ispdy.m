@@ -1048,6 +1048,12 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 @end
 
+@implementation ISpdyPush
+
+// No-op, only to generate properties' accessors
+
+@end
+
 @implementation ISpdyPing
 
 // No-op too

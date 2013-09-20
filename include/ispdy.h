@@ -50,6 +50,16 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
 
 @end
 
+@interface ISpdyPush : NSObject
+
+@property NSString* method;
+@property NSString* url;
+@property NSString* scheme;
+@property NSString* version;
+@property NSDictionary* headers;
+
+@end
+
 /**
  * Delegate for handling request-level events
  */

@@ -38,9 +38,20 @@ typedef enum {
 // Helper function
 - (void) error: (ISpdyParserError) err;
 
+// Parse Key/Value pairs
+- (NSDictionary*) parseKVs: (const uint8_t*) data
+                    length: (NSUInteger) length
+                withFilter: (BOOL (^)(NSString*, NSString*)) filter;
+
+// Parse SYN_STREAM's body
+- (ISpdyResponse*) parseSynStream: (const uint8_t*) data
+                           length: (NSUInteger) length;
+
 // Parse SYN_REPLY's body
 - (ISpdyResponse*) parseSynReply: (const uint8_t*) data
                           length: (NSUInteger) length;
+
+// Parse SETTINGS's body
 - (ISpdySettings*) parseSettings: (const uint8_t*) data
                           length: (NSUInteger) length;
 

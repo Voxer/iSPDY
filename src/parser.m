@@ -68,6 +68,14 @@
       case kISpdyData:
         frame_body = [NSData dataWithBytes: input length: body_len];
         break;
+      case kISpdySynStream:
+        stream_id = ntohl(*(uint32_t*) input) & 0x7fffffff;
+        frame_body = [self parseSynStream: input + 4 length: body_len - 4];
+
+        // Error, but should be already handled by parseSynStream
+        if (frame_body == nil)
+          return;
+        break;
       case kISpdySynReply:
         stream_id = ntohl(*(uint32_t*) input) & 0x7fffffff;
         if (version_ == kISpdyV2)
@@ -152,8 +160,9 @@
 }
 
 
-- (ISpdyResponse*) parseSynReply: (const uint8_t*) data
-                          length: (NSUInteger) length {
+- (NSDictionary*) parseKVs: (const uint8_t*) data
+                    length: (NSUInteger) length
+                withFilter: (BOOL (^)(NSString*, NSString*)) filter {
   NSData* compressed_kvs = [NSData dataWithBytes: data length: length];
   if (![comp_ inflate: compressed_kvs]) {
     [self.delegate handleParserError: [comp_ error]];
@@ -176,7 +185,6 @@
   kvs += len_size;
   kvs_len -= len_size;
 
-  ISpdyResponse* reply = [ISpdyResponse alloc];
   NSMutableDictionary* headers =
       [[NSMutableDictionary alloc] initWithCapacity: 16];
 
@@ -203,25 +211,81 @@
       kvs_len -= val_len;
     }
 
-    if ((version_ == kISpdyV2 && [kv[0] isEqualToString: @"status"]) ||
-        (version_ == kISpdyV3 && [kv[0] isEqualToString: @":status"])) {
-      NSScanner* scanner = [NSScanner scannerWithString: kv[1]];
-      NSInteger code;
-      if (![scanner scanInteger: &code]) {
-        [self error: kISpdyParserErrInvalidStatusHeader];
-        return nil;
-      }
-
-      reply.code = code;
-      reply.status = [kv[1] substringFromIndex: [scanner scanLocation] + 1];
-    } else {
+    if (filter(kv[0], kv[1]))
       [headers setValue: kv[1] forKey: kv[0]];
-    }
     kv_count--;
   }
 
+  return headers;
+}
+
+
+- (ISpdyResponse*) parseSynReply: (const uint8_t*) data
+                          length: (NSUInteger) length {
+  __block ISpdyResponse* reply = [ISpdyResponse alloc];
+  NSDictionary* headers = [self parseKVs: data
+                                  length: length
+                              withFilter: ^BOOL (NSString* key, NSString* val) {
+    if ((version_ == kISpdyV2 && [key isEqualToString: @"status"]) ||
+        (version_ == kISpdyV3 && [key isEqualToString: @":status"])) {
+      NSScanner* scanner = [NSScanner scannerWithString: val];
+      NSInteger code;
+      if (![scanner scanInteger: &code]) {
+        [self error: kISpdyParserErrInvalidStatusHeader];
+        return NO;
+      }
+
+      reply.code = code;
+      reply.status = [val substringFromIndex: [scanner scanLocation] + 1];
+      return NO;
+    }
+    return YES;
+  }];
+  if (headers == nil)
+    return nil;
+
   reply.headers = headers;
   return reply;
+}
+
+
+- (ISpdyPush*) parseSynStream: (const uint8_t*) data
+                       length: (NSUInteger) length {
+  __block ISpdyPush* push = [ISpdyPush alloc];
+  NSDictionary* headers = [self parseKVs: data + 6
+                                  length: length - 6
+                              withFilter: ^BOOL (NSString* key, NSString* val) {
+    if ((version_ == kISpdyV2 && [key isEqualToString: @"method"]) ||
+        (version_ == kISpdyV3 && [key isEqualToString: @":method"])) {
+      push.method = val;
+      return NO;
+    }
+
+    if ((version_ == kISpdyV2 && [key isEqualToString: @"url"]) ||
+        (version_ == kISpdyV3 && [key isEqualToString: @":path"])) {
+      push.url = val;
+      return NO;
+    }
+
+    if ((version_ == kISpdyV2 && [key isEqualToString: @"version"]) ||
+        (version_ == kISpdyV3 && [key isEqualToString: @":version"])) {
+      push.version = val;
+      return NO;
+    }
+
+    if ((version_ == kISpdyV2 && [key isEqualToString: @"scheme"]) ||
+        (version_ == kISpdyV3 && [key isEqualToString: @":scheme"])) {
+      push.scheme = val;
+      return NO;
+    }
+
+    return YES;
+  }];
+  if (headers == nil)
+    return nil;
+
+  push.headers = headers;
+  return push;
 }
 
 
