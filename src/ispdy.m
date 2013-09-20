@@ -64,7 +64,6 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 - (void) _error: (ISpdyRequest*) request code: (ISpdyErrorCode) code;
 - (void) _handlePing: (NSNumber*) ping_id;
 - (void) _handlePush: (ISpdyPush*) push forRequest: (ISpdyRequest*) req;
-- (void) _acceptPush: (ISpdyPush*) push withResponse: (ISpdyResponse*) resp;
 
 // dispatch delegate callback
 - (void) _delegateDispatch: (void (^)()) block;
@@ -112,9 +111,12 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 - (void) _updateWindow: (NSInteger) delta;
 
 // Bufferize frame data and fetch it
-- (void) _queueData: (NSData*) data;
+- (void) _queueOutput: (NSData*) data;
+- (void) _queueInput: (NSData*) data;
+- (void) _queueEnd;
 - (BOOL) _hasQueuedData;
-- (void) _unqueue;
+- (void) _unqueueOutput;
+- (void) _unqueueInput;
 
 @end
 
@@ -381,7 +383,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
     [self _writeRaw: [framer_ output] withMode: kISpdyWriteChunkBuffering];
 
     // Send body if accumulated
-    [request _unqueue];
+    [request _unqueueOutput];
 
     // Start timer, if needed
     [request _resetTimeout];
@@ -597,7 +599,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   }
 
   if (rest != nil)
-    [request _queueData: rest];
+    [request _queueOutput: rest];
 }
 
 
@@ -673,6 +675,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 
 - (void) _handlePush: (ISpdyPush*) push forRequest: (ISpdyRequest*) req {
+  push.connection = self;
   push.associated = req;
 
   push.initial_window_in = initial_window_;
@@ -680,29 +683,17 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   push.window_in = push.initial_window_in;
   push.window_out = push.initial_window_out;
 
+  // Unidirectional
+  push.closed_by_us = YES;
+
   NSNumber* request_key = [NSNumber numberWithUnsignedInt: push.stream_id];
   [streams_ setObject: push forKey: request_key];
 
-  NSObject* delegate = (NSObject*) self.delegate;
-  if ([delegate respondsToSelector: @selector(connection:handlePush:)]) {
+  // Start timer, if needed
+  [push _resetTimeout];
+
+  [self _delegateDispatch: ^{
     [self.delegate connection: self handlePush: push];
-  }
-}
-
-
-- (void) _acceptPush: (ISpdyPush*) push withResponse: (ISpdyResponse*) resp {
-  [self _connectionDispatch: ^{
-    NSString* status = [NSString stringWithFormat: @"%d %@",
-        (int) resp.code,
-        resp.status];
-    [framer_ clear];
-    [framer_ synReply: push.stream_id
-               status: status
-              headers: resp.headers];
-    [self _writeRaw: [framer_ output] withMode: kISpdyWriteChunkBuffering];
-
-    // Start timer, if needed
-    [push _resetTimeout];
   }];
 }
 
@@ -830,7 +821,13 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
         }
         if ([body length] != 0) {
           [self _delegateDispatch: ^{
-            [req.delegate request: req handleInput: (NSData*) body];
+            if (req.delegate == nil) {
+              [self _connectionDispatch: ^{
+                [req _queueInput: (NSData*) body];
+              }];
+            } else {
+              [req.delegate request: req handleInput: (NSData*) body];
+            }
           }];
         }
       }
@@ -920,7 +917,10 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 @end
 
 @implementation ISpdyRequest {
-  NSMutableArray* data_queue_;
+  id <ISpdyRequestDelegate> delegate_;
+  NSMutableArray* input_queue_;
+  NSMutableArray* output_queue_;
+  BOOL end_queued_;
   NSTimer* response_timeout_;
   NSTimeInterval response_timeout_interval_;
 }
@@ -935,7 +935,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 - (void) writeData: (NSData*) data {
   if (self.connection == nil)
-    return [self _queueData: data];
+    return [self _queueOutput: data];
 
   [self.connection _connectionDispatch: ^{
     [self.connection _writeData: data to: self fin: NO];
@@ -949,6 +949,8 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 
 - (void) end {
+  NSAssert(self.pending_closed_by_us == NO, @"Double end");
+
   // Request was either closed, or not opened yet, queue end.
   if (self.connection == nil) {
     self.pending_closed_by_us = YES;
@@ -961,7 +963,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 - (void) endWithData: (NSData*) data {
   if (self.connection == nil) {
-    [self _queueData: data];
+    [self _queueOutput: data];
     [self end];
     return;
   }
@@ -1005,6 +1007,20 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
                                    userInfo: nil];
 }
 
+
+- (id) delegate {
+  return delegate_;
+}
+
+- (void) setDelegate: (id <ISpdyRequestDelegate>) delegate {
+  @synchronized(self) {
+    NSAssert(input_queue_ == nil || delegate_ == nil,
+             @"Queued data with delegate");
+    delegate_ = delegate;
+  }
+  [self _unqueueInput];
+}
+
 @end
 
 @implementation ISpdyRequest (ISpdyRequestPrivate)
@@ -1024,7 +1040,13 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   [self setTimeout: 0.0];
 
   [self.connection _delegateDispatch: ^{
-    [self.delegate handleEnd: self];
+    if (self.delegate == nil) {
+      [self.connection _connectionDispatch: ^{
+        [self _queueEnd];
+      }];
+    } else {
+      [self.delegate handleEnd: self];
+    }
   }];
   self.closed_by_us = YES;
   self.closed_by_them = YES;
@@ -1061,33 +1083,72 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
   // Try writing queued data
   if (self.window_out > 0)
-    [self _unqueue];
+    [self _unqueueOutput];
 }
 
 
-- (void) _queueData: (NSData*) data {
-  if (data_queue_ == nil)
-    data_queue_ = [NSMutableArray arrayWithCapacity: 16];
+- (void) _queueOutput: (NSData*) data {
+  if (output_queue_ == nil)
+    output_queue_ = [NSMutableArray arrayWithCapacity: 16];
 
-  [data_queue_ addObject: data];
+  [output_queue_ addObject: data];
+}
+
+
+- (void) _queueInput: (NSData*) data {
+  if (input_queue_ == nil)
+    input_queue_ = [NSMutableArray arrayWithCapacity: 16];
+
+  NSLog(@"queue %@ %@", self, self.delegate);
+  [input_queue_ addObject: data];
+}
+
+
+- (void) _queueEnd {
+  NSAssert(end_queued_ == NO, @"Double end queue");
+  end_queued_ = YES;
 }
 
 
 - (BOOL) _hasQueuedData {
-  return [data_queue_ count] > 0;
+  return [output_queue_ count] > 0;
 }
 
 
-- (void) _unqueue {
-  if (data_queue_ != nil) {
-    NSUInteger count = [data_queue_ count];
-    for (NSUInteger i = 0; i < count; i++)
-      [self.connection _writeData: [data_queue_ objectAtIndex: i]
-                               to: self
-                              fin: NO];
+- (void) _unqueueOutput {
+  if (output_queue_ == nil)
+    return;
 
-    [data_queue_ removeObjectsInRange: NSMakeRange(0, count)];
+  NSUInteger count = [output_queue_ count];
+  for (NSUInteger i = 0; i < count; i++) {
+    [self.connection _writeData: [output_queue_ objectAtIndex: i]
+                             to: self
+                            fin: NO];
   }
+
+  [output_queue_ removeObjectsInRange: NSMakeRange(0, count)];
+}
+
+
+- (void) _unqueueInput {
+  if (self.connection == nil || self.delegate == nil)
+    return;
+
+  [self.connection _delegateDispatch: ^{
+    if (input_queue_ != nil) {
+      // Emit queued input (useful for PUSH streams)
+      NSUInteger count = [input_queue_ count];
+      for (NSUInteger i = 0; i < count; i++) {
+        [self.delegate request: self
+                   handleInput: [input_queue_ objectAtIndex: i]];
+      }
+    }
+
+    if (end_queued_)
+      [self.delegate handleEnd: self];
+
+    input_queue_ = nil;
+  }];
 }
 
 @end
@@ -1100,9 +1161,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 @implementation ISpdyPush
 
-- (void) accept: (ISpdyResponse*) response {
-  [self.connection _acceptPush: self withResponse: response];
-}
+// No-op too
 
 @end
 

@@ -72,7 +72,8 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
  * Reference to user-provided delegate.
  * Should be provided in order to receive input/end/error events.
  */
-@property (weak) id <ISpdyRequestDelegate> delegate;
+- (id) delegate;
+- (void) setDelegate: (id <ISpdyRequestDelegate>) delegate;
 
 /**
  * Request method, should be initialized using `init: url:` selector.
@@ -176,11 +177,6 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
 @property NSString* version;
 @property NSDictionary* headers;
 
-/**
- * Accept PUSH stream
- */
-- (void) accept: (ISpdyResponse*) response;
-
 @end
 
 /**
@@ -196,8 +192,7 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
 - (void) handleConnect: (ISpdy*) conn;
 
 /**
- * Invoked on incoming PUSH stream (OPTIONAL)
- * You MUST call `[push accept: response];` before writing any data to it
+ * Invoked on incoming PUSH stream
  *
  * @param conn  ISpdy connection on which the error has happened
  * @param push  PUSH request

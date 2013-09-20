@@ -39,30 +39,14 @@ describe(@"ISpdy server", ^{
   };
 
   context(@"sending requests to echo server", ^{
-    void (^pipe)(ISpdyVersion, NSData*) = ^(ISpdyVersion v, NSData* data) {
-      ISpdy* conn = [[ISpdy alloc] init: v
-                                   host: @"localhost"
-                                   port: 3232
-                                 secure: NO];
-
-      BOOL r = [conn connect];
-      [[theValue(r) should] equal:theValue(YES)];
-
-      __block BOOL got_response = NO;
+    void (^pipe_req)(ISpdyRequest*,
+                     NSData*,
+                     BOOL) = ^(ISpdyRequest* req,
+                               NSData* data,
+                               BOOL expect_response) {
+      __block BOOL got_response = !expect_response;
       __block BOOL ended = NO;
       __block NSMutableData* received = nil;
-
-      // Perform POST request to echo server
-      ISpdyRequest* req = [[ISpdyRequest alloc] init: @"POST" url: @"/"];
-      NSString* contentLength =
-          [NSString stringWithFormat: @"%u", (unsigned int) [data length]];
-
-      // Server expects and verifies this headers
-      NSMutableDictionary* headers =
-          [NSMutableDictionary dictionaryWithCapacity: 2];
-      [headers setValue: contentLength forKey: @"Content-Length"];
-      [headers setValue: @"yikes" forKey: @"X-ISpdy"];
-      req.headers = headers;
 
       // Concatenate all input into one string
       id (^onInput)(NSArray*) = ^id (NSArray* args) {
@@ -85,7 +69,7 @@ describe(@"ISpdy server", ^{
         [[theValue(got_response) shouldNot] equal: theValue(YES)];
         [[theValue([args count]) should] equal: theValue(2)];
 
-        got_response = true;
+        got_response = YES;
         ISpdyResponse* resp = [args objectAtIndex: 1];
 
         [[theValue(resp.code) should] equal: theValue(200)];
@@ -105,8 +89,7 @@ describe(@"ISpdy server", ^{
       }];
       [req setDelegate: mock];
 
-      // Send body
-      [conn send: req];
+      // Send data
       [req endWithData: data];
 
       // And expect it to come back
@@ -115,13 +98,92 @@ describe(@"ISpdy server", ^{
       [[expectFutureValue(theValue(ended)) shouldEventually]
           equal: theValue(YES)];
       [[expectFutureValue(received) shouldEventually] equal: data];
+    };
+
+    void (^pipe)(ISpdyVersion, NSData*) = ^(ISpdyVersion v, NSData* data) {
+      __block ISpdy* conn = [[ISpdy alloc] init: v
+                                           host: @"localhost"
+                                           port: 3232
+                                         secure: NO];
+
+      // Expect push streams and connect event
+      __block BOOL connected = NO;
+      __block BOOL got_push = NO;
+      __block BOOL got_push_input = NO;
+      __block BOOL got_push_end = NO;
+      id mock = [KWMock mockForProtocol: @protocol(ISpdyDelegate)];
+
+      [mock stub: @selector(handleConnect:) withBlock: ^id (NSArray* args) {
+        [[theValue([args count]) should] equal: theValue(1)];
+        [[theValue(connected) shouldNot] equal: theValue(YES)];
+        connected = YES;
+        return nil;
+      }];
+      [mock stub: @selector(connection:handlePush:)
+       withBlock: ^id (NSArray* args) {
+        [[theValue([args count]) should] equal: theValue(2)];
+        [[theValue(got_push) shouldNot] equal: theValue(YES)];
+        got_push = YES;
+
+        // Receive data
+        ISpdyPush* push = [args objectAtIndex: 1];
+
+        id mock = [KWMock mockForProtocol: @protocol(ISpdyRequestDelegate)];
+
+        [mock stub: @selector(request:handleInput:)
+         withBlock: ^id (NSArray* args) {
+           got_push_input = YES;
+           return nil;
+         }];
+        [mock stub: @selector(handleEnd:) withBlock: ^id (NSArray* args) {
+          NSAssert(got_push_end == NO, @"Double-end");
+          got_push_end = YES;
+          return nil;
+        }];
+        [push setDelegate: mock];
+
+        return nil;
+      }];
+      [conn setDelegate: mock];
+
+      // Perform connection
+      BOOL r = [conn connect];
+      [[theValue(r) should] equal:theValue(YES)];
+
+      // Perform POST request to echo server
+      ISpdyRequest* req = [[ISpdyRequest alloc] init: @"POST" url: @"/"];
+      NSString* contentLength =
+          [NSString stringWithFormat: @"%u", (unsigned int) [data length]];
+
+      // Server expects and verifies this headers
+      NSMutableDictionary* headers =
+          [NSMutableDictionary dictionaryWithCapacity: 2];
+      [headers setValue: contentLength forKey: @"Content-Length"];
+      [headers setValue: @"yikes" forKey: @"X-ISpdy"];
+      req.headers = headers;
+
+      // Send request
+      [conn send: req];
+
+      // Pipe data
+      pipe_req(req, data, YES);
 
       // Send ping
       __block BOOL received_pong = NO;
       [conn ping: ^(ISpdyPingStatus status, NSTimeInterval interval) {
         received_pong = YES;
       } waitMax: 10000];
+
+      // Poll block variables until changed
       [[expectFutureValue(theValue(received_pong)) shouldEventually]
+          equal: theValue(YES)];
+      [[expectFutureValue(theValue(connected)) shouldEventually]
+          equal: theValue(YES)];
+      [[expectFutureValue(theValue(got_push)) shouldEventually]
+          equal: theValue(YES)];
+      [[expectFutureValue(theValue(got_push_end)) shouldEventually]
+          equal: theValue(YES)];
+      [[expectFutureValue(theValue(got_push_input)) shouldEventually]
           equal: theValue(YES)];
     };
 

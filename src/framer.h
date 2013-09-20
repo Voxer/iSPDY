@@ -34,9 +34,6 @@
             method: (NSString*) method
                 to: (NSString*) url
            headers: (NSDictionary*) headers;
-- (void) synReply: (uint32_t) stream_id
-           status: (NSString*) status
-          headers: (NSDictionary*) headers;
 - (void) dataFrame: (uint32_t) stream_id
                fin: (BOOL) fin
           withData: (NSData*) data;
