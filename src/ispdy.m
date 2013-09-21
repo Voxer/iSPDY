@@ -1,7 +1,10 @@
 #import <CoreFoundation/CFStream.h>
 #import <CFNetwork/CFSocketStream.h>
 #import <dispatch/dispatch.h>  // dispatch_queue_t
+#import <netinet/in.h>  // IPPROTO_TCP
+#import <netinet/tcp.h>  // TCP_NODELAY
 #import <string.h>  // memmove
+#import <sys/socket.h>  // setsockopt
 
 #import "ispdy.h"
 #import "common.h"  // Common internal parts
@@ -31,6 +34,9 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 @interface ISpdy (ISpdyPrivate) <NSStreamDelegate,
                                  ISpdyParserDelegate,
                                  ISpdySchedulerDelegate>
+
+// Get fd out of streams
+- (void) _fdWithBlock: (void(^)(CFSocketNativeHandle)) block;
 
 // Invoked on connection timeout
 - (void) _onTimeout;
@@ -153,6 +159,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   ISpdyFramer* framer_;
   ISpdyParser* parser_;
   ISpdyScheduler* scheduler_;
+  BOOL no_delay_;
 
   // Run loop
   BOOL on_ispdy_loop_;
@@ -324,6 +331,24 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 }
 
 
+- (void) setNoDelay: (BOOL) enable {
+  NSStreamStatus status = [out_stream_ streamStatus];
+
+  // If stream is not open yet, queue setting option
+  if (status != NSStreamStatusOpen && status != NSStreamStatusWriting) {
+    no_delay_ = YES;
+    return;
+  }
+
+  __block int r;
+  [self _fdWithBlock: ^(CFSocketNativeHandle fd) {
+    int ienable = enable;
+    r = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &ienable, sizeof(ienable));
+  }];
+  NSAssert(r == 0, @"Set NODELAY failed");
+}
+
+
 - (BOOL) connect {
   [self _lazySchedule];
 
@@ -439,6 +464,20 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 - (void) _connectionDispatch: (void (^)()) block {
   dispatch_async(connection_queue_, block);
+}
+
+
+- (void) _fdWithBlock: (void(^)(CFSocketNativeHandle)) block {
+  CFDataRef data =
+      CFWriteStreamCopyProperty((__bridge CFWriteStreamRef) out_stream_,
+                                kCFStreamPropertySocketNativeHandle);
+  NSAssert(data != NULL, @"CFWriteStreamCopyProperty failed");
+  CFSocketNativeHandle handle;
+  CFDataGetBytes(data, CFRangeMake(0, sizeof(handle)), (UInt8*) &handle);
+
+  block(handle);
+
+  CFRelease(data);
 }
 
 
@@ -710,7 +749,12 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
       return;
 
     // Notify delegate about connection establishment
-    if (event == NSStreamEventOpenCompleted && stream == in_stream_) {
+    if (event == NSStreamEventOpenCompleted && stream == out_stream_) {
+      // Set queued option
+      if (no_delay_)
+        [self setNoDelay: no_delay_];
+
+      // Notify delegate
       [self _delegateDispatch: ^{
         [self.delegate handleConnect: self];
       }];

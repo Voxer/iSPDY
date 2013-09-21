@@ -296,6 +296,11 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
 - (void) setDelegateQueue: (dispatch_queue_t) queue;
 
 /**
+ * Enable/disable Nagle algorithm
+ */
+- (void) setNoDelay: (BOOL) enable;
+
+/**
  * Connect to remote server.
  *
  * @return `YES` - If socket initialization was successful

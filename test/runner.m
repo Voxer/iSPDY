@@ -150,6 +150,9 @@ describe(@"ISpdy server", ^{
       BOOL r = [conn connect];
       [[theValue(r) should] equal:theValue(YES)];
 
+      // Disable Nagle algorithm
+      [conn setNoDelay: YES];
+
       // Perform POST request to echo server
       ISpdyRequest* req = [[ISpdyRequest alloc] init: @"POST" url: @"/"];
       NSString* contentLength =
