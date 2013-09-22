@@ -121,8 +121,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 - (void) _handleError: (NSError*) err;
 
 // Bufferize frame data and fetch it
-// TODO(indutny): handle race conditions for
-// both req.connection and req.delegate
+// TODO(indutny): handle race conditions with req.delegate
 - (void) _queueOutput: (NSData*) data;
 - (void) _queueInput: (NSData*) data;
 - (void) _queueHeaders: (NSDictionary*) headers;
