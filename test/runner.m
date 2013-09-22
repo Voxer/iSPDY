@@ -97,6 +97,8 @@ describe(@"ISpdy server", ^{
           equal: theValue(YES)];
       [[expectFutureValue(theValue(ended)) shouldEventually]
           equal: theValue(YES)];
+      [[expectFutureValue(theValue([received length])) shouldEventually]
+          equal: theValue([data length])];
       [[expectFutureValue(received) shouldEventually] equal: data];
     };
 
@@ -176,6 +178,11 @@ describe(@"ISpdy server", ^{
       [conn ping: ^(ISpdyPingStatus status, NSTimeInterval interval) {
         received_pong = YES;
       } waitMax: 10000];
+
+      // Send trailing headers
+      NSDictionary* trailers = [NSDictionary dictionaryWithObject: @"yes"
+                                                           forKey: @"set"];
+      [req addHeaders: trailers];
 
       // Poll block variables until changed
       [[expectFutureValue(theValue(received_pong)) shouldEventually]

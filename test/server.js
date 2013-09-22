@@ -19,6 +19,12 @@ spdy.createServer({
     stream.end('push data');
   });
 
+  // Assert trailing headers
+  req.on('end', function() {
+    if (!req.trailers['set'])
+      console.error('No trailers!');
+  });
+
   res.writeHead(200);
   req.pipe(res);
 }).listen(3232, function() {

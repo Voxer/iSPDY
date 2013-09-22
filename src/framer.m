@@ -75,6 +75,32 @@
   }
   [pairs_ appendBytes: [value cStringUsingEncoding: NSUTF8StringEncoding]
                length: cvalue_len];
+  pair_count_++;
+}
+
+
+- (void) putKVs: (void (^)()) block {
+  // Truncate pairs
+  // Put some space for length ahead of time, we'll change it later
+  [pairs_ setLength: version_ == kISpdyV2 ? 2 : 4];
+  pair_count_ = 0;
+
+  // Execute block
+  block();
+
+  // Now insert a proper length
+  uint8_t* data = [pairs_ mutableBytes];
+  if (version_ == kISpdyV2)
+    *(uint16_t*) data = htons(pair_count_);
+  else
+    *(uint32_t*) data = htonl(pair_count_);
+  // And compress pairs
+  BOOL ret = [comp_ deflate: pairs_];
+
+  // NOTE: this assertion can't be caused by any user input,
+  // if it happens - something terribly bad has happened to the
+  // ispdy state.
+  NSAssert(ret == YES, @"Deflate failed!");
 }
 
 
@@ -83,68 +109,46 @@
             method: (NSString*) method
                 to: (NSString*) url
            headers: (NSDictionary*) headers {
-  // Truncate pairs
-  // Put some space for length ahead of time, we'll change it later
-  [pairs_ setLength: version_ == kISpdyV2 ? 2 : 4];
-
-  // Put system headers
-  __block NSInteger count = 4;
-
-  if (version_ == kISpdyV2) {
-    [self putValue: @"https" withKey: @"scheme"];
-    [self putValue: @"HTTP/1.1" withKey: @"version"];
-    [self putValue: method withKey: @"method"];
-    [self putValue: url withKey: @"url"];
-  } else {
-    [self putValue: @"https" withKey: @":scheme"];
-    [self putValue: @"HTTP/1.1" withKey: @":version"];
-    [self putValue: method withKey: @":method"];
-    [self putValue: url withKey: @":path"];
-  }
-
-  [headers enumerateKeysAndObjectsUsingBlock: ^(NSString* key,
-                                                NSString* val,
-                                                BOOL* stop) {
-    NSString* lckey = [key lowercaseString];
-
-    // Skip protocol headers
+  [self putKVs: ^() {
+    // Put system headers
     if (version_ == kISpdyV2) {
-      if (![lckey isEqualToString: @"scheme"] &&
-          ![lckey isEqualToString: @"version"] &&
-          ![lckey isEqualToString: @"method"] &&
-          ![lckey isEqualToString: @"url"]) {
-        [self putValue: val withKey: lckey];
-        count++;
-      }
+      [self putValue: @"https" withKey: @"scheme"];
+      [self putValue: @"HTTP/1.1" withKey: @"version"];
+      [self putValue: method withKey: @"method"];
+      [self putValue: url withKey: @"url"];
     } else {
-      if ([lckey isEqualToString: @"host"]) {
-        [self putValue: val withKey: @":host"];
-        count++;
-      } else if (![lckey isEqualToString: @":scheme"] &&
-          ![lckey isEqualToString: @":version"] &&
-          ![lckey isEqualToString: @":method"] &&
-          ![lckey isEqualToString: @":host"] &&
-          ![lckey isEqualToString: @":path"]) {
-        [self putValue: val withKey: lckey];
-        count++;
-      }
+      [self putValue: @"https" withKey: @":scheme"];
+      [self putValue: @"HTTP/1.1" withKey: @":version"];
+      [self putValue: method withKey: @":method"];
+      [self putValue: url withKey: @":path"];
     }
+
+    [headers enumerateKeysAndObjectsUsingBlock: ^(NSString* key,
+                                                  NSString* val,
+                                                  BOOL* stop) {
+      NSString* lckey = [key lowercaseString];
+
+      // Skip protocol headers
+      if (version_ == kISpdyV2) {
+        if (![lckey isEqualToString: @"scheme"] &&
+            ![lckey isEqualToString: @"version"] &&
+            ![lckey isEqualToString: @"method"] &&
+            ![lckey isEqualToString: @"url"]) {
+          [self putValue: val withKey: lckey];
+        }
+      } else {
+        if ([lckey isEqualToString: @"host"]) {
+          [self putValue: val withKey: @":host"];
+        } else if (![lckey isEqualToString: @":scheme"] &&
+                   ![lckey isEqualToString: @":version"] &&
+                   ![lckey isEqualToString: @":method"] &&
+                   ![lckey isEqualToString: @":host"] &&
+                   ![lckey isEqualToString: @":path"]) {
+          [self putValue: val withKey: lckey];
+        }
+      }
+    }];
   }];
-
-  // Now insert a proper length
-  uint8_t* data = [pairs_ mutableBytes];
-  if (version_ == kISpdyV2)
-    *(uint16_t*) data = htons(count);
-  else
-    *(uint32_t*) data = htonl(count);
-
-  // And compress pairs
-  BOOL ret = [comp_ deflate: pairs_];
-
-  // NOTE: this assertion can't be caused by any user input,
-  // if it happens - something terribly bad has happened to the
-  // ispdy state.
-  NSAssert(ret == YES, @"Deflate failed!");
 
   // Finally, write body
   uint8_t body[10];
@@ -164,6 +168,33 @@
                 flags: 0
                length: sizeof(body) + [[comp_ output] length]];
   [output_ appendBytes: (const void*) body length: sizeof(body)];
+  [output_ appendData: [comp_ output]];
+}
+
+
+- (void) headers: (uint32_t) stream_id
+     withHeaders: (NSDictionary*) headers {
+  [self putKVs: ^() {
+    [headers enumerateKeysAndObjectsUsingBlock: ^(NSString* key,
+                                                  NSString* val,
+                                                  BOOL* stop) {
+      NSString* lckey = [key lowercaseString];
+
+      [self putValue: val withKey: lckey];
+    }];
+  }];
+
+  // Finally, write body
+  uint8_t body[6];
+  int body_size = version_ == kISpdyV2 ? 6 : 4;
+  NSAssert(body_size <= (int) sizeof(body), @"HEADERS body OOB");
+
+  *(uint32_t*) body = htonl(stream_id & 0x7fffffff);
+
+  [self controlHeader: kISpdyHeaders
+                flags: 0
+               length: body_size + [[comp_ output] length]];
+  [output_ appendBytes: (const void*) body length: body_size];
   [output_ appendData: [comp_ output]];
 }
 

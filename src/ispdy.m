@@ -66,6 +66,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 - (void) _end: (ISpdyRequest*) request;
 - (void) _close: (ISpdyRequest*) request;
 - (void) _writeData: (NSData*) data to: (ISpdyRequest*) request fin: (BOOL) fin;
+- (void) _addHeaders: (NSDictionary*) headers to: (ISpdyRequest*) request;
 - (void) _rst: (uint32_t) stream_id code: (uint8_t) code;
 - (void) _error: (ISpdyRequest*) request code: (ISpdyErrorCode) code;
 - (void) _handlePing: (NSNumber*) ping_id;
@@ -120,12 +121,16 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 - (void) _handleError: (NSError*) err;
 
 // Bufferize frame data and fetch it
+// TODO(indutny): handle race conditions for
+// both req.connection and req.delegate
 - (void) _queueOutput: (NSData*) data;
 - (void) _queueInput: (NSData*) data;
+- (void) _queueHeaders: (NSDictionary*) headers;
 - (void) _queueEnd;
 - (BOOL) _hasQueuedData;
 - (void) _unqueueOutput;
 - (void) _unqueueInput;
+- (void) _unqueueHeaders;
 
 @end
 
@@ -413,6 +418,9 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
     // Send body if accumulated
     [request _unqueueOutput];
 
+    // Send trailing headers
+    [request _unqueueHeaders];
+
     // Start timer, if needed
     [request _resetTimeout];
   }];
@@ -643,6 +651,16 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
   if (rest != nil)
     [request _queueOutput: rest];
+}
+
+
+- (void) _addHeaders: (NSDictionary*) headers to: (ISpdyRequest*) request {
+  // Reset timeout
+  [request _resetTimeout];
+
+  [framer_ clear];
+  [framer_ headers: request.stream_id withHeaders: headers];
+  [self _writeRaw: [framer_ output] withMode: kISpdyWriteChunkBuffering];
 }
 
 
@@ -968,6 +986,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   id <ISpdyRequestDelegate> delegate_;
   NSMutableArray* input_queue_;
   NSMutableArray* output_queue_;
+  NSMutableDictionary* headers_queue_;
   BOOL end_queued_;
   NSTimer* response_timeout_;
   NSTimeInterval response_timeout_interval_;
@@ -1023,6 +1042,16 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 - (void) endWithString: (NSString*) str {
   [self endWithData: [str dataUsingEncoding: NSUTF8StringEncoding]];
+}
+
+
+- (void) addHeaders: (NSDictionary*) headers {
+  if (self.connection == nil)
+    return [self _queueHeaders: headers];
+
+  [self.connection _connectionDispatch: ^{
+     [self.connection _addHeaders: headers to: self];
+  }];
 }
 
 
@@ -1153,8 +1182,22 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   if (input_queue_ == nil)
     input_queue_ = [NSMutableArray arrayWithCapacity: 16];
 
-  NSLog(@"queue %@ %@", self, self.delegate);
   [input_queue_ addObject: data];
+}
+
+
+- (void) _queueHeaders: (NSDictionary*) headers {
+  if (headers_queue_ == nil) {
+    headers_queue_ = [NSMutableDictionary dictionaryWithDictionary: headers];
+    return;
+  }
+
+  // Insert key/values into existing dictionary
+  [headers enumerateKeysAndObjectsUsingBlock: ^(NSString* key,
+                                                NSString* val,
+                                                BOOL* stop) {
+    [headers_queue_ setValue: val forKey: key];
+  }];
 }
 
 
@@ -1185,24 +1228,37 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 
 - (void) _unqueueInput {
-  if (self.connection == nil || self.delegate == nil)
-    return;
+  @synchronized (self) {
+    if (self.connection == nil || self.delegate == nil)
+      return;
 
-  [self.connection _delegateDispatch: ^{
-    if (input_queue_ != nil) {
-      // Emit queued input (useful for PUSH streams)
-      NSUInteger count = [input_queue_ count];
-      for (NSUInteger i = 0; i < count; i++) {
-        [self.delegate request: self
-                   handleInput: [input_queue_ objectAtIndex: i]];
+    [self.connection _delegateDispatch: ^{
+      if (input_queue_ != nil) {
+        // Emit queued input (useful for PUSH streams)
+        NSUInteger count = [input_queue_ count];
+        for (NSUInteger i = 0; i < count; i++) {
+          [self.delegate request: self
+                     handleInput: [input_queue_ objectAtIndex: i]];
+        }
       }
-    }
 
-    if (end_queued_)
-      [self.delegate handleEnd: self];
+      if (end_queued_)
+        [self.delegate handleEnd: self];
 
-    input_queue_ = nil;
-  }];
+      input_queue_ = nil;
+    }];
+  }
+}
+
+
+- (void) _unqueueHeaders {
+  @synchronized (self) {
+    if (self.connection == nil)
+      return;
+
+    [self addHeaders: headers_queue_];
+    headers_queue_ = nil;
+  }
 }
 
 @end

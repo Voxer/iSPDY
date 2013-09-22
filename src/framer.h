@@ -13,6 +13,7 @@
   ISpdyCompressor* comp_;
 
   // Cached data for pairs
+  NSInteger pair_count_;
   NSMutableData* pairs_;
 
   // And cached data for output
@@ -34,6 +35,8 @@
             method: (NSString*) method
                 to: (NSString*) url
            headers: (NSDictionary*) headers;
+- (void) headers: (uint32_t) stream_id
+     withHeaders: (NSDictionary*) headers;
 - (void) dataFrame: (uint32_t) stream_id
                fin: (BOOL) fin
           withData: (NSData*) data;
@@ -43,6 +46,7 @@
 - (void) ping: (uint32_t) ping_id;
 
 // Utilities, not for public use
+- (void) putKVs: (void (^)()) block;
 - (void) controlHeader: (uint16_t) type
                  flags: (uint8_t) flags
                 length: (uint32_t) len;

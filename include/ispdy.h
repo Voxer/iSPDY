@@ -143,13 +143,24 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
 
 /**
  * Send data and gracefully end stream/request.
+ *
+ * @param data  Data to end with
  */
 - (void) endWithData: (NSData*) data;
 
 /**
  * Send data and gracefully end stream/request.
+ *
+ * @param data  Data to end with
  */
 - (void) endWithString: (NSString*) data;
+
+/**
+ * Add trailing headers.
+ *
+ * @param headers  Trailing headers to sent
+ */
+- (void) addHeaders: (NSDictionary*) headers;
 
 /**
  * Shutdown stream (CANCEL error code will be used).
