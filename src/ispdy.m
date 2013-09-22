@@ -1050,7 +1050,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
     return [self _queueHeaders: headers];
 
   [self.connection _connectionDispatch: ^{
-     [self.connection _addHeaders: headers to: self];
+    [self.connection _addHeaders: headers to: self];
   }];
 }
 
@@ -1228,37 +1228,33 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 
 - (void) _unqueueInput {
-  @synchronized (self) {
-    if (self.connection == nil || self.delegate == nil)
-      return;
+  if (self.connection == nil || self.delegate == nil)
+    return;
 
-    [self.connection _delegateDispatch: ^{
-      if (input_queue_ != nil) {
-        // Emit queued input (useful for PUSH streams)
-        NSUInteger count = [input_queue_ count];
-        for (NSUInteger i = 0; i < count; i++) {
-          [self.delegate request: self
-                     handleInput: [input_queue_ objectAtIndex: i]];
-        }
+  [self.connection _delegateDispatch: ^{
+    if (input_queue_ != nil) {
+      // Emit queued input (useful for PUSH streams)
+      NSUInteger count = [input_queue_ count];
+      for (NSUInteger i = 0; i < count; i++) {
+        [self.delegate request: self
+                   handleInput: [input_queue_ objectAtIndex: i]];
       }
+    }
 
-      if (end_queued_)
-        [self.delegate handleEnd: self];
+    if (end_queued_)
+      [self.delegate handleEnd: self];
 
-      input_queue_ = nil;
-    }];
-  }
+    input_queue_ = nil;
+  }];
 }
 
 
 - (void) _unqueueHeaders {
-  @synchronized (self) {
-    if (self.connection == nil)
-      return;
+  if (self.connection == nil || headers_queue_ == nil)
+    return;
 
-    [self addHeaders: headers_queue_];
-    headers_queue_ = nil;
-  }
+  [self addHeaders: headers_queue_];
+  headers_queue_ = nil;
 }
 
 @end
