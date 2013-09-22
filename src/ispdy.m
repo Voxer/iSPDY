@@ -23,7 +23,7 @@ static const NSInteger kSocketInBufSize = 65536;
 static const NSInteger kInitialWindowSizeIn = 1048576;
 static const NSInteger kInitialWindowSizeOut = 65536;
 static const NSUInteger kMaxPriority = 7;
-static const NSTimeInterval kConnectTimeout = 2.0;  // 2 seconds
+static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
 static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 // Private interfaces first

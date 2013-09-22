@@ -89,6 +89,11 @@ describe(@"ISpdy server", ^{
       }];
       [req setDelegate: mock];
 
+      // Send trailing headers
+      NSDictionary* trailers = [NSDictionary dictionaryWithObject: @"yes"
+                                                           forKey: @"set"];
+      [req addHeaders: trailers];
+
       // Send data
       [req endWithData: data];
 
@@ -178,11 +183,6 @@ describe(@"ISpdy server", ^{
       [conn ping: ^(ISpdyPingStatus status, NSTimeInterval interval) {
         received_pong = YES;
       } waitMax: 10000];
-
-      // Send trailing headers
-      NSDictionary* trailers = [NSDictionary dictionaryWithObject: @"yes"
-                                                           forKey: @"set"];
-      [req addHeaders: trailers];
 
       // Poll block variables until changed
       [[expectFutureValue(theValue(received_pong)) shouldEventually]
