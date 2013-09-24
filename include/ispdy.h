@@ -23,7 +23,6 @@ typedef enum {
   kISpdyErrConnectionEnd,
   kISpdyErrRequestTimeout,
   kISpdyErrDealloc,
-  kISpdyErrNoSuchStream,
   kISpdyErrRst,
   kISpdyErrParseError,
   kISpdyErrDoubleResponse

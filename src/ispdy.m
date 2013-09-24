@@ -863,10 +863,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
     // indefinitely.
     if (req == nil && type != kISpdyRstStream) {
       [self _rst: stream_id code: kISpdyRstProtocolError];
-      NSError* err = [NSError errorWithDomain: @"spdy"
-                                         code: kISpdyErrNoSuchStream
-                                     userInfo: nil];
-      return [self _handleError: err];
+      return;
     }
   }
 
