@@ -872,12 +872,12 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   if (req != nil && req.connection == nil)
     return;
 
+  // Reset timeout
+  [req _resetTimeout];
+
   switch (type) {
     case kISpdyData:
       {
-        // Reset timeout
-        [req _resetTimeout];
-
         // Perform flow-control
         if (version_ != kISpdyV2) {
           req.window_in -= [body length];
