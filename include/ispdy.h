@@ -103,7 +103,7 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
 /**
  * Just a property to store user-defined reference, not used internally.
  */
-@property (weak) id opaque;
+@property (strong) id opaque;
 
 /**
  * Initialize properties.
