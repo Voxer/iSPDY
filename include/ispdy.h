@@ -319,6 +319,16 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
 - (BOOL) connect;
 
 /**
+ * Connect to remote server.
+ *
+ * @param timeout  if non-zero - how much to wait until throwing an error,
+ *                 if zero - reset timeout
+ *
+ * @return `YES` - If socket initialization was successful
+ */
+- (BOOL) connectWithTimeout: (NSTimeInterval) timeout;
+
+/**
  * Disconnect from remote server.
  * NOTE: Connection will be automatically closed at `dealloc`, so do it if you
  * want it to be closed right now

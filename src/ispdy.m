@@ -375,6 +375,17 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 }
 
 
+- (BOOL) connectWithTimeout: (NSTimeInterval) timeout {
+  BOOL r = [self connect];
+  if (!r)
+    return r;
+
+  [self setTimeout: timeout];
+
+  return r;
+}
+
+
 - (BOOL) close {
   if (in_stream_ == nil || out_stream_ == nil)
     return NO;
