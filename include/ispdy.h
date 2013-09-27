@@ -1,3 +1,4 @@
+#import <sys/time.h>  // struct timeval
 #import <Foundation/Foundation.h>
 
 // Forward-declarations
@@ -247,6 +248,11 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
  * Hostname passed to `init:host:port:secure:`
  */
 @property (readonly) NSString* hostname;
+
+/**
+ * Time of the last received frame
+ */
+@property (readonly) struct timeval* last_frame;
 
 /**
  * Initialize connection to work with specified protocol version.

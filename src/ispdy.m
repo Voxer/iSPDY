@@ -169,6 +169,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   BOOL on_ispdy_loop_;
   NSMutableSet* scheduled_loops_;
   NSTimer* connection_timeout_;
+  struct timeval last_frame_;
 
   // Next stream's id
   uint32_t stream_id_;
@@ -208,6 +209,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   framer_ = [[ISpdyFramer alloc] init: version compressor: out_comp_];
   parser_ = [[ISpdyParser alloc] init: version compressor: in_comp_];
   scheduler_ = [ISpdyScheduler schedulerWithMaxPriority: kMaxPriority];
+  _last_frame = &last_frame_;
 
   scheduler_.delegate = self;
   parser_.delegate = self;
@@ -849,6 +851,9 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
               is_fin: (BOOL) is_fin
            forStream: (uint32_t) stream_id {
   ISpdyRequest* req = nil;
+
+  // Update last_frame time
+  gettimeofday(&last_frame_, NULL);
 
   if (type == kISpdySynReply ||
       type == kISpdyRstStream ||
