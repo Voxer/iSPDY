@@ -180,6 +180,7 @@ describe(@"ISpdy server", ^{
           [NSMutableDictionary dictionaryWithCapacity: 2];
       [headers setValue: contentLength forKey: @"Content-Length"];
       [headers setValue: @"yikes" forKey: @"X-ISpdy"];
+      [headers setValue: [NSNumber numberWithInt: 3] forKey: @"X-ISpdy-V"];
       req.headers = headers;
 
       // Send request

@@ -125,6 +125,10 @@
     [headers enumerateKeysAndObjectsUsingBlock: ^(NSString* key,
                                                   NSString* val,
                                                   BOOL* stop) {
+      if (![key isKindOfClass: [NSString class]])
+        key = [(id) key stringValue];
+      if (![val isKindOfClass: [NSString class]])
+        val = [(id) val stringValue];
       NSString* lckey = [key lowercaseString];
 
       // Skip protocol headers
