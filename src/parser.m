@@ -92,6 +92,20 @@
         if (frame_body == nil)
           return;
         break;
+      case kISpdyHeaders:
+        if (body_len < 6)
+          return [self error: kISpdyParserErrHeadersOOB];
+        stream_id = ntohl(*(uint32_t*) input) & 0x7fffffff;
+        if (version_ == kISpdyV2)
+          frame_body = [self parseHeaders: input + 6 length: body_len - 6];
+        else
+          frame_body = [self parseHeaders: input + 4 length: body_len - 4];
+
+        // Error, but should be already handled by parseHeaders
+        if (frame_body == nil)
+          return;
+        break;
+
       case kISpdySettings:
         if (version_ == kISpdyV2) {
           // SETTINGS in v2 has endianness problem, skip it
@@ -303,6 +317,16 @@
 
   push.headers = headers;
   return push;
+}
+
+
+- (NSDictionary*) parseHeaders: (const uint8_t*) data
+                        length: (NSUInteger) length {
+  return [self parseKVs: data
+                 length: length
+             withFilter: ^BOOL (NSString* key, NSString* val) {
+    return YES;
+  }];
 }
 
 

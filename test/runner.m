@@ -45,6 +45,7 @@ describe(@"ISpdy server", ^{
                                NSData* data,
                                BOOL expect_response) {
       __block BOOL got_response = !expect_response;
+      __block BOOL got_headers = NO;
       __block BOOL ended = NO;
       __block NSMutableData* received = nil;
 
@@ -82,6 +83,13 @@ describe(@"ISpdy server", ^{
 
       [mock stub: @selector(request:handleInput:) withBlock: onInput];
       [mock stub: @selector(request:handleResponse:) withBlock: onResponse];
+      [mock stub: @selector(request:handleHeaders:)
+       withBlock: ^id (NSArray* args) {
+        NSDictionary* headers  = (NSDictionary*) [args objectAtIndex: 1];
+        [[[headers valueForKey: @"wtf"] should] equal: @"yes"];
+        got_headers = YES;
+        return nil;
+      }];
       [mock stub: @selector(handleEnd:) withBlock: ^id (NSArray* args) {
         NSAssert(ended == NO, @"Double-end");
         ended = YES;
@@ -99,6 +107,8 @@ describe(@"ISpdy server", ^{
 
       // And expect it to come back
       [[expectFutureValue(theValue(got_response)) shouldEventually]
+          equal: theValue(YES)];
+      [[expectFutureValue(theValue(got_headers)) shouldEventually]
           equal: theValue(YES)];
       [[expectFutureValue(theValue(ended)) shouldEventually]
           equal: theValue(YES)];

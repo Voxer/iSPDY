@@ -25,6 +25,7 @@ spdy.createServer({
       console.error('No trailers!');
   });
 
+  res.addTrailers({ wtf: 'yes' });
   res.writeHead(200);
   req.pipe(res);
 }).listen(3232, function() {

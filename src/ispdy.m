@@ -124,12 +124,14 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 // TODO(indutny): handle race conditions with req.delegate
 - (void) _queueOutput: (NSData*) data;
 - (void) _queueInput: (NSData*) data;
+- (void) _queueIncomingHeaders: (NSDictionary*) headers;
 - (void) _queueHeaders: (NSDictionary*) headers;
 - (void) _queueEnd;
 - (BOOL) _hasQueuedData;
 - (void) _unqueueOutput;
 - (void) _unqueueInput;
 - (void) _unqueueHeaders;
+- (void) _unqueueIncomingHeaders;
 
 @end
 
@@ -859,6 +861,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
       type == kISpdyRstStream ||
       type == kISpdyData ||
       type == kISpdyWindowUpdate ||
+      type == kISpdyHeaders ||
       type == kISpdySynStream) {
     req =
         [streams_ objectForKey: [NSNumber numberWithUnsignedInt: stream_id]];
@@ -908,6 +911,19 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
             }
           }];
         }
+      }
+      break;
+    case kISpdyHeaders:
+      {
+        [self _delegateDispatch: ^{
+          if (req.delegate == nil) {
+            [self _connectionDispatch: ^{
+              [req _queueIncomingHeaders: (NSDictionary*) body];
+            }];
+          } else {
+            [req.delegate request: req handleHeaders: (NSDictionary*) body];
+          }
+        }];
       }
       break;
     case kISpdySynReply:
@@ -999,6 +1015,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   NSMutableArray* input_queue_;
   NSMutableArray* output_queue_;
   NSMutableDictionary* headers_queue_;
+  NSMutableDictionary* in_headers_queue_;
   BOOL end_queued_;
   NSTimer* response_timeout_;
   NSTimeInterval response_timeout_interval_;
@@ -1107,7 +1124,9 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
              @"Queued data with delegate");
     delegate_ = delegate;
   }
+
   [self _unqueueInput];
+  [self _unqueueIncomingHeaders];
 }
 
 @end
@@ -1213,6 +1232,21 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 }
 
 
+- (void) _queueIncomingHeaders: (NSDictionary*) headers {
+  if (in_headers_queue_ == nil) {
+    in_headers_queue_ = [NSMutableDictionary dictionaryWithDictionary: headers];
+    return;
+  }
+
+  // Insert key/values into existing dictionary
+  [headers enumerateKeysAndObjectsUsingBlock: ^(NSString* key,
+                                                NSString* val,
+                                                BOOL* stop) {
+    [in_headers_queue_ setValue: val forKey: key];
+  }];
+}
+
+
 - (void) _queueEnd {
   NSAssert(end_queued_ == NO, @"Double end queue");
   end_queued_ = YES;
@@ -1267,6 +1301,18 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
   [self addHeaders: headers_queue_];
   headers_queue_ = nil;
+}
+
+
+- (void) _unqueueIncomingHeaders {
+  if (self.connection == nil || in_headers_queue_ == nil)
+    return;
+
+  [self.connection _delegateDispatch: ^{
+    [self.delegate request: self handleHeaders: in_headers_queue_];
+
+    in_headers_queue_ = nil;
+  }];
 }
 
 @end

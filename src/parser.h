@@ -9,6 +9,7 @@ typedef enum {
   kISpdyParserErrInvalidVersion,
   kISpdyParserErrSynStreamOOB,
   kISpdyParserErrSynReplyOOB,
+  kISpdyParserErrHeadersOOB,
   kISpdyParserErrRstOOB,
   kISpdyParserErrPingOOB,
   kISpdyParserErrKVsTooSmall,
@@ -52,6 +53,10 @@ typedef enum {
 // Parse SYN_REPLY's body
 - (ISpdyResponse*) parseSynReply: (const uint8_t*) data
                           length: (NSUInteger) length;
+
+// Parse HEADERS's body
+- (NSDictionary*) parseHeaders: (const uint8_t*) data
+                        length: (NSUInteger) length;
 
 // Parse SETTINGS's body
 - (ISpdySettings*) parseSettings: (const uint8_t*) data

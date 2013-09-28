@@ -57,6 +57,7 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
 - (void) request: (ISpdyRequest*) req handleResponse: (ISpdyResponse*) res;
 - (void) request: (ISpdyRequest*) req handleError: (NSError*) err;
 - (void) request: (ISpdyRequest*) req handleInput: (NSData*) input;
+- (void) request: (ISpdyRequest*) req handleHeaders: (NSDictionary*) headers;
 - (void) handleEnd: (ISpdyRequest*) req;
 @end
 
