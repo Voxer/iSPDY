@@ -275,11 +275,9 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   }
 
   // Initialize dispatch queue
-  delegate_queue_ = dispatch_queue_create("com.voxer.ispdy.delegate",
-                                          DISPATCH_QUEUE_SERIAL);
+  delegate_queue_ = dispatch_queue_create("com.voxer.ispdy.delegate", NULL);
   NSAssert(delegate_queue_ != NULL, @"Failed to get main queue");
-  connection_queue_ = dispatch_queue_create("com.voxer.ispdy.connection",
-                                            DISPATCH_QUEUE_SERIAL);
+  connection_queue_ = dispatch_queue_create("com.voxer.ispdy.connection", NULL);
   NSAssert(connection_queue_ != NULL, @"Failed to get main queue");
 
 
