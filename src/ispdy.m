@@ -57,10 +57,10 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 - (NSInteger) _writeRaw: (NSData*) data withMode: (ISpdyWriteMode) mode;
 
 // Handle global errors
-- (void) _handleError: (NSError*) err;
+- (void) _handleError: (ISpdyError*) err;
 
 // Close all streams and send error to each of them
-- (void) _closeStreams: (NSError*) err;
+- (void) _closeStreams: (ISpdyError*) err;
 
 // See ISpdyRequest for description
 - (void) _end: (ISpdyRequest*) request;
@@ -118,7 +118,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 - (void) _updateWindow: (NSInteger) delta;
 
 // Invoke delegate's method and set error property
-- (void) _handleError: (NSError*) err;
+- (void) _handleError: (ISpdyError*) err;
 
 // Bufferize frame data and fetch it
 // TODO(indutny): handle race conditions with req.delegate
@@ -151,6 +151,13 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 @property (strong) ISpdyPingCallback block;
 @property NSTimer* timeout;
 @property NSDate* start_date;
+
+@end
+
+@interface ISpdyError (ISpdyErrorPrivate)
+
++ (ISpdyError*) errorWithCode: (ISpdyErrorCode) code;
++ (ISpdyError*) errorWithCode: (ISpdyErrorCode) code andError: (NSError*) err;
 
 @end
 
@@ -303,10 +310,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
                     forMode: NSDefaultRunLoopMode];
   }
 
-  NSError* err = [NSError errorWithDomain: @"spdy"
-                                     code: kISpdyErrDealloc
-                                 userInfo: nil];
-  [self _closeStreams: err];
+  [self _closeStreams: [ISpdyError errorWithCode: kISpdyErrDealloc]];
 
   delegate_queue_ = NULL;
   connection_queue_ = NULL;
@@ -502,10 +506,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 
 - (void) _onTimeout {
-  NSError* err = [NSError errorWithDomain: @"spdy"
-                                     code: kISpdyErrConnectionTimeout
-                                 userInfo: nil];
-  [self _handleError: err];
+  [self _handleError: [ISpdyError errorWithCode: kISpdyErrConnectionTimeout]];
 }
 
 
@@ -581,7 +582,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 }
 
 
-- (void) _handleError: (NSError*) err {
+- (void) _handleError: (ISpdyError*) err {
   // Already closed - ignore
   if (![self close])
     return;
@@ -595,7 +596,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 }
 
 
-- (void) _closeStreams: (NSError*) err {
+- (void) _closeStreams: (ISpdyError*) err {
   // Close all streams
   NSDictionary* streams = streams_;
   streams_ = nil;
@@ -691,10 +692,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   [self _rst: request.stream_id code: code];
 
   [self _delegateDispatch: ^{
-    NSError* err = [NSError errorWithDomain: @"spdy"
-                                       code: code
-                                   userInfo: nil];
-    [request _handleError: err];
+    [request _handleError: [ISpdyError errorWithCode: code]];
   }];
 
   [request _forceClose];
@@ -796,13 +794,14 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
       [self setTimeout: 0];
     }
 
-    if (event == NSStreamEventErrorOccurred)
-      return [self _handleError: [stream streamError]];
+    if (event == NSStreamEventErrorOccurred) {
+      ISpdyError* err = [ISpdyError errorWithCode: kISpdyErrSocketError
+                                         andError: [stream streamError]];
+      return [self _handleError: err];
+    }
 
     if (event == NSStreamEventEndEncountered) {
-      NSError* err = [NSError errorWithDomain: @"spdy"
-                                         code: kISpdyErrConnectionEnd
-                                     userInfo: nil];
+      ISpdyError* err = [ISpdyError errorWithCode: kISpdyErrConnectionEnd];
       return [self _handleError: err];
     }
 
@@ -816,8 +815,11 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
       // Socket available for write
       NSInteger r = [out_stream_ write: [buffer_ bytes]
                              maxLength: [buffer_ length]];
-      if (r == -1)
-        return [self _handleError: [out_stream_ streamError]];
+      if (r == -1) {
+        ISpdyError* err = [ISpdyError errorWithCode: kISpdyErrSocketError
+                                           andError: [stream streamError]];
+        return [self _handleError: err];
+      }
 
       // Shift data
       if (r < (NSInteger) [buffer_ length]) {
@@ -835,8 +837,11 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
         NSInteger r = [in_stream_ read: buf maxLength: sizeof(buf)];
         if (r == 0)
           break;
-        else if (r < 0)
-          return [self _handleError: [in_stream_ streamError]];
+        if (r < 0) {
+          ISpdyError* err = [ISpdyError errorWithCode: kISpdyErrSocketError
+                                             andError: [stream streamError]];
+          return [self _handleError: err];
+        }
 
         [parser_ execute: buf length: (NSUInteger) r];
       }
@@ -939,11 +944,8 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
       break;
     case kISpdyRstStream:
       {
-        NSError* err = [NSError errorWithDomain: @"spdy"
-                                           code: kISpdyErrRst
-                                       userInfo: nil];
         [self _delegateDispatch: ^{
-          [req _handleError: err];
+          [req _handleError: [ISpdyError errorWithCode: kISpdyErrRst]];
         }];
         [req _forceClose];
       }
@@ -1003,7 +1005,8 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 
 - (void) handleParserError: (NSError*) err {
-  return [self _handleError: err];
+  return [self _handleError: [ISpdyError errorWithCode: kISpdyErrParseError
+                                              andError: err]];
 }
 
 @end
@@ -1193,7 +1196,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 }
 
 
-- (void) _handleError: (NSError*) err {
+- (void) _handleError: (ISpdyError*) err {
   self.error = err;
   [self.delegate request: self handleError: err];
 }
@@ -1349,6 +1352,58 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   ISpdyLoopWrap* wrap = (ISpdyLoopWrap*) anObject;
   return [wrap.loop isEqual: self.loop] &&
          [wrap.mode isEqualToString: self.mode];
+}
+
+@end
+
+@implementation ISpdyError
+
+- (ISpdyErrorCode) code {
+  return (ISpdyErrorCode) super.code;
+}
+
+- (NSString*) description {
+  switch (self.code) {
+    case kISpdyErrConnectionTimeout:
+      return @"ISpdy error: connection timed out";
+    case kISpdyErrConnectionEnd:
+      return @"ISpdy error: connection's socket end";
+    case kISpdyErrRequestTimeout:
+      return @"ISpdy error: request timed out";
+    case kISpdyErrDealloc:
+      return @"ISpdy error: connection was dealloc'ed";
+    case kISpdyErrRst:
+      return @"ISpdy error: connection was RSTed by other side";
+    case kISpdyErrParseError:
+      return [NSString stringWithFormat: @"ISpdy error: parser error - %@",
+          [self.userInfo objectForKey: @"details"]];
+    case kISpdyErrDoubleResponse:
+      return @"ISpdy error: got double SYN_REPLY for a single stream";
+    case kISpdyErrSocketError:
+      return [NSString stringWithFormat: @"ISpdy error: socket error - %@",
+          [self.userInfo objectForKey: @"details"]];
+    default:
+      return [NSString stringWithFormat: @"Unexpected spdy error %d",
+          self.code];
+  }
+}
+
+@end
+
+@implementation ISpdyError (ISpdyErrorPrivate)
+
++ (ISpdyError*) errorWithCode: (ISpdyErrorCode) code {
+  ISpdyError* r = [ISpdyError alloc];
+
+  return [r initWithDomain: @"ispdy" code: (NSInteger) code userInfo: nil];
+}
+
++ (ISpdyError*) errorWithCode: (ISpdyErrorCode) code andError: (NSError*) err {
+  ISpdyError* r = [ISpdyError alloc];
+  NSDictionary* dict;
+
+  dict = [NSDictionary dictionaryWithObject: err forKey: @"details"];
+  return [r initWithDomain: @"ispdy" code: (NSInteger) code userInfo: dict];
 }
 
 @end

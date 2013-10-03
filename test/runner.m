@@ -223,7 +223,7 @@ describe(@"ISpdy server", ^{
       // Create delegate with mocked handlers
       id mock = [KWMock mockForProtocol: @protocol(ISpdyRequestDelegate)];
 
-      __block NSError* err;
+      __block ISpdyError* err;
       id (^onError)(NSArray*) = ^id (NSArray* args) {
         [[theValue([args count]) should] equal: theValue(2)];
 

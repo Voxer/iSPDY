@@ -26,7 +26,8 @@ typedef enum {
   kISpdyErrDealloc,
   kISpdyErrRst,
   kISpdyErrParseError,
-  kISpdyErrDoubleResponse
+  kISpdyErrDoubleResponse,
+  kISpdyErrSocketError
 } ISpdyErrorCode;
 
 typedef enum {
@@ -38,6 +39,13 @@ typedef enum {
  * Callback for ping method.
  */
 typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
+
+@interface ISpdyError : NSError
+
+- (ISpdyErrorCode) code;
+- (NSString*) description;
+
+@end
 
 /**
  * Response class
@@ -55,7 +63,7 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
  */
 @protocol ISpdyRequestDelegate
 - (void) request: (ISpdyRequest*) req handleResponse: (ISpdyResponse*) res;
-- (void) request: (ISpdyRequest*) req handleError: (NSError*) err;
+- (void) request: (ISpdyRequest*) req handleError: (ISpdyError*) err;
 - (void) request: (ISpdyRequest*) req handleInput: (NSData*) input;
 - (void) request: (ISpdyRequest*) req handleHeaders: (NSDictionary*) headers;
 - (void) handleEnd: (ISpdyRequest*) req;
@@ -79,7 +87,7 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
 /**
  * Indicates presence of error.
  */
-@property NSError* error;
+@property ISpdyError* error;
 
 /**
  * Request method, should be initialized using `init: url:` selector.
@@ -223,7 +231,7 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
  * @param conn  ISpdy connection on which the error has happened
  * @param err   The error itself
  */
-- (void) connection: (ISpdy*) conn handleError: (NSError*) err;
+- (void) connection: (ISpdy*) conn handleError: (ISpdyError*) err;
 
 @end
 
