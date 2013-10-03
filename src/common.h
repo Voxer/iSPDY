@@ -1,5 +1,15 @@
 #import <Foundation/Foundation.h>
 
+#import "scheduler.h"
+
+// Forward-declarations
+@class ISpdyPing;
+
+typedef enum {
+  kISpdyWriteNoChunkBuffering,
+  kISpdyWriteChunkBuffering
+} ISpdyWriteMode;
+
 // Possible SPDY Protocol RST codes
 typedef enum {
   kISpdyRstProtocolError = 0x1,
@@ -71,5 +81,135 @@ typedef enum {
 @interface ISpdyPush ()
 
 @property uint32_t associated_id;
+
+@end
+
+@interface ISpdy (ISpdyPrivate) <NSStreamDelegate,
+                                 ISpdyParserDelegate,
+                                 ISpdySchedulerDelegate>
+
+// Get fd out of streams
+- (void) _fdWithBlock: (void(^)(CFSocketNativeHandle)) block;
+
+// Invoked on connection timeout
+- (void) _onTimeout;
+
+// Invoked on ping timeout
+- (void) _onPingTimeout: (ISpdyPing*) ping;
+
+// Use default (off-thread) NS loop, if no was provided by user
+- (void) _lazySchedule;
+
+// Create and schedule timer
+- (NSTimer*) _timerWithTimeInterval: (NSTimeInterval) interval
+                             target: (id) target
+                           selector: (SEL) selector
+                           userInfo: (id) info;
+
+// Write raw data to the underlying socket, returns YES if write wasn't buffered
+- (NSInteger) _writeRaw: (NSData*) data withMode: (ISpdyWriteMode) mode;
+
+// Handle global errors
+- (void) _handleError: (ISpdyError*) err;
+
+// Close all streams and send error to each of them
+- (void) _closeStreams: (ISpdyError*) err;
+
+// See ISpdyRequest for description
+- (void) _end: (ISpdyRequest*) request;
+- (void) _close: (ISpdyRequest*) request;
+- (void) _writeData: (NSData*) data to: (ISpdyRequest*) request fin: (BOOL) fin;
+- (void) _addHeaders: (NSDictionary*) headers to: (ISpdyRequest*) request;
+- (void) _rst: (uint32_t) stream_id code: (uint8_t) code;
+- (void) _error: (ISpdyRequest*) request code: (ISpdyErrorCode) code;
+- (void) _handlePing: (NSNumber*) ping_id;
+- (void) _handlePush: (ISpdyPush*) push forRequest: (ISpdyRequest*) req;
+
+// dispatch delegate callback
+- (void) _delegateDispatch: (void (^)()) block;
+// dispatch connection callback
+- (void) _connectionDispatch: (void (^)()) block;
+
+@end
+
+// Request state
+@interface ISpdyRequest ()
+
+@property ISpdy* connection;
+
+// Indicates queued end
+@property BOOL pending_closed_by_us;
+@property BOOL closed_by_us;
+@property BOOL closed_by_them;
+@property BOOL seen_response;
+@property NSInteger initial_window_in;
+@property NSInteger initial_window_out;
+@property NSInteger window_in;
+@property NSInteger window_out;
+
+@end
+
+@interface ISpdyRequest (ISpdyRequestPrivate)
+
+// Invoked on request timeout
+- (void) _onTimeout;
+
+// Calls `[req close]` if the stream is closed by both
+// us and them.
+- (void) _tryClose;
+
+// Sets all required flags and closes without notification for other side
+- (void) _forceClose;
+
+// Sends `end` selector if the close is pending
+- (void) _tryPendingClose;
+
+// Set queued timeout, or reset existing one
+- (void) _resetTimeout;
+
+// Update outgoing window size
+- (void) _updateWindow: (NSInteger) delta;
+
+// Invoke delegate's method and set error property
+- (void) _handleError: (ISpdyError*) err;
+
+// Bufferize frame data and fetch it
+// TODO(indutny): handle race conditions with req.delegate
+- (void) _queueOutput: (NSData*) data;
+- (void) _queueInput: (NSData*) data;
+- (void) _queueIncomingHeaders: (NSDictionary*) headers;
+- (void) _queueHeaders: (NSDictionary*) headers;
+- (void) _queueEnd;
+- (BOOL) _hasQueuedData;
+- (void) _unqueueOutput;
+- (void) _unqueueInput;
+- (void) _unqueueHeaders;
+- (void) _unqueueIncomingHeaders;
+
+@end
+
+@interface ISpdyLoopWrap : NSObject
+
+@property NSRunLoop* loop;
+@property NSString* mode;
+
++ (ISpdyLoopWrap*) stateForLoop: (NSRunLoop*) loop andMode: (NSString*) mode;
+- (BOOL) isEqual: (id) anObject;
+
+@end
+
+@interface ISpdyPing : NSObject
+
+@property NSNumber* ping_id;
+@property (strong) ISpdyPingCallback block;
+@property NSTimer* timeout;
+@property NSDate* start_date;
+
+@end
+
+@interface ISpdyError (ISpdyErrorPrivate)
+
++ (ISpdyError*) errorWithCode: (ISpdyErrorCode) code;
++ (ISpdyError*) errorWithCode: (ISpdyErrorCode) code andError: (NSError*) err;
 
 @end
