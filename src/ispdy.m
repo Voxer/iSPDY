@@ -326,15 +326,17 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
 
 
 - (void) setTimeout: (NSTimeInterval) timeout {
-  [connection_timeout_ invalidate];
-  connection_timeout_ = nil;
-  if (timeout == 0.0)
-    return;
+  [self _connectionDispatch: ^() {
+    [connection_timeout_ invalidate];
+    connection_timeout_ = nil;
+    if (timeout == 0.0)
+      return;
 
-  connection_timeout_ = [self _timerWithTimeInterval: timeout
-                                              target: self
-                                            selector: @selector(_onTimeout)
-                                            userInfo: nil];
+    connection_timeout_ = [self _timerWithTimeInterval: timeout
+                                                target: self
+                                              selector: @selector(_onTimeout)
+                                              userInfo: nil];
+  }];
 }
 
 @end

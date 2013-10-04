@@ -80,9 +80,6 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 
 - (void) close {
-  if (self.connection == nil)
-    return;
-
   [self.connection _connectionDispatch: ^{
     [self _forceClose];
   }];
@@ -90,22 +87,24 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 
 - (void) setTimeout: (NSTimeInterval) timeout {
-  [response_timeout_ invalidate];
-  response_timeout_ = nil;
-  if (timeout == 0.0)
-    return;
-
   response_timeout_interval_ = timeout;
 
-  // Queue timeout until sent
-  if (self.connection == nil)
-    return;
+  [self.connection _connectionDispatch: ^() {
+    [response_timeout_ invalidate];
+    response_timeout_ = nil;
+    if (timeout == 0.0)
+      return;
 
-  response_timeout_ =
-    [self.connection _timerWithTimeInterval: timeout
-                                     target: self
-                                   selector: @selector(_onTimeout)
-                                   userInfo: nil];
+    // Queue timeout until sent
+    if (self.connection == nil)
+      return;
+
+    response_timeout_ =
+        [self.connection _timerWithTimeInterval: response_timeout_interval_
+                                         target: self
+                                       selector: @selector(_onTimeout)
+                                       userInfo: nil];
+  }];
 }
 
 @end
