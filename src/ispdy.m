@@ -556,7 +556,7 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
   if (request.connection == nil)
     return;
 
-  [self _rst: request.stream_id code: code];
+  [self _rst: request.stream_id code: kISpdyRstCancel];
 
   [self _delegateDispatch: ^{
     [request _handleError: [ISpdyError errorWithCode: code]];
