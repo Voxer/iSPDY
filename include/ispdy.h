@@ -217,7 +217,9 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
 
 /**
  * Invoked on incoming PUSH stream.
- * NOTE: This stream is read-only and any write will cause assertion failure
+ * NOTE: This stream is read-only and any write will cause assertion failure.
+ * Also, this method is invoked synchronously so please try to keep out of
+ * blocking here, as it blocks ispdy's thread.
  *
  * @param conn  ISpdy connection on which the error has happened
  * @param push  PUSH request

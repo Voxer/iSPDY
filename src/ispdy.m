@@ -630,7 +630,7 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
   // Start timer, if needed
   [push _resetTimeout];
 
-  [self _delegateDispatch: ^{
+  [self _delegateDispatchSync: ^{
     [self.delegate connection: self handlePush: push];
   }];
 }
@@ -771,7 +771,7 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
           }
         }
         if ([body length] != 0) {
-          [self _delegateDispatchSync: ^{
+          [self _delegateDispatch: ^{
             [req.delegate request: req handleInput: (NSData*) body];
           }];
         }
@@ -779,7 +779,7 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
       break;
     case kISpdyHeaders:
       {
-        [self _delegateDispatchSync: ^{
+        [self _delegateDispatch: ^{
           [req.delegate request: req handleHeaders: (NSDictionary*) body];
         }];
       }
@@ -799,7 +799,7 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
       break;
     case kISpdyRstStream:
       {
-        [self _delegateDispatchSync: ^{
+        [self _delegateDispatch: ^{
           [req _handleError: [ISpdyError errorWithCode: kISpdyErrRst]];
         }];
         [req _forceClose];
