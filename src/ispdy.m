@@ -346,6 +346,11 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
 }
 
 
+- (void) _delegateDispatchSync: (void (^)()) block {
+  dispatch_sync(delegate_queue_, block);
+}
+
+
 - (void) _connectionDispatch: (void (^)()) block {
   dispatch_async(connection_queue_, block);
 }
@@ -462,7 +467,7 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
   streams_ = nil;
   for (NSNumber* stream_id in streams) {
     ISpdyRequest* req = [streams objectForKey: stream_id];
-    [self _delegateDispatch: ^{
+    [self _delegateDispatchSync: ^{
       [req _handleError: err];
       [req.delegate handleEnd: req];
     }];
@@ -764,28 +769,16 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
           }
         }
         if ([body length] != 0) {
-          [self _delegateDispatch: ^{
-            if (req.delegate == nil) {
-              [self _connectionDispatch: ^{
-                [req _queueInput: (NSData*) body];
-              }];
-            } else {
-              [req.delegate request: req handleInput: (NSData*) body];
-            }
+          [self _delegateDispatchSync: ^{
+            [req.delegate request: req handleInput: (NSData*) body];
           }];
         }
       }
       break;
     case kISpdyHeaders:
       {
-        [self _delegateDispatch: ^{
-          if (req.delegate == nil) {
-            [self _connectionDispatch: ^{
-              [req _queueIncomingHeaders: (NSDictionary*) body];
-            }];
-          } else {
-            [req.delegate request: req handleHeaders: (NSDictionary*) body];
-          }
+        [self _delegateDispatchSync: ^{
+          [req.delegate request: req handleHeaders: (NSDictionary*) body];
         }];
       }
       break;
@@ -804,7 +797,7 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
       break;
     case kISpdyRstStream:
       {
-        [self _delegateDispatch: ^{
+        [self _delegateDispatchSync: ^{
           [req _handleError: [ISpdyError errorWithCode: kISpdyErrRst]];
         }];
         [req _forceClose];

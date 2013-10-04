@@ -127,6 +127,8 @@ typedef enum {
 
 // dispatch delegate callback
 - (void) _delegateDispatch: (void (^)()) block;
+- (void) _delegateDispatchSync: (void (^)()) block;
+
 // dispatch connection callback
 - (void) _connectionDispatch: (void (^)()) block;
 
@@ -174,17 +176,12 @@ typedef enum {
 - (void) _handleError: (ISpdyError*) err;
 
 // Bufferize frame data and fetch it
-// TODO(indutny): handle race conditions with req.delegate
 - (void) _queueOutput: (NSData*) data;
-- (void) _queueInput: (NSData*) data;
-- (void) _queueIncomingHeaders: (NSDictionary*) headers;
 - (void) _queueHeaders: (NSDictionary*) headers;
 - (void) _queueEnd;
 - (BOOL) _hasQueuedData;
 - (void) _unqueueOutput;
-- (void) _unqueueInput;
 - (void) _unqueueHeaders;
-- (void) _unqueueIncomingHeaders;
 
 @end
 

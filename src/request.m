@@ -108,22 +108,6 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
                                    userInfo: nil];
 }
 
-
-- (id) delegate {
-  return delegate_;
-}
-
-- (void) setDelegate: (id <ISpdyRequestDelegate>) delegate {
-  @synchronized(self) {
-    NSAssert(input_queue_ == nil || delegate_ == nil,
-             @"Queued data with delegate");
-    delegate_ = delegate;
-  }
-
-  [self _unqueueInput];
-  [self _unqueueIncomingHeaders];
-}
-
 @end
 
 @implementation ISpdyRequest (ISpdyRequestPrivate)
@@ -204,14 +188,6 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 }
 
 
-- (void) _queueInput: (NSData*) data {
-  if (input_queue_ == nil)
-    input_queue_ = [NSMutableArray arrayWithCapacity: 16];
-
-  [input_queue_ addObject: data];
-}
-
-
 - (void) _queueHeaders: (NSDictionary*) headers {
   if (headers_queue_ == nil) {
     headers_queue_ = [NSMutableDictionary dictionaryWithDictionary: headers];
@@ -223,21 +199,6 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
                                                 NSString* val,
                                                 BOOL* stop) {
     [headers_queue_ setValue: val forKey: key];
-  }];
-}
-
-
-- (void) _queueIncomingHeaders: (NSDictionary*) headers {
-  if (in_headers_queue_ == nil) {
-    in_headers_queue_ = [NSMutableDictionary dictionaryWithDictionary: headers];
-    return;
-  }
-
-  // Insert key/values into existing dictionary
-  [headers enumerateKeysAndObjectsUsingBlock: ^(NSString* key,
-                                                NSString* val,
-                                                BOOL* stop) {
-    [in_headers_queue_ setValue: val forKey: key];
   }];
 }
 
@@ -268,46 +229,12 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 }
 
 
-- (void) _unqueueInput {
-  if (self.connection == nil || self.delegate == nil)
-    return;
-
-  [self.connection _delegateDispatch: ^{
-    if (input_queue_ != nil) {
-      // Emit queued input (useful for PUSH streams)
-      NSUInteger count = [input_queue_ count];
-      for (NSUInteger i = 0; i < count; i++) {
-        [self.delegate request: self
-                   handleInput: [input_queue_ objectAtIndex: i]];
-      }
-    }
-
-    if (end_queued_)
-      [self.delegate handleEnd: self];
-
-    input_queue_ = nil;
-  }];
-}
-
-
 - (void) _unqueueHeaders {
   if (self.connection == nil || headers_queue_ == nil)
     return;
 
   [self addHeaders: headers_queue_];
   headers_queue_ = nil;
-}
-
-
-- (void) _unqueueIncomingHeaders {
-  if (self.connection == nil || in_headers_queue_ == nil)
-    return;
-
-  [self.connection _delegateDispatch: ^{
-    [self.delegate request: self handleHeaders: in_headers_queue_];
-
-    in_headers_queue_ = nil;
-  }];
 }
 
 @end

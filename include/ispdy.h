@@ -81,8 +81,7 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
  * Reference to user-provided delegate.
  * Should be provided in order to receive input/end/error events.
  */
-- (id) delegate;
-- (void) setDelegate: (id <ISpdyRequestDelegate>) delegate;
+@property id <ISpdyRequestDelegate> delegate;
 
 /**
  * Indicates presence of error.
