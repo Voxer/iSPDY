@@ -454,12 +454,12 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
   if (![self close])
     return;
 
-  [self _closeStreams: err];
-
   // Fire global error
   [self _delegateDispatch: ^{
     [self.delegate connection: self handleError: err];
   }];
+
+  [self _closeStreams: err];
 }
 
 
