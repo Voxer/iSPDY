@@ -95,13 +95,23 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
   ping_id_ = 1;
   initial_window_ = kInitialWindowSizeOut;
 
-  streams_ = [[NSMutableDictionary alloc] initWithCapacity: 100];
-  pings_ = [[NSMutableDictionary alloc] initWithCapacity: 10];
+  if (streams_ != nil) {
+    [streams_ removeAllObjects];
+    [pings_ removeAllObjects];
+  } else {
+    streams_ = [[NSMutableDictionary alloc] initWithCapacity: 100];
+    pings_ = [[NSMutableDictionary alloc] initWithCapacity: 10];
+  }
 
-  buffer_ = [[NSMutableData alloc] initWithCapacity: 4096];
+  // Truncate or create buffer
+  if (buffer_ != nil)
+    [buffer_ setLength: 0];
+  else
+    buffer_ = [[NSMutableData alloc] initWithCapacity: 4096];
 
   // Initialize storage for loops
-  scheduled_loops_ = [NSMutableSet setWithCapacity: 1];
+  if (scheduled_loops_ == nil)
+    scheduled_loops_ = [NSMutableSet setWithCapacity: 1];
 
   // Initialize connection
   CFReadStreamRef cf_in_stream;
@@ -143,15 +153,17 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
         NSAssert(NO, @"Failed to set SSL hostname");
       }
     }
-
   }
 
-  // Initialize dispatch queue
-  delegate_queue_ = dispatch_queue_create("com.voxer.ispdy.delegate", NULL);
-  NSAssert(delegate_queue_ != NULL, @"Failed to get main queue");
-  connection_queue_ = dispatch_queue_create("com.voxer.ispdy.connection", NULL);
-  NSAssert(connection_queue_ != NULL, @"Failed to get main queue");
-
+  if (delegate_queue_ == nil) {
+    // Initialize dispatch queue
+    delegate_queue_ = dispatch_queue_create("com.voxer.ispdy.delegate",
+                                            NULL);
+    NSAssert(delegate_queue_ != NULL, @"Failed to get main queue");
+    connection_queue_ = dispatch_queue_create("com.voxer.ispdy.connection",
+                                              NULL);
+    NSAssert(connection_queue_ != NULL, @"Failed to get main queue");
+  }
 
   return self;
 }
