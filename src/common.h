@@ -115,6 +115,9 @@ typedef enum {
 // Close all streams and send error to each of them
 - (void) _closeStreams: (ISpdyError*) err;
 
+// Destroy all pings and invoke callbacks
+- (void) _destroyPings: (ISpdyError*) err;
+
 // See ISpdyRequest for description
 - (void) _end: (ISpdyRequest*) request;
 - (void) _close: (ISpdyRequest*) request;

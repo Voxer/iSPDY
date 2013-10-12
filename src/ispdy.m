@@ -95,13 +95,8 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
   ping_id_ = 1;
   initial_window_ = kInitialWindowSizeOut;
 
-  if (streams_ != nil) {
-    [streams_ removeAllObjects];
-    [pings_ removeAllObjects];
-  } else {
-    streams_ = [[NSMutableDictionary alloc] initWithCapacity: 100];
-    pings_ = [[NSMutableDictionary alloc] initWithCapacity: 10];
-  }
+  streams_ = [[NSMutableDictionary alloc] initWithCapacity: 100];
+  pings_ = [[NSMutableDictionary alloc] initWithCapacity: 10];
 
   // Truncate or create buffer
   if (buffer_ != nil)
@@ -408,7 +403,10 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
 - (void) _onPingTimeout: (ISpdyPing*) ping {
   NSAssert(ping != nil, @"Incorrect timeout callback invocation");
   [pings_ removeObjectForKey: ping.ping_id];
-  ping.block(kISpdyPingTimedOut, -1.0);
+
+  [self _delegateDispatch: ^{
+    ping.block(kISpdyPingTimedOut, -1.0);
+  }];
 }
 
 
@@ -488,6 +486,7 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
   }];
 
   [self _closeStreams: err];
+  [self _destroyPings: err];
 }
 
 
@@ -499,6 +498,19 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
     ISpdyRequest* req = [streams objectForKey: stream_id];
     [self _delegateDispatchSync: ^{
       [req.delegate request: req handleEnd: err];
+    }];
+  }
+}
+
+
+- (void) _destroyPings: (ISpdyError*) err {
+  NSDictionary* pings = pings_;
+  pings_ = nil;
+  for (NSNumber* ping_id in pings) {
+    ISpdyPing* ping = [pings objectForKey: ping_id];
+    [self _delegateDispatch: ^{
+      [ping.timeout invalidate];
+      ping.block(kISpdyPingTimedOut, -1.0);
     }];
   }
 }
@@ -635,8 +647,11 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
 
   [pings_ removeObjectForKey: ping_id];
   [ping.timeout invalidate];
-  ping.block(kISpdyPingOk,
-             [[NSDate date] timeIntervalSinceDate: ping.start_date]);
+
+  [self _delegateDispatch: ^{
+    ping.block(kISpdyPingOk,
+               [[NSDate date] timeIntervalSinceDate: ping.start_date]);
+  }];
 }
 
 
