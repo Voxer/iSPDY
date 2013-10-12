@@ -207,6 +207,6 @@ typedef enum {
 @interface ISpdyError (ISpdyErrorPrivate)
 
 + (ISpdyError*) errorWithCode: (ISpdyErrorCode) code;
-+ (ISpdyError*) errorWithCode: (ISpdyErrorCode) code andError: (NSError*) err;
++ (ISpdyError*) errorWithCode: (ISpdyErrorCode) code andDetails: (id) details;
 
 @end

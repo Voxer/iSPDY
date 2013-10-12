@@ -706,7 +706,7 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
 
     if (event == NSStreamEventErrorOccurred) {
       ISpdyError* err = [ISpdyError errorWithCode: kISpdyErrSocketError
-                                         andError: [stream streamError]];
+                                       andDetails: [stream streamError]];
       return [self _handleError: err];
     }
 
@@ -727,7 +727,7 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
                              maxLength: [buffer_ length]];
       if (r == -1) {
         ISpdyError* err = [ISpdyError errorWithCode: kISpdyErrSocketError
-                                           andError: [stream streamError]];
+                                         andDetails: [stream streamError]];
         return [self _handleError: err];
       }
 
@@ -749,7 +749,7 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
           break;
         if (r < 0) {
           ISpdyError* err = [ISpdyError errorWithCode: kISpdyErrSocketError
-                                             andError: [stream streamError]];
+                                           andDetails: [stream streamError]];
           return [self _handleError: err];
         }
 
@@ -843,7 +843,8 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
     case kISpdyRstStream:
       {
         [self _delegateDispatch: ^{
-          ISpdyError* err = [ISpdyError errorWithCode: kISpdyErrRst];
+          ISpdyError* err = [ISpdyError errorWithCode: kISpdyErrRst
+                                           andDetails: body];
           [req.delegate request: req handleEnd: err];
         }];
 
@@ -908,7 +909,7 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
 
 - (void) handleParserError: (NSError*) err {
   return [self _handleError: [ISpdyError errorWithCode: kISpdyErrParseError
-                                              andError: err]];
+                                            andDetails: err]];
 }
 
 @end
@@ -958,6 +959,7 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
 }
 
 - (NSString*) description {
+  id details = [self.userInfo objectForKey: @"details"];
   switch (self.code) {
     case kISpdyErrConnectionTimeout:
       return @"ISpdy error: connection timed out";
@@ -968,15 +970,17 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
     case kISpdyErrDealloc:
       return @"ISpdy error: connection was dealloc'ed";
     case kISpdyErrRst:
-      return @"ISpdy error: connection was RSTed by other side";
+      return [NSString stringWithFormat: @"ISpdy error: connection was RSTed "
+                                         @"by other side - %@",
+          details];
     case kISpdyErrParseError:
       return [NSString stringWithFormat: @"ISpdy error: parser error - %@",
-          [self.userInfo objectForKey: @"details"]];
+          details];
     case kISpdyErrDoubleResponse:
       return @"ISpdy error: got double SYN_REPLY for a single stream";
     case kISpdyErrSocketError:
       return [NSString stringWithFormat: @"ISpdy error: socket error - %@",
-          [self.userInfo objectForKey: @"details"]];
+          details];
     default:
       return [NSString stringWithFormat: @"Unexpected spdy error %d",
           self.code];
@@ -993,11 +997,11 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
   return [r initWithDomain: @"ispdy" code: (NSInteger) code userInfo: nil];
 }
 
-+ (ISpdyError*) errorWithCode: (ISpdyErrorCode) code andError: (NSError*) err {
++ (ISpdyError*) errorWithCode: (ISpdyErrorCode) code andDetails: (id) details {
   ISpdyError* r = [ISpdyError alloc];
   NSDictionary* dict;
 
-  dict = [NSDictionary dictionaryWithObject: err forKey: @"details"];
+  dict = [NSDictionary dictionaryWithObject: details forKey: @"details"];
   return [r initWithDomain: @"ispdy" code: (NSInteger) code userInfo: dict];
 }
 

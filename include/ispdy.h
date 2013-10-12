@@ -49,6 +49,8 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
  * NOTE: when `code` is either `kISpdyErrSocketError` or `kISpdyErrParseError`,
  * `err.userInfo` will contain `@"details"` key with a `NSError*` value,
  * referring to original error, reported by either Socket or Parser respectively
+ *
+ * When `code` is `kISpdyErrRst`, details will contain `NSNumber*` of RST code.
  */
 
 @end
