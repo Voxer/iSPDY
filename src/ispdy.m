@@ -25,6 +25,8 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
 
 @implementation ISpdy {
   ISpdyVersion version_;
+  UInt16 port_;
+  BOOL secure_;
   NSInputStream* in_stream_;
   NSOutputStream* out_stream_;
   ISpdyCompressor* in_comp_;
@@ -73,6 +75,9 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
     return self;
 
   version_ = version;
+  port_ = port;
+  secure_ = secure;
+
   in_comp_ = [[ISpdyCompressor alloc] init: version];
   out_comp_ = [[ISpdyCompressor alloc] init: version];
   framer_ = [[ISpdyFramer alloc] init: version compressor: out_comp_];
@@ -220,6 +225,17 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
 
 
 - (BOOL) connect {
+  // Reinitialize streams if connection was closed
+  if (in_stream_ == nil) {
+    NSAssert(out_stream_ == nil, @"Both streams should be closed");
+
+    (void) [self init: version_
+                 host: _host
+             hostname: _hostname
+                 port: port_
+               secure: secure_];
+  }
+
   [self _lazySchedule];
 
   [in_stream_ open];
