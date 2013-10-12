@@ -846,6 +846,9 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
           ISpdyError* err = [ISpdyError errorWithCode: kISpdyErrRst];
           [req.delegate request: req handleEnd: err];
         }];
+
+        // Do not send RST frame in reply to RST
+        req.closed_by_us = YES;
         [req _forceClose];
       }
       break;
