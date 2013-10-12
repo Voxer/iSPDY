@@ -90,7 +90,7 @@ describe(@"ISpdy server", ^{
         got_headers = YES;
         return nil;
       }];
-      [mock stub: @selector(handleEnd:) withBlock: ^id (NSArray* args) {
+      [mock stub: @selector(request:handleEnd:) withBlock: ^id (NSArray* args) {
         NSAssert(ended == NO, @"Double-end");
         ended = YES;
         return nil;
@@ -152,7 +152,8 @@ describe(@"ISpdy server", ^{
            got_push_input = YES;
            return nil;
          }];
-        [mock stub: @selector(handleEnd:) withBlock: ^id (NSArray* args) {
+        [mock stub: @selector(request:handleEnd:)
+         withBlock: ^id (NSArray* args) {
           NSAssert(got_push_end == NO, @"Double-end");
           got_push_end = YES;
           return nil;
@@ -224,7 +225,7 @@ describe(@"ISpdy server", ^{
       id mock = [KWMock mockForProtocol: @protocol(ISpdyRequestDelegate)];
 
       __block ISpdyError* err;
-      id (^onError)(NSArray*) = ^id (NSArray* args) {
+      id (^onEnd)(NSArray*) = ^id (NSArray* args) {
         [[theValue([args count]) should] equal: theValue(2)];
 
         err = [args objectAtIndex: 1];
@@ -232,8 +233,7 @@ describe(@"ISpdy server", ^{
         return nil;
       };
       [mock stub: @selector(request:handleResponse:) withBlock: nil];
-      [mock stub: @selector(request:handleError:) withBlock: onError];
-      [mock stub: @selector(handleEnd:) withBlock: nil];
+      [mock stub: @selector(request:handleEnd:) withBlock: onEnd];
       req.delegate = mock;
 
       [conn send: req];

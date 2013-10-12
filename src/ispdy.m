@@ -470,8 +470,7 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
   for (NSNumber* stream_id in streams) {
     ISpdyRequest* req = [streams objectForKey: stream_id];
     [self _delegateDispatchSync: ^{
-      [req _handleError: err];
-      [req.delegate handleEnd: req];
+      [req.delegate request: req handleEnd: err];
     }];
   }
 }
@@ -559,7 +558,8 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
   [self _rst: request.stream_id code: kISpdyRstCancel];
 
   [self _delegateDispatch: ^{
-    [request _handleError: [ISpdyError errorWithCode: code]];
+    ISpdyError* err = [ISpdyError errorWithCode: code];
+    [request.delegate request: request handleEnd: err];
   }];
 
   [request _forceClose];
@@ -800,7 +800,8 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
     case kISpdyRstStream:
       {
         [self _delegateDispatch: ^{
-          [req _handleError: [ISpdyError errorWithCode: kISpdyErrRst]];
+          ISpdyError* err = [ISpdyError errorWithCode: kISpdyErrRst];
+          [req.delegate request: req handleEnd: err];
         }];
         [req _forceClose];
       }

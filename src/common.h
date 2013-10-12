@@ -172,9 +172,6 @@ typedef enum {
 // Update outgoing window size
 - (void) _updateWindow: (NSInteger) delta;
 
-// Invoke delegate's method and set error property
-- (void) _handleError: (ISpdyError*) err;
-
 // Bufferize frame data and fetch it
 - (void) _queueOutput: (NSData*) data;
 - (void) _queueHeaders: (NSDictionary*) headers;

@@ -131,7 +131,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
         [self _queueEnd];
       }];
     } else {
-      [self.delegate handleEnd: self];
+      [self.delegate request: self handleEnd: nil];
     }
   }];
   self.closed_by_us = YES;
@@ -170,12 +170,6 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   // Try writing queued data
   if (self.window_out > 0)
     [self _unqueueOutput];
-}
-
-
-- (void) _handleError: (ISpdyError*) err {
-  self.error = err;
-  [self.delegate request: self handleError: err];
 }
 
 

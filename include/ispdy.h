@@ -63,10 +63,9 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
  */
 @protocol ISpdyRequestDelegate
 - (void) request: (ISpdyRequest*) req handleResponse: (ISpdyResponse*) res;
-- (void) request: (ISpdyRequest*) req handleError: (ISpdyError*) err;
 - (void) request: (ISpdyRequest*) req handleInput: (NSData*) input;
 - (void) request: (ISpdyRequest*) req handleHeaders: (NSDictionary*) headers;
-- (void) handleEnd: (ISpdyRequest*) req;
+- (void) request: (ISpdyRequest*) req handleEnd: (ISpdyError*) err;
 @end
 
 /**
@@ -82,11 +81,6 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
  * Should be provided in order to receive input/end/error events.
  */
 @property id <ISpdyRequestDelegate> delegate;
-
-/**
- * Indicates presence of error.
- */
-@property ISpdyError* error;
 
 /**
  * Request method, should be initialized using `init: url:` selector.
