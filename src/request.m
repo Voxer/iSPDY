@@ -41,7 +41,8 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 
 - (void) end {
-  NSAssert(self.pending_closed_by_us == NO, @"Double end");
+  NSAssert(self.pending_closed_by_us == NO || self.closed_by_us,
+           @"Stream already ended");
 
   // Request was either closed, or not opened yet, queue end.
   if (self.connection == nil) {
