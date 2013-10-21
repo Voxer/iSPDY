@@ -30,6 +30,19 @@ typedef enum {
   kISpdyErrSocketError
 } ISpdyErrorCode;
 
+/**
+ * Possible connection states
+ */
+typedef enum {
+  kISpdyStateInitial,
+  kISpdyStateConnecting,
+  kISpdyStateConnected,
+  kISpdyStateClosed
+} ISpdyState;
+
+/**
+ * Ping status results
+ */
 typedef enum {
   kISpdyPingOk,
   kISpdyPingTimedOut
@@ -265,6 +278,11 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
  * Time of the last received frame
  */
 @property (readonly) struct timeval* last_frame;
+
+/**
+ * State of connection
+ */
+@property (readonly) ISpdyState state;
 
 /**
  * Initialize connection to work with specified protocol version.

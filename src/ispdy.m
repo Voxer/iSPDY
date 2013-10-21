@@ -84,6 +84,7 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
   parser_ = [[ISpdyParser alloc] init: version compressor: in_comp_];
   scheduler_ = [ISpdyScheduler schedulerWithMaxPriority: kMaxPriority];
   _last_frame = &last_frame_;
+  _state = kISpdyStateInitial;
 
   scheduler_.delegate = self;
   parser_.delegate = self;
@@ -245,6 +246,7 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
 
   [self _lazySchedule];
 
+  _state = kISpdyStateConnecting;
   [in_stream_ open];
   [out_stream_ open];
 
@@ -279,6 +281,7 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
   if (in_stream_ == nil || out_stream_ == nil)
     return NO;
 
+  _state = kISpdyStateClosed;
   [in_stream_ close];
   [out_stream_ close];
   in_stream_ = nil;
@@ -694,6 +697,7 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
 
       // Notify delegate
       [self _delegateDispatch: ^{
+        _state = kISpdyStateConnected;
         [self.delegate handleConnect: self];
       }];
     }
