@@ -20,6 +20,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   self = [self init];
   self.method = method;
   self.url = url;
+  response_timeout_interval_ = kResponseTimeout;
   return self;
 }
 
@@ -151,8 +152,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 
 - (void) _resetTimeout {
-  [self setTimeout: response_timeout_interval_ != 0.0 ?
-      response_timeout_interval_ : kResponseTimeout];
+  [self setTimeout: response_timeout_interval_];
 }
 
 
