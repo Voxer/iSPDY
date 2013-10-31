@@ -659,6 +659,8 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
 
 
 - (void) _handlePush: (ISpdyPush*) push forRequest: (ISpdyRequest*) req {
+  NSAssert(push != nil, @"Received nil as PUSH stream");
+
   push.connection = self;
   push.associated = req;
 
