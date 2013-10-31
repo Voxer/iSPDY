@@ -292,6 +292,7 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
 
 
 - (void) send: (ISpdyRequest*) request {
+  NSAssert(request != nil, @"Received nil as stream to send");
   NSAssert(request.connection == nil, @"Request was already sent");
 
   if (request.connection != nil)
