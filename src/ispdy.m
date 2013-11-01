@@ -530,7 +530,10 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
   NSInteger pending_length = [pending length];
   NSData* rest = nil;
 
-  NSAssert(request.closed_by_us == NO, @"Request is read-only");
+  // Already closed
+  if (request.closed_by_us == YES)
+    return;
+
   NSAssert(request.connection != nil, @"Request was closed");
 
   if (request.window_out != 0) {
