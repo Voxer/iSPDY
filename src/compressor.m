@@ -305,9 +305,9 @@ static const char spdy3_dict_[] = {
     stream->avail_out = [output_ length] - offset;
 
     if (isDeflate == YES) {
-      ret = deflate(stream, Z_FULL_FLUSH);
+      ret = deflate(stream, Z_SYNC_FLUSH);
     } else {
-      ret = inflate(stream, Z_FULL_FLUSH);
+      ret = inflate(stream, Z_SYNC_FLUSH);
 
       // Load dictionary
       if (ret == Z_NEED_DICT) {
@@ -317,7 +317,7 @@ static const char spdy3_dict_[] = {
         ret = inflateSetDictionary(stream, dict_, dict_len_);
         if (ret != Z_OK)
           goto fatal;
-        ret = inflate(stream, Z_FULL_FLUSH);
+        ret = inflate(stream, Z_SYNC_FLUSH);
       }
     }
     if (ret != Z_OK && ret != Z_STREAM_END)
