@@ -145,7 +145,8 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   if (![self.decompressor inflate: data])
     return [self.decompressor error];
 
-  block([self.decompressor output]);
+  // Copy data out of decompressor's output as it is shared
+  block([NSData dataWithData: [self.decompressor output]]);
   return nil;
 }
 

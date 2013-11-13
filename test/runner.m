@@ -14,7 +14,7 @@ describe(@"ISpdy server", ^{
 
   void (^eachConf)(void (^)(ISpdyTestConf)) = ^(void (^b)(ISpdyTestConf)) {
     context(@"spdy-v2 - no comp", ^{
-      b((ISpdyTestConf) { kISpdyV2, "deflate" });
+      b((ISpdyTestConf) { kISpdyV2, "*" });
     });
     context(@"spdy-v2 - deflate", ^{
       b((ISpdyTestConf) { kISpdyV2, "deflate" });
