@@ -206,6 +206,7 @@ static const char spdy3_dict_[] = {
 
 
 @implementation ISpdyCompressor {
+  ISpdyCompressorMode mode_;
   z_stream deflate_;
   z_stream inflate_;
   const unsigned char* dict_;
@@ -215,20 +216,37 @@ static const char spdy3_dict_[] = {
 }
 
 - (id) init: (ISpdyVersion) version {
+  return [self init: version withMode: kISpdyCompressorModeDictDeflate];
+}
+
+
+- (id) init: (ISpdyVersion) version withMode: (ISpdyCompressorMode) mode {
   self = [super init];
   if (!self)
     return self;
 
+  mode_ = mode;
   memset(&deflate_, 0, sizeof(deflate_));
   memset(&inflate_, 0, sizeof(inflate_));
 
-  deflateInit2(&deflate_,
-               Z_DEFAULT_COMPRESSION,
-               Z_DEFLATED,
-               kZlibBits,
-               8,
-               Z_DEFAULT_STRATEGY);
-  inflateInit2(&inflate_, kZlibBits);
+  NSInteger bits;
+
+  switch (mode_) {
+    case kISpdyCompressorModeDictDeflate:
+      bits = kZlibBits;
+      break;
+    case kISpdyCompressorModeDeflate:
+      bits = 47;
+      break;
+    case kISpdyCompressorModeGzip:
+      bits = 47;
+      break;
+    default:
+      NSAssert(NO, @"Unexpected compressor mode");
+      break;
+  }
+
+  inflateInit2(&inflate_, bits);
 
   const char* dict = version == kISpdyV2 ? spdy2_dict_ : spdy3_dict_;
 
@@ -237,8 +255,16 @@ static const char spdy3_dict_[] = {
   dict_len_ = version == kISpdyV2 ? sizeof(spdy2_dict_) : sizeof(spdy3_dict_);
 
   // But deflate stream needs it right now.
-  int r = deflateSetDictionary(&deflate_, dict_, dict_len_);
-  NSAssert(r == Z_OK, @"deflateSetDictionary() failed with code %d", r);
+  if (mode == kISpdyCompressorModeDictDeflate) {
+    deflateInit2(&deflate_,
+                 Z_DEFAULT_COMPRESSION,
+                 Z_DEFLATED,
+                 bits,
+                 8,
+                 Z_DEFAULT_STRATEGY);
+    int r = deflateSetDictionary(&deflate_, dict_, dict_len_);
+    NSAssert(r == Z_OK, @"deflateSetDictionary() failed with code %d", r);
+  }
 
   output_ = [[NSMutableData alloc] initWithCapacity: kCompBufferSize];
 
@@ -260,6 +286,8 @@ static const char spdy3_dict_[] = {
   int ret;
   NSUInteger offset;
   z_stream* stream = isDeflate == YES ? &deflate_ : &inflate_;
+  int flush = mode_ == kISpdyCompressorModeDictDeflate ? Z_FULL_FLUSH :
+                                                         Z_NO_FLUSH;
 
   stream->next_in = (unsigned char*) [input bytes];
   stream->avail_in = [input length];
@@ -274,25 +302,27 @@ static const char spdy3_dict_[] = {
   [output_ setLength: kCompBufferSize];
 
   offset = 0;
-  // TODO(indutny) fail gracefully, instead of assertions
   do {
     stream->next_out = (unsigned char*) [output_ bytes] + offset;
     stream->avail_out = [output_ length] - offset;
 
     if (isDeflate == YES) {
-      ret = deflate(stream, Z_FULL_FLUSH);
+      ret = deflate(stream, flush);
     } else {
-      ret = inflate(stream, Z_FULL_FLUSH);
+      ret = inflate(stream, flush);
 
       // Load dictionary
       if (ret == Z_NEED_DICT) {
+        if (mode_ != kISpdyCompressorModeDictDeflate)
+          goto fatal;
+
         ret = inflateSetDictionary(stream, dict_, dict_len_);
         if (ret != Z_OK)
           goto fatal;
-        ret = inflate(stream, Z_FULL_FLUSH);
+        ret = inflate(stream, flush);
       }
     }
-    if (ret != Z_OK)
+    if (ret != Z_OK && ret != Z_STREAM_END)
       goto fatal;
 
     // Shift offset
@@ -323,6 +353,8 @@ fatal:
 
 
 - (BOOL) deflate: (NSData*) input {
+  NSAssert(mode_ == kISpdyCompressorModeDictDeflate,
+           @"Only dict deflate supports deflate");
   return [self process: YES in: input];
 }
 

@@ -27,7 +27,8 @@ typedef enum {
   kISpdyErrRst,
   kISpdyErrParseError,
   kISpdyErrDoubleResponse,
-  kISpdyErrSocketError
+  kISpdyErrSocketError,
+  kISpdyErrDecompressionError
 } ISpdyErrorCode;
 
 /**

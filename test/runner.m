@@ -6,35 +6,30 @@
 
 SPEC_BEGIN(ISpdySpec)
 
-describe(@"ISpdy compressor", ^{
-  context(@"compressing/decompressing stream", ^{
-    it(@"should work", ^{
-      BOOL r;
-      ISpdyCompressor* input = [[ISpdyCompressor alloc] init: kISpdyV3];
-      ISpdyCompressor* output = [[ISpdyCompressor alloc] init: kISpdyV3];
-
-      NSData* str = [@"hello world\n" dataUsingEncoding: NSUTF8StringEncoding];
-
-      for (int i = 0; i < 100; i++) {
-        r = [input deflate: str];
-        [[theValue(r) should] equal: theValue(YES)];
-        [[input.error should] beNil];
-
-        r = [output inflate: input.output];
-        [[theValue(r) should] equal: theValue(YES)];
-        [[output.error should] beNil];
-      }
-    });
-  });
-});
-
 describe(@"ISpdy server", ^{
-  void (^bothVersions)(void (^)(ISpdyVersion)) = ^(void (^b)(ISpdyVersion)) {
-    context(@"spdy-v2", ^{
-      b(kISpdyV2);
+  typedef struct {
+    ISpdyVersion version;
+    const char* compression;
+  } ISpdyTestConf;
+
+  void (^eachConf)(void (^)(ISpdyTestConf)) = ^(void (^b)(ISpdyTestConf)) {
+    context(@"spdy-v2 - no comp", ^{
+      b((ISpdyTestConf) { kISpdyV2, "deflate" });
     });
-    context(@"spdy-v3", ^{
-      b(kISpdyV3);
+    context(@"spdy-v2 - deflate", ^{
+      b((ISpdyTestConf) { kISpdyV2, "deflate" });
+    });
+    context(@"spdy-v2 - gzip", ^{
+      b((ISpdyTestConf) { kISpdyV2, "gzip" });
+    });
+    context(@"spdy-v3 - no comp", ^{
+      b((ISpdyTestConf) { kISpdyV3, "*" });
+    });
+    context(@"spdy-v3 - deflate", ^{
+      b((ISpdyTestConf) { kISpdyV3, "deflate" });
+    });
+    context(@"spdy-v3 - gzip", ^{
+      b((ISpdyTestConf) { kISpdyV3, "gzip" });
     });
   };
 
@@ -117,8 +112,8 @@ describe(@"ISpdy server", ^{
       [[expectFutureValue(received) shouldEventually] equal: data];
     };
 
-    void (^pipe)(ISpdyVersion, NSData*) = ^(ISpdyVersion v, NSData* data) {
-      __block ISpdy* conn = [[ISpdy alloc] init: v
+    void (^pipe)(ISpdyTestConf, NSData*) = ^(ISpdyTestConf conf, NSData* data) {
+      __block ISpdy* conn = [[ISpdy alloc] init: conf.version
                                            host: @"localhost"
                                            port: 3232
                                          secure: NO];
@@ -181,6 +176,9 @@ describe(@"ISpdy server", ^{
           [NSMutableDictionary dictionaryWithCapacity: 2];
       [headers setValue: contentLength forKey: @"Content-Length"];
       [headers setValue: @"yikes" forKey: @"X-ISpdy"];
+      [headers setValue: [NSString stringWithCString: conf.compression
+                                            encoding: NSUTF8StringEncoding]
+                 forKey: @"Accept-Encoding"];
       [headers setValue: [NSNumber numberWithInt: 3] forKey: @"X-ISpdy-V"];
       req.headers = headers;
 
@@ -209,8 +207,8 @@ describe(@"ISpdy server", ^{
           equal: theValue(YES)];
     };
 
-    void (^slow_response)(ISpdyVersion) = ^(ISpdyVersion v) {
-      ISpdy* conn = [[ISpdy alloc] init: v
+    void (^slow_response)(ISpdyTestConf) = ^(ISpdyTestConf conf) {
+      ISpdy* conn = [[ISpdy alloc] init: conf.version
                                    host: @"localhost"
                                    port: 3232
                                  secure: NO];
@@ -243,9 +241,9 @@ describe(@"ISpdy server", ^{
           beNonNil];
     };
 
-    bothVersions(^(ISpdyVersion v) {
+    eachConf(^(ISpdyTestConf conf) {
       it(@"should return body that was sent", ^{
-        pipe(v, [@"hello world" dataUsingEncoding: NSUTF8StringEncoding]);
+        pipe(conf, [@"hello world" dataUsingEncoding: NSUTF8StringEncoding]);
       });
 
       it(@"should return big body that was sent", ^{
@@ -256,11 +254,11 @@ describe(@"ISpdy server", ^{
         for (int i = 0; i < count; i++) {
           [body appendData: str];
         }
-        pipe(v, body);
+        pipe(conf, body);
       });
 
       it(@"should timeout on slow responses", ^{
-        slow_response(v);
+        slow_response(conf);
       });
     });
   });

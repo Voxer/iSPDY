@@ -2,6 +2,7 @@
 
 #import "ispdy.h"
 #import "common.h"
+#import "compressor.h"  // ISpdyCompressor
 
 static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
@@ -112,6 +113,42 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 @end
 
 @implementation ISpdyRequest (ISpdyRequestPrivate)
+
+- (void) _handleResponse: (ISpdyResponse*) response {
+  NSString* encoding = [response.headers valueForKey: @"content-encoding"];
+  if (encoding == nil)
+    return;
+
+  BOOL is_deflate = [encoding isEqualToString: @"deflate"];
+  BOOL is_gzip = !is_deflate && [encoding isEqualToString: @"gzip"];
+
+  if (is_deflate || is_gzip) {
+    // Setup decompressor
+    ISpdyCompressorMode mode;
+    if (is_deflate)
+      mode = kISpdyCompressorModeDeflate;
+    else
+      mode = kISpdyCompressorModeGzip;
+
+    // NOTE: Version doesn't really matter here
+    self.decompressor = [[ISpdyCompressor alloc] init: kISpdyV3 withMode: mode];
+  }
+}
+
+
+- (NSError*) _decompress: (NSData*) data withBlock: (void (^)(NSData*)) block {
+  if (self.decompressor == nil) {
+    block(data);
+    return nil;
+  }
+
+  if (![self.decompressor inflate: data])
+    return [self.decompressor error];
+
+  block([self.decompressor output]);
+  return nil;
+}
+
 
 - (void) _tryClose {
   if (self.connection == nil)

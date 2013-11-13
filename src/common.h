@@ -4,6 +4,7 @@
 
 // Forward-declarations
 @class ISpdyPing;
+@class ISpdyCompressor;
 
 typedef enum {
   kISpdyWriteNoChunkBuffering,
@@ -141,6 +142,7 @@ typedef enum {
 @interface ISpdyRequest ()
 
 @property ISpdy* connection;
+@property ISpdyCompressor* decompressor;
 
 // Indicates queued end
 @property BOOL pending_closed_by_us;
@@ -155,6 +157,9 @@ typedef enum {
 @end
 
 @interface ISpdyRequest (ISpdyRequestPrivate)
+
+// Invoked on SYN_REPLY
+- (void) _handleResponse: (ISpdyResponse*) response;
 
 // Invoked on request timeout
 - (void) _onTimeout;
@@ -174,6 +179,9 @@ typedef enum {
 
 // Update outgoing window size
 - (void) _updateWindow: (NSInteger) delta;
+
+// Decompress data or return input if there're no compression
+- (NSError*) _decompress: (NSData*) data withBlock: (void (^)(NSData*)) block;
 
 // Bufferize frame data and fetch it
 - (void) _queueOutput: (NSData*) data;

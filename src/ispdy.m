@@ -824,9 +824,15 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
           }
         }
         if ([body length] != 0) {
-          [self _delegateDispatch: ^{
-            [req.delegate request: req handleInput: (NSData*) body];
+          NSError* err = [req _decompress: body withBlock: ^(NSData* data) {
+            [self _delegateDispatch: ^{
+              [req.delegate request: req handleInput: data];
+            }];
           }];
+
+          // TODO(indutny): Report actual error as well?
+          if (err != nil)
+            return [self _error: req code: kISpdyErrDecompressionError];
         }
       }
       break;
@@ -842,6 +848,7 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
         if (req.seen_response)
           return [self _error: req code: kISpdyErrDoubleResponse];
         req.seen_response = YES;
+        [req _handleResponse: body];
         [self _delegateDispatch: ^{
           [req.delegate request: req handleResponse: body];
         }];
