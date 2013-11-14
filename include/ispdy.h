@@ -349,6 +349,11 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
 - (void) setNoDelay: (BOOL) enable;
 
 /**
+ * Configure the socket for VoIP usage
+ */
+- (void) enableVoip;
+
+/**
  * Connect to remote server.
  *
  * @return `YES` - If socket initialization was successful

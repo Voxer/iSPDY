@@ -239,6 +239,12 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
 }
 
 
+- (void) enableVoip {
+  [in_stream_ setProperty: NSStreamNetworkServiceTypeVoIP
+                   forKey: NSStreamNetworkServiceType];
+}
+
+
 - (BOOL) connect {
   // Reinitialize streams if connection was closed
   if (in_stream_ == nil) {

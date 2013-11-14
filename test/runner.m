@@ -117,6 +117,7 @@ describe(@"ISpdy server", ^{
                                            host: @"localhost"
                                            port: 3232
                                          secure: NO];
+      [conn enableVoip];
 
       // Expect push streams and connect event
       __block BOOL connected = NO;
