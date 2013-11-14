@@ -24,6 +24,7 @@
     "link_settings": {
       "libraries": [
         "CoreServices.framework",
+        "Security.framework",
       ],
     },
     "xcode_settings": {

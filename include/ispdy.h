@@ -28,7 +28,8 @@ typedef enum {
   kISpdyErrParseError,
   kISpdyErrDoubleResponse,
   kISpdyErrSocketError,
-  kISpdyErrDecompressionError
+  kISpdyErrDecompressionError,
+  kISpdyErrSSLPinningError
 } ISpdyErrorCode;
 
 /**
@@ -395,5 +396,12 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
  *                 if zero - reset timeout
  */
 - (void) setTimeout: (NSTimeInterval) timeout;
+
+/**
+ * Add pinned SSL certificate
+ *
+ * @param cert  A certificate in DER encoding
+ */
+- (void) addPinnedSSLCert: (NSData*) cert;
 
 @end

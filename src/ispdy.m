@@ -36,6 +36,9 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
   ISpdyScheduler* scheduler_;
   BOOL no_delay_;
 
+  // SSL pinned certs
+  NSMutableSet* pinned_certs_;
+
   // Run loop
   BOOL on_ispdy_loop_;
   NSMutableSet* scheduled_loops_;
@@ -104,6 +107,10 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
     [buffer_ setLength: 0];
   else
     buffer_ = [[NSMutableData alloc] initWithCapacity: 4096];
+
+  // Initialize pinned certs
+  if (pinned_certs_ == nil)
+    pinned_certs_ = [NSMutableSet setWithCapacity: 1];
 
   // Initialize storage for loops
   if (scheduled_loops_ == nil)
@@ -364,6 +371,11 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
                                               selector: @selector(_onTimeout)
                                               userInfo: nil];
   }];
+}
+
+
+- (void) addPinnedSSLCert: (NSData*) cert {
+  [pinned_certs_ addObject: cert];
 }
 
 @end
@@ -687,6 +699,39 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
   }];
 }
 
+
+- (BOOL) _checkPinnedCertificates: (NSStream*) stream {
+  // No pinned certs - no check
+  if ([pinned_certs_ count] == 0)
+    return YES;
+
+  BOOL res = NO;
+
+  NSString* peer_trust = (__bridge NSString*) kCFStreamPropertySSLPeerTrust;
+  SecTrustRef trust =
+      (__bridge SecTrustRef) [stream propertyForKey: peer_trust];
+  NSAssert(trust != NULL, @"Failed to get SSLPeerTrust");
+
+  CFIndex count = SecTrustGetCertificateCount(trust);
+  for (CFIndex i = 0; i < count; i++) {
+    SecCertificateRef cert = SecTrustGetCertificateAtIndex(trust, i);
+    NSData* der = (__bridge NSData*) SecCertificateCopyData(cert);
+
+    NSLog(@"%@", der);
+    for (NSData* pinned in pinned_certs_) {
+      if ([der isEqualToData: pinned]) {
+        res = YES;
+        break;
+      }
+    }
+
+    if (res)
+      break;
+  }
+
+  return res;
+}
+
 // NSSocket delegate methods
 
 - (void) stream: (NSStream*) stream handleEvent: (NSStreamEvent) event {
@@ -706,6 +751,14 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
         _state = kISpdyStateConnected;
         [self.delegate handleConnect: self];
       }];
+    } else if (event == NSStreamEventHasBytesAvailable ||
+               event == NSStreamEventHasSpaceAvailable) {
+      // Check pinned certificates
+      if (secure_ && ![self _checkPinnedCertificates: stream]) {
+        // Failure
+        ISpdyError* err = [ISpdyError errorWithCode: kISpdyErrSSLPinningError];
+        return [self _handleError: err];
+      }
     }
 
     if (event == NSStreamEventOpenCompleted ||
