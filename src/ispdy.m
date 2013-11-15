@@ -1057,6 +1057,10 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
     case kISpdyErrSocketError:
       return [NSString stringWithFormat: @"ISpdy error: socket error - %@",
           details];
+    case kISpdyErrDecompressionError:
+      return @"ISpdy error: failed to decompress incoming data";
+    case kISpdyErrSSLPinningError:
+      return @"ISpdy error: failed to verify certificate against pinned one";
     default:
       return [NSString stringWithFormat: @"Unexpected spdy error %d",
           self.code];
