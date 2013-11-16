@@ -706,6 +706,9 @@ typedef enum {
   // Start timer, if needed
   [push _resetTimeout];
 
+  // Enable decompression, if needed
+  [push _handleResponseHeaders: push.headers];
+
   [self _delegateDispatchSync: ^{
     [self.delegate connection: self handlePush: push];
   }];
@@ -918,9 +921,10 @@ typedef enum {
         if (req.seen_response)
           return [self _error: req code: kISpdyErrDoubleResponse];
         req.seen_response = YES;
-        [req _handleResponse: body];
+        ISpdyResponse* res = (ISpdyResponse*) body;
+        [req _handleResponseHeaders: res.headers];
         [self _delegateDispatch: ^{
-          [req.delegate request: req handleResponse: body];
+          [req.delegate request: req handleResponse: res];
         }];
       }
       break;

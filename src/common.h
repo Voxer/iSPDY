@@ -158,8 +158,8 @@ typedef enum {
 
 @interface ISpdyRequest (ISpdyRequestPrivate)
 
-// Invoked on SYN_REPLY
-- (void) _handleResponse: (ISpdyResponse*) response;
+// Invoked on SYN_REPLY and PUSH streams
+- (void) _handleResponseHeaders: (NSDictionary*) headers;
 
 // Invoked on request timeout
 - (void) _onTimeout;

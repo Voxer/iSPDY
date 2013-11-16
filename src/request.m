@@ -114,8 +114,8 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 @implementation ISpdyRequest (ISpdyRequestPrivate)
 
-- (void) _handleResponse: (ISpdyResponse*) response {
-  NSString* encoding = [response.headers valueForKey: @"content-encoding"];
+- (void) _handleResponseHeaders: (NSDictionary*) headers {
+  NSString* encoding = [headers valueForKey: @"content-encoding"];
   if (encoding == nil)
     return;
 
