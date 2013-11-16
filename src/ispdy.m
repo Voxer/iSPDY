@@ -20,6 +20,11 @@ static const NSInteger kInitialWindowSizeOut = 65536;
 static const NSUInteger kMaxPriority = 7;
 static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
 
+typedef enum {
+  kISpdySSLPinningNone,
+  kISpdySSLPinningRejected,
+  kISpdySSLPinningApproved
+} ISpdySSLPinningResult;
 
 // Implementations
 
@@ -38,6 +43,7 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
 
   // SSL pinned certs
   NSMutableSet* pinned_certs_;
+  ISpdySSLPinningResult pinned_check_result_;
 
   // Run loop
   BOOL on_ispdy_loop_;
@@ -707,6 +713,10 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
 
 
 - (BOOL) _checkPinnedCertificates: (NSStream*) stream {
+  // Do not perform pinned cert check every time
+  if (pinned_check_result_ != kISpdySSLPinningNone)
+    return pinned_check_result_ == kISpdySSLPinningApproved;
+
   // No pinned certs - no check
   if ([pinned_certs_ count] == 0)
     return YES;
@@ -723,7 +733,6 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
     SecCertificateRef cert = SecTrustGetCertificateAtIndex(trust, i);
     NSData* der = (__bridge NSData*) SecCertificateCopyData(cert);
 
-    NSLog(@"%@", der);
     for (NSData* pinned in pinned_certs_) {
       if ([der isEqualToData: pinned]) {
         res = YES;
@@ -735,6 +744,8 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
       break;
   }
 
+  pinned_check_result_ = res ? kISpdySSLPinningApproved :
+                               kISpdySSLPinningRejected;
   return res;
 }
 
