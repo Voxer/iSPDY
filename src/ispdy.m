@@ -898,6 +898,9 @@ typedef enum {
         }
         if ([body length] != 0) {
           NSError* err = [req _decompress: body withBlock: ^(NSData* data) {
+            if ([data length] == 0)
+              return;
+
             [self _delegateDispatch: ^{
               [req.delegate request: req handleInput: data];
             }];
