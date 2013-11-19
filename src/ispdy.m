@@ -866,7 +866,7 @@ typedef enum {
     // but don't reply with RST for RST to prevent echoing each other
     // indefinitely.
     if (req == nil && type != kISpdyRstStream) {
-      [self _rst: stream_id code: kISpdyRstProtocolError];
+      [self _rst: stream_id code: kISpdyRstInvalidStream];
       return;
     }
   }
