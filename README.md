@@ -13,6 +13,8 @@ int main() {
                                port: 443
                              secure: YES];
 
+  [conn connect];
+
   ISpdyRequest* req = [[ISpdyRequest alloc] init: @"POST" url: @"/"];
   [conn send: req];
 
