@@ -53,6 +53,12 @@ typedef enum {
 
   // Next stream's id
   uint32_t stream_id_;
+  NSInteger active_streams_;
+
+  // Goaway status
+  BOOL goaway_;
+
+  // Window size
   NSInteger initial_window_;
 
   // Next ping's id
@@ -102,7 +108,9 @@ typedef enum {
   _hostname = hostname;
 
   stream_id_ = 1;
+  active_streams_ = 0;
   ping_id_ = 1;
+  goaway_ = NO;
   initial_window_ = kInitialWindowSizeOut;
 
   streams_ = [[NSMutableDictionary alloc] initWithCapacity: 100];
@@ -310,6 +318,20 @@ typedef enum {
 }
 
 
+- (void) closeSoon {
+  [self _connectionDispatch: ^{
+    goaway_ = YES;
+
+    [framer_ clear];
+    [framer_ goaway: stream_id_ - 2 status: kISpdyGoawayOk];
+    [self _writeRaw: [framer_ output] withMode: kISpdyWriteChunkBuffering];
+
+    // Close connection if needed
+    [self _handleDrain];
+  }];
+}
+
+
 - (void) send: (ISpdyRequest*) request {
   NSAssert(request != nil, @"Received nil as stream to send");
   NSAssert(request.connection == nil, @"Request was already sent");
@@ -319,12 +341,15 @@ typedef enum {
   request.connection = self;
 
   [self _connectionDispatch: ^{
+    NSAssert(!goaway_, @"Can't send streams after GOAWAY was sent/received");
+
     request.initial_window_in = kInitialWindowSizeIn;
     request.initial_window_out = initial_window_;
     request.window_in = request.initial_window_in;
     request.window_out = request.initial_window_out;
     request.stream_id = stream_id_;
     stream_id_ += 2;
+    active_streams_++;
 
     NSNumber* request_key = [NSNumber numberWithUnsignedInt: request.stream_id];
     [streams_ setObject: request forKey: request_key];
@@ -531,6 +556,8 @@ typedef enum {
       [req.delegate request: req handleEnd: err];
     }];
   }
+  active_streams_ = 0;
+  [self _handleDrain];
 }
 
 
@@ -636,7 +663,7 @@ typedef enum {
     [request.delegate request: request handleEnd: err];
   }];
 
-  [request _forceClose];
+  [self _close: request];
 }
 
 
@@ -669,6 +696,9 @@ typedef enum {
 
   NSNumber* request_key = [NSNumber numberWithUnsignedInt: request.stream_id];
   [streams_ removeObjectForKey: request_key];
+
+  active_streams_--;
+  [self _handleDrain];
 }
 
 
@@ -689,8 +719,16 @@ typedef enum {
 }
 
 
+- (void) _handleDrain {
+  if (goaway_ && active_streams_ == 0 && [buffer_ length] == 0)
+    [self close];
+}
+
+
 - (void) _handleGoaway: (ISpdyGoaway*) goaway {
   ISpdyError* err = [ISpdyError errorWithCode: kISpdyErrGoawayError];
+
+  goaway_ = YES;
 
   // Destroy all non-pushed streams with ids greater than goaway.stream_id
   for (NSNumber* stream_id in streams_) {
@@ -702,7 +740,10 @@ typedef enum {
       continue;
 
     ISpdyRequest* req = [streams_ objectForKey: stream_id];
-    [req.delegate request: req handleEnd: err];
+    [self _delegateDispatch: ^{
+      [req.delegate request: req handleEnd: err];
+    }];
+    [self _close: req];
   }
 }
 
@@ -841,7 +882,10 @@ typedef enum {
         memmove(bytes, bytes + r, [buffer_ length] - r);
       }
       // Truncate
+      BOOL drained = r != 0 && [buffer_ length] == (NSUInteger) r;
       [buffer_ setLength: [buffer_ length] - r];
+      if (drained)
+        [self _handleDrain];
     } else if (event == NSStreamEventHasBytesAvailable) {
       NSAssert(in_stream_ == stream, @"Read event on output stream?!");
 
@@ -964,7 +1008,7 @@ typedef enum {
 
         // Do not send RST frame in reply to RST
         req.closed_by_us = YES;
-        [req _forceClose];
+        [self _close: req];
       }
       break;
     case kISpdyWindowUpdate:
