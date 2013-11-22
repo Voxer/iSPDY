@@ -514,8 +514,11 @@ typedef enum {
 - (NSInteger) _writeRaw: (NSData*) data withMode: (ISpdyWriteMode) mode {
   NSStreamStatus status = [out_stream_ streamStatus];
 
-  NSAssert(status != NSStreamStatusNotOpen,
-           @"You should connect to the server first");
+  if (status == NSStreamStatusNotOpen) {
+    ISpdyError* err = [ISpdyError errorWithCode: kISpdyErrConnectionEnd];
+    [self _handleError: err];
+    return [data length];
+  }
 
   // If stream is not open yet, or if there's already queued data -
   // queue more.
