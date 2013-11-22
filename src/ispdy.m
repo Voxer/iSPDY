@@ -689,6 +689,24 @@ typedef enum {
 }
 
 
+- (void) _handleGoaway: (ISpdyGoaway*) goaway {
+  ISpdyError* err = [ISpdyError errorWithCode: kISpdyErrGoawayError];
+
+  // Destroy all non-pushed streams with ids greater than goaway.stream_id
+  for (NSNumber* stream_id in streams_) {
+    // Skip push streams
+    if ([stream_id integerValue] % 2 == 0)
+      continue;
+    // Skip handled streams
+    if ([stream_id integerValue] > goaway.stream_id)
+      continue;
+
+    ISpdyRequest* req = [streams_ objectForKey: stream_id];
+    [req.delegate request: req handleEnd: err];
+  }
+}
+
+
 - (void) _handlePush: (ISpdyPush*) push forRequest: (ISpdyRequest*) req {
   NSAssert(push != nil, @"Received nil as PUSH stream");
 
@@ -856,12 +874,11 @@ typedef enum {
   // Update last_frame time
   gettimeofday(&last_frame_, NULL);
 
-  if (type == kISpdySynReply ||
-      type == kISpdyRstStream ||
-      type == kISpdyData ||
-      type == kISpdyWindowUpdate ||
-      type == kISpdyHeaders ||
-      type == kISpdySynStream) {
+  if (type != kISpdyPing &&
+      type != kISpdyGoaway &&
+      type != kISpdySettings &&
+      type != kISpdyNoop &&
+      type != kISpdyCredential) {
     req =
         [streams_ objectForKey: [NSNumber numberWithUnsignedInt: stream_id]];
 
@@ -989,6 +1006,9 @@ typedef enum {
         }
       }
       break;
+    case kISpdyGoaway:
+      [self _handleGoaway: (ISpdyGoaway*) body];
+      break;
     default:
       // Ignore
       break;
@@ -1082,6 +1102,8 @@ typedef enum {
       return @"ISpdy error: failed to decompress incoming data";
     case kISpdyErrSSLPinningError:
       return @"ISpdy error: failed to verify certificate against pinned one";
+    case kISpdyErrGoawayError:
+      return @"ISpdy error: server asked to go away";
     default:
       return [NSString stringWithFormat: @"Unexpected spdy error %d",
           self.code];

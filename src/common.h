@@ -140,6 +140,7 @@ typedef enum {
 - (void) _rst: (uint32_t) stream_id code: (uint8_t) code;
 - (void) _error: (ISpdyRequest*) request code: (ISpdyErrorCode) code;
 - (void) _handlePing: (NSNumber*) ping_id;
+- (void) _handleGoaway: (ISpdyGoaway*) goaway;
 - (void) _handlePush: (ISpdyPush*) push forRequest: (ISpdyRequest*) req;
 
 // dispatch delegate callback
