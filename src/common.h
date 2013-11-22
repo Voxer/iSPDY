@@ -38,7 +38,13 @@ typedef enum {
 typedef enum {
   kISpdySettingFlagPersist = 0x1,
   kISpdySettingFlagPersisted = 0x2
-} kISpdySettingFlag;
+} ISpdySettingFlag;
+
+typedef enum {
+  kISpdyGoawayOk = 0x0,
+  kISpdyGoawayProtocolError = 0x1,
+  kISpdyGoawayInternalError = 0x2
+} ISpdyGoawayStatus;
 
 typedef enum {
   kISpdyFlagFin = 0x1,
@@ -70,6 +76,13 @@ typedef enum {
 @interface ISpdySettings : NSObject
 
 @property int32_t initial_window;
+
+@end
+
+@interface ISpdyGoaway : NSObject
+
+@property int32_t stream_id;
+@property ISpdyGoawayStatus status;
 
 @end
 

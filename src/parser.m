@@ -121,7 +121,7 @@
       case kISpdyRstStream:
       case kISpdyWindowUpdate:
         {
-          if (len < 8)
+          if (body_len < 8)
             return [self error: kISpdyParserErrRstOOB];
           stream_id = ntohl(*(uint32_t*) input) & 0x7fffffff;
           uint32_t code = ntohl(*(uint32_t*) (input + 4));
@@ -136,11 +136,18 @@
         break;
       case kISpdyPing:
         {
-          if (len < 4)
+          if (body_len < 4)
             return [self error: kISpdyParserErrPingOOB];
           uint32_t ping_id = ntohl(*(uint32_t*) input);
           frame_body = [NSNumber numberWithUnsignedInt: ping_id];
         }
+        break;
+      case kISpdyGoaway:
+        frame_body = [self parseGoaway: input length: body_len];
+
+        // Should be handled by parseGoawaySettings
+        if (frame_body == nil)
+          return;
         break;
       default:
         // Ignore other frame's body
@@ -260,8 +267,10 @@
     }
     return YES;
   }];
-  if (headers == nil)
+  if (headers == nil) {
+    [self error: kISpdyParserErrSynReplyOOB];
     return nil;
+  }
 
   reply.headers = headers;
   return reply;
@@ -270,8 +279,10 @@
 
 - (ISpdyPush*) parseSynStream: (const uint8_t*) data
                        length: (NSUInteger) length {
-  if (length < 6)
+  if (length < 6) {
+    [self error: kISpdyParserErrSynStreamOOB];
     return nil;
+  }
 
   __block ISpdyPush* push = [ISpdyPush alloc];
   push.stream_id = ntohl(*(uint32_t*) data) & 0x7fffffff;
@@ -312,8 +323,10 @@
 
     return YES;
   }];
-  if (headers == nil)
+  if (headers == nil) {
+    [self error: kISpdyParserErrSynStreamOOB];
     return nil;
+  }
 
   push.headers = headers;
   return push;
@@ -332,15 +345,19 @@
 
 - (ISpdySettings*) parseSettings: (const uint8_t*) data
                           length: (NSUInteger) length {
-  if (length < 4)
+  if (length < 4) {
+    [self error: kISpdyParserErrSettingsOOB];
     return nil;
+  }
 
   uint32_t setting_count = ntohl(*(uint32_t*) data);
   data += 4;
   length -= 4;
 
-  if (length < setting_count * 8)
+  if (length < setting_count * 8) {
+    [self error: kISpdyParserErrSettingsOOB];
     return nil;
+  }
 
   ISpdySettings* settings = [ISpdySettings alloc];
   while (setting_count > 0) {
@@ -364,8 +381,36 @@
   return settings;
 }
 
+
+- (ISpdyGoaway*) parseGoaway: (const uint8_t*) data
+                      length: (NSUInteger) length {
+  ISpdyGoaway* res = [ISpdyGoaway alloc];
+
+  if (length < 4) {
+    [self error: kISpdyParserErrGoawayOOB];
+    return nil;
+  }
+
+  res.stream_id = ntohl(*(uint32_t*) data);
+  if (version_ == kISpdyV2) {
+    res.status = kISpdyGoawayOk;
+  } else {
+    if (length < 8) {
+      [self error: kISpdyParserErrGoawayOOB];
+      return nil;
+    }
+    res.status = (ISpdyGoawayStatus) ntohl(*(uint32_t*) data + 4);
+  }
+
+  return res;
+}
+
 @end
 
 @implementation ISpdySettings
+// No-op, just to generate properties
+@end
+
+@implementation ISpdyGoaway
 // No-op, just to generate properties
 @end

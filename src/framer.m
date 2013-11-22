@@ -259,11 +259,25 @@
   [output_ appendBytes: (const void*) body length: sizeof(body)];
 }
 
+
 - (void) ping: (uint32_t) ping_id {
   uint32_t body;
   body = htonl(ping_id);
   [self controlHeader: kISpdyPing flags: 0 length: sizeof(body)];
   [output_ appendBytes: (const void*) &body length: sizeof(body)];
+}
+
+
+- (void) goaway: (uint32_t) stream_id status: (ISpdyGoawayStatus) status {
+  uint8_t body[8];
+  *(uint32_t*) body = htonl(stream_id & 0x7fffffff);
+  *(uint32_t*) (body + 4) = htonl(status);
+  int size = sizeof(body);
+
+  if (version_ == kISpdyV2)
+    size -= 4;
+  [self controlHeader: kISpdyGoaway flags: 0 length: size];
+  [output_ appendBytes: (const void*) &body length: size];
 }
 
 @end

@@ -44,6 +44,7 @@
 - (void) initialWindow: (uint32_t) window;
 - (void) windowUpdate: (uint32_t) stream_id update: (uint32_t) update;
 - (void) ping: (uint32_t) ping_id;
+- (void) goaway: (uint32_t) stream_id status: (ISpdyGoawayStatus) status;
 
 // Utilities, not for public use
 - (void) putKVs: (void (^)()) block;
