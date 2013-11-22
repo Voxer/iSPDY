@@ -703,7 +703,6 @@ typedef enum {
 
 
 - (void) _close: (ISpdyRequest*) request {
-  NSAssert(request.connection != nil, @"Request was already closed");
   request.connection = nil;
 
   if (!request.closed_by_us) {
