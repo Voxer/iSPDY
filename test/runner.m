@@ -193,6 +193,8 @@ describe(@"ISpdy server", ^{
       __block BOOL received_pong = NO;
       [conn ping: ^(ISpdyPingStatus status, NSTimeInterval interval) {
         received_pong = YES;
+
+        [conn closeSoon: 15.0];
       } waitMax: 10000];
 
       // Poll block variables until changed

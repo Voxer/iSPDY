@@ -21,6 +21,8 @@ int main() {
   [req writeString: @"omg this is spdy body"];
   [req writeString: @"and another chunk"];
   [req end];
+
+  [conn closeSoon];
 }
 ```
 

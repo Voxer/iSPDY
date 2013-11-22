@@ -98,6 +98,13 @@ typedef enum {
 
 @end
 
+@interface ISpdy ()
+
+// Self-retaining reference for closeSoon
+@property (strong) ISpdy* goaway_retain_;
+
+@end
+
 @interface ISpdy (ISpdyPrivate) <NSStreamDelegate,
                                  ISpdyParserDelegate,
                                  ISpdySchedulerDelegate>
@@ -143,6 +150,7 @@ typedef enum {
 - (void) _handleDrain;
 - (void) _handleGoaway: (ISpdyGoaway*) goaway;
 - (void) _handlePush: (ISpdyPush*) push forRequest: (ISpdyRequest*) req;
+- (void) _onGoawayTimeout;
 
 // dispatch delegate callback
 - (void) _delegateDispatch: (void (^)()) block;

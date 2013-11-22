@@ -381,6 +381,14 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
 - (BOOL) close;
 
 /**
+ * Disconnect gracefully from remote server
+ * @param timeout  if non-zero - how much to wait until throwing an error,
+ *                 if zero - reset timeout
+ * NOTE: Will retain connection until all active requests will be finished
+ */
+- (void) closeSoon: (NSTimeInterval) timeout;
+
+/**
  * Send initialized request to the server.
  *
  * @param request  `ISpdyRequest` to send to the server

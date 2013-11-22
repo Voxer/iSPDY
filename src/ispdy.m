@@ -49,6 +49,7 @@ typedef enum {
   BOOL on_ispdy_loop_;
   NSMutableSet* scheduled_loops_;
   NSTimer* connection_timeout_;
+  NSTimer* goaway_timeout_;
   struct timeval last_frame_;
 
   // Next stream's id
@@ -308,6 +309,12 @@ typedef enum {
   if (in_stream_ == nil || out_stream_ == nil)
     return NO;
 
+  [goaway_timeout_ invalidate];
+  [connection_timeout_ invalidate];
+  goaway_timeout_ = nil;
+  connection_timeout_ = nil;
+  self.goaway_retain_ = nil;
+
   _state = kISpdyStateClosed;
   [in_stream_ close];
   [out_stream_ close];
@@ -318,8 +325,15 @@ typedef enum {
 }
 
 
-- (void) closeSoon {
+- (void) closeSoon: (NSTimeInterval) timeout {
+  self.goaway_retain_ = self;
   [self _connectionDispatch: ^{
+    NSAssert(!goaway_, @"closeSoon called twice");
+
+    goaway_timeout_ = [self _timerWithTimeInterval: timeout
+                                            target: self
+                                          selector: @selector(_onGoawayTimeout)
+                                          userInfo: nil];
     goaway_ = YES;
 
     [framer_ clear];
@@ -349,10 +363,10 @@ typedef enum {
     request.window_out = request.initial_window_out;
     request.stream_id = stream_id_;
     stream_id_ += 2;
-    active_streams_++;
 
     NSNumber* request_key = [NSNumber numberWithUnsignedInt: request.stream_id];
     [streams_ setObject: request forKey: request_key];
+    active_streams_++;
 
     [framer_ clear];
     [framer_ synStream: request.stream_id
@@ -695,9 +709,10 @@ typedef enum {
   }
 
   NSNumber* request_key = [NSNumber numberWithUnsignedInt: request.stream_id];
+  if ([streams_ objectForKey: request_key] != nil)
+    active_streams_--;
   [streams_ removeObjectForKey: request_key];
 
-  active_streams_--;
   [self _handleDrain];
 }
 
@@ -722,6 +737,12 @@ typedef enum {
 - (void) _handleDrain {
   if (goaway_ && active_streams_ == 0 && [buffer_ length] == 0)
     [self close];
+}
+
+
+- (void) _onGoawayTimeout {
+  // Force close connection
+  [self close];
 }
 
 
@@ -764,6 +785,7 @@ typedef enum {
 
   NSNumber* request_key = [NSNumber numberWithUnsignedInt: push.stream_id];
   [streams_ setObject: push forKey: request_key];
+  active_streams_++;
 
   // Start timer, if needed
   [push _resetTimeout];
