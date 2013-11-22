@@ -383,7 +383,7 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
 /**
  * Disconnect gracefully from remote server
  * @param timeout  if non-zero - how much to wait until throwing an error,
- *                 if zero - reset timeout
+ *                 if zero - wait indefinitely
  * NOTE: Will retain connection until all active requests will be finished
  */
 - (void) closeSoon: (NSTimeInterval) timeout;

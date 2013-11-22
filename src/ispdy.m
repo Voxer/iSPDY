@@ -330,10 +330,13 @@ typedef enum {
   [self _connectionDispatch: ^{
     NSAssert(!goaway_, @"closeSoon called twice");
 
-    goaway_timeout_ = [self _timerWithTimeInterval: timeout
-                                            target: self
-                                          selector: @selector(_onGoawayTimeout)
-                                          userInfo: nil];
+    if (timeout != 0.0) {
+      goaway_timeout_ =
+          [self _timerWithTimeInterval: timeout
+                                target: self
+                              selector: @selector(_onGoawayTimeout)
+                              userInfo: nil];
+    }
     goaway_ = YES;
 
     [framer_ clear];
