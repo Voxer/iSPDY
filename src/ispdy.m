@@ -40,6 +40,7 @@ typedef enum {
   ISpdyParser* parser_;
   ISpdyScheduler* scheduler_;
   BOOL no_delay_;
+  NSInteger keep_alive_;
 
   // SSL pinned certs
   NSMutableSet* pinned_certs_;
@@ -112,6 +113,7 @@ typedef enum {
   active_streams_ = 0;
   ping_id_ = 1;
   goaway_ = NO;
+  keep_alive_ = -1;
   initial_window_ = kInitialWindowSizeOut;
 
   streams_ = [[NSMutableDictionary alloc] initWithCapacity: 100];
@@ -249,6 +251,33 @@ typedef enum {
   [self _fdWithBlock: ^(CFSocketNativeHandle fd) {
     int ienable = enable;
     r = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &ienable, sizeof(ienable));
+  }];
+  NSAssert(r == 0, @"Set NODELAY failed");
+}
+
+
+- (void) setKeepAlive: (NSInteger) keepalive {
+  NSStreamStatus status = [out_stream_ streamStatus];
+
+  // If stream is not open yet, queue setting option
+  if (status != NSStreamStatusOpen && status != NSStreamStatusWriting) {
+    keep_alive_ = keepalive;
+    return;
+  }
+
+  __block int r;
+  [self _fdWithBlock: ^(CFSocketNativeHandle fd) {
+    int enable = keepalive != 0;
+    int ikeepalive = (int) keepalive;
+
+    r = setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &enable, sizeof(enable));
+    if (r == 0) {
+      r = setsockopt(fd,
+                     IPPROTO_TCP,
+                     TCP_KEEPALIVE,
+                     &ikeepalive,
+                     sizeof(ikeepalive));
+    }
   }];
   NSAssert(r == 0, @"Set NODELAY failed");
 }
@@ -854,6 +883,8 @@ typedef enum {
       // Set queued option
       if (no_delay_)
         [self setNoDelay: no_delay_];
+      if (keep_alive_ != -1)
+        [self setKeepAlive: keep_alive_];
 
       // Notify delegate
       [self _delegateDispatch: ^{

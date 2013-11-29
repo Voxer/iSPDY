@@ -350,6 +350,12 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
 - (void) setNoDelay: (BOOL) enable;
 
 /**
+ * Enable/disable TCP keepalive and set its timeout
+ * @param keepalive  0 - to disable, positive - to set timeout and enable
+ */
+- (void) setKeepAlive: (NSInteger) keepalive;
+
+/**
  * Configure the socket for VoIP usage
  */
 - (void) enableVoip;
