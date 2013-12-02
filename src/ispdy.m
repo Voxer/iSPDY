@@ -271,7 +271,7 @@ typedef enum {
     int ikeepalive = (int) keepalive;
 
     r = setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &enable, sizeof(enable));
-    if (r == 0) {
+    if (r == 0 && enable) {
       r = setsockopt(fd,
                      IPPROTO_TCP,
                      TCP_KEEPALIVE,
