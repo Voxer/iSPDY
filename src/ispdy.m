@@ -949,7 +949,7 @@ typedef enum {
 
       // Socket available for read
       uint8_t buf[kSocketInBufSize];
-      while ([in_stream_ hasBytesAvailable]) {
+      do {
         NSInteger r = [in_stream_ read: buf maxLength: sizeof(buf)];
         if (r == 0)
           break;
@@ -960,7 +960,7 @@ typedef enum {
         }
 
         [parser_ execute: buf length: (NSUInteger) r];
-      }
+      } while ([in_stream_ hasBytesAvailable]);
     }
   }];
 }
