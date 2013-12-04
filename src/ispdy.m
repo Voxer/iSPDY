@@ -739,6 +739,7 @@ typedef enum {
 
   if (!request.closed_by_us) {
     [self _rst: request.stream_id code: kISpdyRstCancel];
+    [request setTimeout: 0.0];
     request.closed_by_us = YES;
   }
 
