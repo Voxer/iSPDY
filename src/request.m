@@ -18,7 +18,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 }
 
 - (id) init: (NSString*) method url: (NSString*) url {
-  self = [self init];
+  self = [super init];
   self.method = method;
   self.url = url;
   response_timeout_interval_ = kResponseTimeout;
