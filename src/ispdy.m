@@ -940,18 +940,16 @@ typedef enum {
 
       // Socket available for read
       uint8_t buf[kSocketInBufSize];
-      do {
-        NSInteger r = [in_stream_ read: buf maxLength: sizeof(buf)];
-        if (r == 0)
-          break;
-        if (r < 0) {
-          ISpdyError* err = [ISpdyError errorWithCode: kISpdyErrSocketError
-                                           andDetails: [stream streamError]];
-          return [self _handleError: err];
-        }
+      NSInteger r = [in_stream_ read: buf maxLength: sizeof(buf)];
+      if (r == 0)
+        return;
+      if (r < 0) {
+        ISpdyError* err = [ISpdyError errorWithCode: kISpdyErrSocketError
+                                         andDetails: [stream streamError]];
+        return [self _handleError: err];
+      }
 
-        [parser_ execute: buf length: (NSUInteger) r];
-      } while ([in_stream_ hasBytesAvailable]);
+      [parser_ execute: buf length: (NSUInteger) r];
     }
   }];
 }
@@ -1092,7 +1090,6 @@ typedef enum {
 
         // Client-initiated ping
         } else {
-          NSLog(@"pong");
           [self _handlePing: (NSNumber*) body];
         }
       }
