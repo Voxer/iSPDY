@@ -194,7 +194,6 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 
 - (void) _onTimeout {
-  NSAssert(self.connection != nil, @"Request closed before timeout callback");
   [self.connection _connectionDispatch: ^{
     [self.connection _error: self code: kISpdyErrRequestTimeout];
   }];
