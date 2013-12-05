@@ -601,9 +601,7 @@ typedef enum {
   streams_ = nil;
   for (NSNumber* stream_id in streams) {
     ISpdyRequest* req = [streams objectForKey: stream_id];
-    [self _delegateDispatchSync: ^{
-      [req.delegate request: req handleEnd: err];
-    }];
+    [req _close: err sync: YES];
   }
   active_streams_ = 0;
   [self _handleDrain];
@@ -707,12 +705,8 @@ typedef enum {
 
   [self _rst: request.stream_id code: kISpdyRstCancel];
 
-  [self _delegateDispatch: ^{
-    ISpdyError* err = [ISpdyError errorWithCode: code];
-    [request.delegate request: request handleEnd: err];
-  }];
-
-  [self _close: request];
+  ISpdyError* err = [ISpdyError errorWithCode: code];
+  [request _close: err sync: NO];
 }
 
 
@@ -734,12 +728,11 @@ typedef enum {
 }
 
 
-- (void) _close: (ISpdyRequest*) request {
+- (void) _removeStream: (ISpdyRequest*) request {
   request.connection = nil;
 
   if (!request.closed_by_us) {
     [self _rst: request.stream_id code: kISpdyRstCancel];
-    [request setTimeout: 0.0];
     request.closed_by_us = YES;
   }
 
@@ -796,10 +789,7 @@ typedef enum {
       continue;
 
     ISpdyRequest* req = [streams_ objectForKey: stream_id];
-    [self _delegateDispatch: ^{
-      [req.delegate request: req handleEnd: err];
-    }];
-    [self _close: req];
+    [req _close: err sync: NO];
   }
 }
 
@@ -1059,15 +1049,12 @@ typedef enum {
       break;
     case kISpdyRstStream:
       {
-        [self _delegateDispatch: ^{
-          ISpdyError* err = [ISpdyError errorWithCode: kISpdyErrRst
-                                           andDetails: body];
-          [req.delegate request: req handleEnd: err];
-        }];
+        ISpdyError* err = [ISpdyError errorWithCode: kISpdyErrRst
+                                         andDetails: body];
 
         // Do not send RST frame in reply to RST
         req.closed_by_us = YES;
-        [self _close: req];
+        [req _close: err sync: NO];
       }
       break;
     case kISpdyWindowUpdate:
@@ -1105,6 +1092,7 @@ typedef enum {
 
         // Client-initiated ping
         } else {
+          NSLog(@"pong");
           [self _handlePing: (NSNumber*) body];
         }
       }

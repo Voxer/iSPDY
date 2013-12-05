@@ -12,7 +12,6 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   NSMutableArray* output_queue_;
   NSMutableDictionary* headers_queue_;
   NSMutableDictionary* in_headers_queue_;
-  BOOL end_queued_;
   NSTimer* response_timeout_;
   NSTimeInterval response_timeout_interval_;
 }
@@ -84,7 +83,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 - (void) close {
   [self.connection _connectionDispatch: ^{
-    [self _forceClose];
+     [self _close: nil sync: NO];
   }];
 }
 
@@ -155,30 +154,29 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   if (self.connection == nil)
     return;
   if (self.closed_by_us && self.closed_by_them)
-    [self _forceClose];
+    [self _close: nil sync: NO];
 }
 
 
-- (void) _forceClose {
+- (void) _close: (ISpdyError*) err sync: (BOOL) sync {
   if (self.connection == nil)
     return;
 
+  void (^delegateBlock)(void) = ^{
+    [self.delegate request: self handleEnd: err];
+  };
+  if (sync == YES)
+    [self.connection _delegateDispatchSync: delegateBlock];
+  else
+    [self.connection _delegateDispatch: delegateBlock];
+
   [self setTimeout: 0.0];
 
-  [self.connection _delegateDispatch: ^{
-    if (self.delegate == nil) {
-      [self.connection _connectionDispatch: ^{
-        [self _queueEnd];
-      }];
-    } else {
-      [self.delegate request: self handleEnd: nil];
-    }
-  }];
+  self.pending_closed_by_us = NO;
+  [self.connection _removeStream: self];
+
   self.closed_by_us = YES;
   self.closed_by_them = YES;
-  self.pending_closed_by_us = NO;
-
-  [self.connection _close: self];
 }
 
 
@@ -232,12 +230,6 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
                                                 BOOL* stop) {
     [headers_queue_ setValue: val forKey: key];
   }];
-}
-
-
-- (void) _queueEnd {
-  NSAssert(end_queued_ == NO, @"Double end queue");
-  end_queued_ = YES;
 }
 
 

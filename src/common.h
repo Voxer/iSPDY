@@ -141,7 +141,7 @@ typedef enum {
 
 // See ISpdyRequest for description
 - (void) _end: (ISpdyRequest*) request;
-- (void) _close: (ISpdyRequest*) request;
+- (void) _removeStream: (ISpdyRequest*) request;
 - (void) _writeData: (NSData*) data to: (ISpdyRequest*) request fin: (BOOL) fin;
 - (void) _addHeaders: (NSDictionary*) headers to: (ISpdyRequest*) request;
 - (void) _rst: (uint32_t) stream_id code: (uint8_t) code;
@@ -191,8 +191,9 @@ typedef enum {
 // us and them.
 - (void) _tryClose;
 
-// Sets all required flags and closes without notification for other side
-- (void) _forceClose;
+// Invokes delegate's handleEnd: and remove stream from the connection's
+// dictionary
+- (void) _close: (ISpdyError*) err sync: (BOOL) sync;
 
 // Sends `end` selector if the close is pending
 - (void) _tryPendingClose;
@@ -209,7 +210,6 @@ typedef enum {
 // Bufferize frame data and fetch it
 - (void) _queueOutput: (NSData*) data;
 - (void) _queueHeaders: (NSDictionary*) headers;
-- (void) _queueEnd;
 - (BOOL) _hasQueuedData;
 - (void) _unqueueOutput;
 - (void) _unqueueHeaders;
