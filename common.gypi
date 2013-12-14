@@ -24,11 +24,11 @@
         'defines': [ 'NDEBUG' ],
         'cflags': [ '-O3', '-flto' ],
         'xcode_settings': {
-          'GCC_OPTIMIZATION_LEVEL': '3'
+          'GCC_OPTIMIZATION_LEVEL': '3',
+          'OTHER_CFLAGS': [
+            '-flto',
+          ],
         },
-        'OTHER_CFLAGS': [
-          '-flto',
-        ],
       }
     },
     'xcode_settings': {
