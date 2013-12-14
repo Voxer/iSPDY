@@ -441,7 +441,7 @@ typedef enum {
     [pings_ setObject: ping forKey: ping.ping_id];
 
     [framer_ clear];
-    [framer_ ping: [ping.ping_id integerValue]];
+    [framer_ ping: (uint32_t) [ping.ping_id integerValue]];
     [self _writeRaw: [framer_ output]
            withMode: kISpdyWriteChunkBuffering];
   }];
@@ -990,9 +990,11 @@ typedef enum {
 
           // Send WINDOW_UPDATE if exhausted
           if (req.window_in <= 0) {
-            uint32_t delta = req.initial_window_in - req.window_in;
+            NSInteger delta = (uint32_t) req.initial_window_in - req.window_in;
+            NSAssert(delta >= 0 && delta <= 0x7fffffff,
+                     @"delta OOB");
             [framer_ clear];
-            [framer_ windowUpdate: stream_id update: delta];
+            [framer_ windowUpdate: stream_id update: (uint32_t) delta];
             [self _writeRaw: [framer_ output]
                    withMode: kISpdyWriteChunkBuffering];
             req.window_in += delta;
@@ -1075,7 +1077,7 @@ typedef enum {
         if (ping_id % 2 == 0) {
           // Just reply
           [framer_ clear];
-          [framer_ ping: ping_id];
+          [framer_ ping: (uint32_t) ping_id];
           [self _writeRaw: [framer_ output]
                  withMode: kISpdyWriteChunkBuffering];
 
