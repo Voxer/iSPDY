@@ -1,4 +1,5 @@
 #import <Foundation/Foundation.h>
+#import <dispatch/dispatch.h>  // dispatch_source_t
 
 #import "scheduler.h"
 
@@ -112,20 +113,12 @@ typedef enum {
 // Get fd out of streams
 - (void) _fdWithBlock: (void(^)(CFSocketNativeHandle)) block;
 
-// Invoked on connection timeout
-- (void) _onTimeout;
-
-// Invoked on ping timeout
-- (void) _onPingTimeout: (ISpdyPing*) ping;
-
 // Use default (off-thread) NS loop, if no was provided by user
 - (void) _lazySchedule;
 
 // Create and schedule timer
-- (NSTimer*) _timerWithTimeInterval: (NSTimeInterval) interval
-                             target: (id) target
-                           selector: (SEL) selector
-                           userInfo: (id) info;
+- (dispatch_source_t) _timerWithTimeInterval: (NSTimeInterval) interval
+                                    andBlock: (void (^)()) block;
 
 // Write raw data to the underlying socket, returns YES if write wasn't buffered
 - (NSInteger) _writeRaw: (NSData*) data withMode: (ISpdyWriteMode) mode;
@@ -150,7 +143,6 @@ typedef enum {
 - (void) _handleDrain;
 - (void) _handleGoaway: (ISpdyGoaway*) goaway;
 - (void) _handlePush: (ISpdyPush*) push forRequest: (ISpdyRequest*) req;
-- (void) _onGoawayTimeout;
 
 // dispatch delegate callback
 - (void) _delegateDispatch: (void (^)()) block;
@@ -183,9 +175,6 @@ typedef enum {
 
 // Invoked on SYN_REPLY and PUSH streams
 - (void) _handleResponseHeaders: (NSDictionary*) headers;
-
-// Invoked on request timeout
-- (void) _onTimeout;
 
 // Calls `[req close]` if the stream is closed by both
 // us and them.
@@ -230,7 +219,7 @@ typedef enum {
 
 @property NSNumber* ping_id;
 @property (strong) ISpdyPingCallback block;
-@property NSTimer* timeout;
+@property dispatch_source_t timeout;
 @property NSDate* start_date;
 
 @end

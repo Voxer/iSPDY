@@ -49,8 +49,8 @@ typedef enum {
   // Run loop
   BOOL on_ispdy_loop_;
   NSMutableSet* scheduled_loops_;
-  NSTimer* connection_timeout_;
-  NSTimer* goaway_timeout_;
+  dispatch_source_t connection_timeout_;
+  dispatch_source_t goaway_timeout_;
   struct timeval last_frame_;
 
   // Next stream's id
@@ -338,10 +338,12 @@ typedef enum {
   if (in_stream_ == nil || out_stream_ == nil)
     return NO;
 
-  [goaway_timeout_ invalidate];
-  [connection_timeout_ invalidate];
-  goaway_timeout_ = nil;
-  connection_timeout_ = nil;
+  if (goaway_timeout_ != NULL)
+    dispatch_source_cancel(goaway_timeout_);
+  if (connection_timeout_ != NULL)
+    dispatch_source_cancel(connection_timeout_);
+  goaway_timeout_ = NULL;
+  connection_timeout_ = NULL;
   self.goaway_retain_ = nil;
 
   _state = kISpdyStateClosed;
@@ -360,11 +362,10 @@ typedef enum {
     NSAssert(!goaway_, @"closeSoon called twice");
 
     if (timeout != 0.0) {
-      goaway_timeout_ =
-          [self _timerWithTimeInterval: timeout
-                                target: self
-                              selector: @selector(_onGoawayTimeout)
-                              userInfo: nil];
+      goaway_timeout_ = [self _timerWithTimeInterval: timeout andBlock: ^{
+        // Force close connection
+        [self close];
+      }];
     }
     goaway_ = YES;
 
@@ -427,10 +428,13 @@ typedef enum {
     ping.ping_id = [NSNumber numberWithUnsignedInt: ping_id_];
     ping_id_ += 2;
     ping.block = block;
-    ping.timeout = [self _timerWithTimeInterval: wait
-                                         target: self
-                                       selector: @selector(_onPingTimeout:)
-                                       userInfo: ping];
+    ping.timeout = [self _timerWithTimeInterval: wait andBlock: ^{
+      [pings_ removeObjectForKey: ping.ping_id];
+
+      [self _delegateDispatch: ^{
+        ping.block(kISpdyPingTimedOut, -1.0);
+      }];
+    }];
     ping.start_date = [NSDate date];
     [pings_ setObject: ping forKey: ping.ping_id];
 
@@ -444,15 +448,17 @@ typedef enum {
 
 - (void) setTimeout: (NSTimeInterval) timeout {
   [self _connectionDispatch: ^() {
-    [connection_timeout_ invalidate];
-    connection_timeout_ = nil;
+    if (connection_timeout_ != NULL) {
+      dispatch_source_cancel(connection_timeout_);
+      connection_timeout_ = NULL;
+    }
     if (timeout == 0.0)
       return;
 
-    connection_timeout_ = [self _timerWithTimeInterval: timeout
-                                                target: self
-                                              selector: @selector(_onTimeout)
-                                              userInfo: nil];
+    connection_timeout_ = [self _timerWithTimeInterval: timeout andBlock: ^{
+      [self _handleError:
+          [ISpdyError errorWithCode: kISpdyErrConnectionTimeout]];
+    }];
   }];
 }
 
@@ -494,21 +500,6 @@ typedef enum {
 }
 
 
-- (void) _onTimeout {
-  [self _handleError: [ISpdyError errorWithCode: kISpdyErrConnectionTimeout]];
-}
-
-
-- (void) _onPingTimeout: (ISpdyPing*) ping {
-  NSAssert(ping != nil, @"Incorrect timeout callback invocation");
-  [pings_ removeObjectForKey: ping.ping_id];
-
-  [self _delegateDispatch: ^{
-    ping.block(kISpdyPingTimedOut, -1.0);
-  }];
-}
-
-
 - (void) _lazySchedule {
   if ([scheduled_loops_ count] == 0) {
     on_ispdy_loop_ = YES;
@@ -518,18 +509,20 @@ typedef enum {
 }
 
 
-- (NSTimer*) _timerWithTimeInterval: (NSTimeInterval) interval
-                             target: (id) target
-                           selector: (SEL) selector
-                           userInfo: (id) info {
-  NSTimer* timer = [NSTimer timerWithTimeInterval: interval
-                                           target: target
-                                         selector: selector
-                                         userInfo: nil
-                                          repeats: NO];
-  [self _lazySchedule];
-  for (ISpdyLoopWrap* wrap in scheduled_loops_)
-    [wrap.loop addTimer: timer forMode: wrap.mode];
+- (dispatch_source_t) _timerWithTimeInterval: (NSTimeInterval) interval
+                                    andBlock: (void (^)()) block {
+  dispatch_source_t timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER,
+                                                   0,
+                                                   0,
+                                                   connection_queue_);
+  NSAssert(timer, @"Failed to create dispatch timer source");
+
+  dispatch_source_set_timer(timer,
+                            dispatch_walltime(NULL, (int64_t) interval * 1e9),
+                            0,
+                            0);
+  dispatch_source_set_event_handler(timer, block);
+  dispatch_resume(timer);
 
   return timer;
 }
@@ -614,7 +607,8 @@ typedef enum {
   for (NSNumber* ping_id in pings) {
     ISpdyPing* ping = [pings objectForKey: ping_id];
     [self _delegateDispatch: ^{
-      [ping.timeout invalidate];
+      dispatch_source_cancel(ping.timeout);
+      ping.timeout = NULL;
       ping.block(kISpdyPingTimedOut, -1.0);
     }];
   }
@@ -753,7 +747,8 @@ typedef enum {
     return;
 
   [pings_ removeObjectForKey: ping_id];
-  [ping.timeout invalidate];
+  dispatch_source_cancel(ping.timeout);
+  ping.timeout = NULL;
 
   [self _delegateDispatch: ^{
     ping.block(kISpdyPingOk,
@@ -765,12 +760,6 @@ typedef enum {
 - (void) _handleDrain {
   if (goaway_ && active_streams_ == 0 && [buffer_ length] == 0)
     [self close];
-}
-
-
-- (void) _onGoawayTimeout {
-  // Force close connection
-  [self close];
 }
 
 

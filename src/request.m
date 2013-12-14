@@ -1,4 +1,5 @@
 #import <Foundation/Foundation.h>
+#import <dispatch/dispatch.h>  // dispatch_source_t
 
 #import "ispdy.h"
 #import "common.h"
@@ -12,7 +13,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   NSMutableArray* output_queue_;
   NSMutableDictionary* headers_queue_;
   NSMutableDictionary* in_headers_queue_;
-  NSTimer* response_timeout_;
+  dispatch_source_t response_timeout_;
   NSTimeInterval response_timeout_interval_;
 }
 
@@ -92,8 +93,10 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   response_timeout_interval_ = timeout;
 
   [self.connection _connectionDispatch: ^() {
-    [response_timeout_ invalidate];
-    response_timeout_ = nil;
+    if (response_timeout_ != NULL) {
+      dispatch_source_cancel(response_timeout_);
+      response_timeout_ = NULL;
+    }
     if (timeout == 0.0)
       return;
 
@@ -103,9 +106,9 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
     response_timeout_ =
         [self.connection _timerWithTimeInterval: response_timeout_interval_
-                                         target: self
-                                       selector: @selector(_onTimeout)
-                                       userInfo: nil];
+                                       andBlock: ^{
+          [self.connection _error: self code: kISpdyErrRequestTimeout];
+        }];
   }];
 }
 
@@ -190,13 +193,6 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 - (void) _resetTimeout {
   [self setTimeout: response_timeout_interval_];
-}
-
-
-- (void) _onTimeout {
-  [self.connection _connectionDispatch: ^{
-    [self.connection _error: self code: kISpdyErrRequestTimeout];
-  }];
 }
 
 
