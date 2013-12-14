@@ -201,14 +201,6 @@ typedef enum {
 
 
 - (void) dealloc {
-  [self close];
-  if (on_ispdy_loop_) {
-    [self removeFromRunLoop: [ISpdyLoop defaultLoop]
-                    forMode: NSDefaultRunLoopMode];
-  }
-
-  [self _closeStreams: [ISpdyError errorWithCode: kISpdyErrDealloc]];
-
   delegate_queue_ = NULL;
   connection_queue_ = NULL;
 }
@@ -351,6 +343,16 @@ typedef enum {
   [out_stream_ close];
   in_stream_ = nil;
   out_stream_ = nil;
+
+  if (on_ispdy_loop_) {
+    on_ispdy_loop_ = NO;
+    [self removeFromRunLoop: [ISpdyLoop defaultLoop]
+                    forMode: NSDefaultRunLoopMode];
+  }
+
+  [self _connectionDispatch: ^{
+    [self _closeStreams: [ISpdyError errorWithCode: kISpdyErrClose]];
+  }];
 
   return YES;
 }
@@ -1161,8 +1163,8 @@ typedef enum {
       return @"ISpdy error: connection's socket end";
     case kISpdyErrRequestTimeout:
       return @"ISpdy error: request timed out";
-    case kISpdyErrDealloc:
-      return @"ISpdy error: connection was dealloc'ed";
+    case kISpdyErrClose:
+      return @"ISpdy error: connection was closed on client side";
     case kISpdyErrRst:
       return [NSString stringWithFormat: @"ISpdy error: connection was RSTed "
                                          @"by other side - %@",
