@@ -150,6 +150,7 @@ typedef enum {
 
 // dispatch connection callback
 - (void) _connectionDispatch: (void (^)()) block;
+- (void) _connectionDispatchSync: (void (^)()) block;
 
 @end
 

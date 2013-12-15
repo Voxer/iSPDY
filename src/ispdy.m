@@ -502,6 +502,11 @@ typedef enum {
 }
 
 
+- (void) _connectionDispatchSync: (void (^)()) block {
+  dispatch_sync(connection_queue_, block);
+}
+
+
 - (void) _fdWithBlock: (void(^)(CFSocketNativeHandle)) block {
   CFDataRef data =
       CFWriteStreamCopyProperty((__bridge CFWriteStreamRef) out_stream_,
@@ -869,7 +874,7 @@ typedef enum {
 // NSSocket delegate methods
 
 - (void) stream: (NSStream*) stream handleEvent: (NSStreamEvent) event {
-  [self _connectionDispatch: ^{
+  [self _connectionDispatchSync: ^{
     // Already closed, just return
     if (in_stream_ == nil || out_stream_ == nil)
       return;
