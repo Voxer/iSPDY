@@ -78,7 +78,8 @@ typedef enum {
   // Dispatch queue for invoking methods on delegates
   dispatch_queue_t delegate_queue_;
 
-  // Dispatch queue for invoking methods on parser loop
+  // Dispatch queue for invoking methods on parser loop and
+  // working with connection's state
   dispatch_queue_t connection_queue_;
 }
 
@@ -208,76 +209,89 @@ typedef enum {
 
 - (void) scheduleInRunLoop: (NSRunLoop*) loop forMode: (NSString*) mode {
   ISpdyLoopWrap* wrap = [ISpdyLoopWrap stateForLoop: loop andMode: mode];
-  [scheduled_loops_ addObject: wrap];
 
-  [in_stream_ scheduleInRunLoop: wrap.loop forMode: wrap.mode];
-  [out_stream_ scheduleInRunLoop: wrap.loop forMode: wrap.mode];
+  [self _connectionDispatch: ^{
+    [scheduled_loops_ addObject: wrap];
+
+    [in_stream_ scheduleInRunLoop: wrap.loop forMode: wrap.mode];
+    [out_stream_ scheduleInRunLoop: wrap.loop forMode: wrap.mode];
+  }];
 }
 
 
 - (void) removeFromRunLoop: (NSRunLoop*) loop forMode: (NSString*) mode {
   ISpdyLoopWrap* wrap = [ISpdyLoopWrap stateForLoop: loop andMode: mode];
-  [scheduled_loops_ removeObject: wrap];
+  [self _connectionDispatch: ^{
+    [scheduled_loops_ removeObject: wrap];
 
-  [in_stream_ removeFromRunLoop: wrap.loop forMode: wrap.mode];
-  [out_stream_ removeFromRunLoop: wrap.loop forMode: wrap.mode];
+    [in_stream_ removeFromRunLoop: wrap.loop forMode: wrap.mode];
+    [out_stream_ removeFromRunLoop: wrap.loop forMode: wrap.mode];
+  }];
 }
 
 
 - (void) setDelegateQueue: (dispatch_queue_t) queue {
   NSAssert(queue != NULL, @"Empty delegate queue!");
-  delegate_queue_ = queue;
+  [self _connectionDispatch: ^{
+    delegate_queue_ = queue;
+  }];
 }
 
 
 - (void) setNoDelay: (BOOL) enable {
-  NSStreamStatus status = [out_stream_ streamStatus];
+  [self _connectionDispatch: ^{
+    NSStreamStatus status = [out_stream_ streamStatus];
 
-  // If stream is not open yet, queue setting option
-  if (status != NSStreamStatusOpen && status != NSStreamStatusWriting) {
-    no_delay_ = YES;
-    return;
-  }
+    // If stream is not open yet, queue setting option
+    if (status != NSStreamStatusOpen && status != NSStreamStatusWriting) {
+      no_delay_ = YES;
+      return;
+    }
 
-  __block int r;
-  [self _fdWithBlock: ^(CFSocketNativeHandle fd) {
-    int ienable = enable;
-    r = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &ienable, sizeof(ienable));
+    __block int r;
+    [self _fdWithBlock: ^(CFSocketNativeHandle fd) {
+      int ienable = enable;
+      r = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &ienable, sizeof(ienable));
+    }];
+    NSAssert(r == 0, @"Set NODELAY failed");
   }];
-  NSAssert(r == 0, @"Set NODELAY failed");
 }
 
 
 - (void) setKeepAlive: (NSInteger) keepalive {
-  NSStreamStatus status = [out_stream_ streamStatus];
+  [self _connectionDispatch: ^{
+    NSStreamStatus status = [out_stream_ streamStatus];
 
-  // If stream is not open yet, queue setting option
-  if (status != NSStreamStatusOpen && status != NSStreamStatusWriting) {
-    keep_alive_ = keepalive;
-    return;
-  }
-
-  __block int r;
-  [self _fdWithBlock: ^(CFSocketNativeHandle fd) {
-    int enable = keepalive != 0;
-    int ikeepalive = (int) keepalive;
-
-    r = setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &enable, sizeof(enable));
-    if (r == 0 && enable) {
-      r = setsockopt(fd,
-                     IPPROTO_TCP,
-                     TCP_KEEPALIVE,
-                     &ikeepalive,
-                     sizeof(ikeepalive));
+    // If stream is not open yet, queue setting option
+    if (status != NSStreamStatusOpen && status != NSStreamStatusWriting) {
+      keep_alive_ = keepalive;
+      return;
     }
+
+    __block int r;
+    [self _fdWithBlock: ^(CFSocketNativeHandle fd) {
+      int enable = keepalive != 0;
+      int ikeepalive = (int) keepalive;
+
+      r = setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &enable, sizeof(enable));
+      if (r == 0 && enable) {
+        r = setsockopt(fd,
+                       IPPROTO_TCP,
+                       TCP_KEEPALIVE,
+                       &ikeepalive,
+                       sizeof(ikeepalive));
+      }
+    }];
+    NSAssert(r == 0, @"Set NODELAY failed");
   }];
-  NSAssert(r == 0, @"Set NODELAY failed");
 }
 
 
 - (void) enableVoip {
-  [in_stream_ setProperty: NSStreamNetworkServiceTypeVoIP
-                   forKey: NSStreamNetworkServiceType];
+  [self _connectionDispatch: ^{
+    [in_stream_ setProperty: NSStreamNetworkServiceTypeVoIP
+                     forKey: NSStreamNetworkServiceType];
+  }];
 }
 
 
@@ -330,27 +344,27 @@ typedef enum {
   if (in_stream_ == nil || out_stream_ == nil)
     return NO;
 
-  if (goaway_timeout_ != NULL)
-    dispatch_source_cancel(goaway_timeout_);
-  if (connection_timeout_ != NULL)
-    dispatch_source_cancel(connection_timeout_);
-  goaway_timeout_ = NULL;
-  connection_timeout_ = NULL;
-  self.goaway_retain_ = nil;
-
-  _state = kISpdyStateClosed;
-  [in_stream_ close];
-  [out_stream_ close];
-  in_stream_ = nil;
-  out_stream_ = nil;
-
-  if (on_ispdy_loop_) {
-    on_ispdy_loop_ = NO;
-    [self removeFromRunLoop: [ISpdyLoop defaultLoop]
-                    forMode: NSDefaultRunLoopMode];
-  }
-
   [self _connectionDispatch: ^{
+    if (goaway_timeout_ != NULL)
+      dispatch_source_cancel(goaway_timeout_);
+    if (connection_timeout_ != NULL)
+      dispatch_source_cancel(connection_timeout_);
+    goaway_timeout_ = NULL;
+    connection_timeout_ = NULL;
+    self.goaway_retain_ = nil;
+
+    _state = kISpdyStateClosed;
+    [in_stream_ close];
+    [out_stream_ close];
+    in_stream_ = nil;
+    out_stream_ = nil;
+
+    if (on_ispdy_loop_) {
+      on_ispdy_loop_ = NO;
+      [self removeFromRunLoop: [ISpdyLoop defaultLoop]
+                      forMode: NSDefaultRunLoopMode];
+    }
+
     [self _closeStreams: [ISpdyError errorWithCode: kISpdyErrClose]];
   }];
 
