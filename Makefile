@@ -16,10 +16,14 @@ all:
 			-output $(OUTPUT)
 
 clean:
-	xcodebuild clean -configuration $(CONFIGURATION) -project ispdy-ios.xcodeproj
-	xcodebuild clean -configuration $(CONFIGURATION) -project ispdy-sim.xcodeproj
+	xcodebuild clean -configuration Release -project ispdy-ios.xcodeproj
+	xcodebuild clean -configuration Release -project ispdy-sim.xcodeproj
+	xcodebuild clean -configuration Debug -project ispdy-ios.xcodeproj
+	xcodebuild clean -configuration Debug -project ispdy-sim.xcodeproj
 	rm -f $(OUTPUT) \
-			./build/$(CONFIGURATION)-iphoneos/libispdy-bundled.a \
-			./build/$(CONFIGURATION)-iphonesimulator/libispdy-bundled.a \
+			./build/Debug-iphoneos/libispdy-bundled.a \
+			./build/Debug-iphonesimulator/libispdy-bundled.a \
+			./build/Release-iphoneos/libispdy-bundled.a \
+			./build/Release-iphonesimulator/libispdy-bundled.a \
 
 .PHONY: all clean

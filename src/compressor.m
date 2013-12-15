@@ -246,7 +246,7 @@ static const char spdy3_dict_[] = {
       break;
   }
 
-  inflateInit2(&inflate_, bits);
+  inflateInit2(&inflate_, (int) bits);
 
   const char* dict = version == kISpdyV2 ? spdy2_dict_ : spdy3_dict_;
 

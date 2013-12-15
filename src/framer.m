@@ -169,7 +169,7 @@
 
   [self controlHeader: kISpdySynStream
                 flags: 0
-               length: sizeof(body) + [[comp_ output] length]];
+               length: (uint32_t) sizeof(body) + [[comp_ output] length]];
   [output_ appendBytes: (const void*) body length: sizeof(body)];
   [output_ appendData: [comp_ output]];
 }
@@ -196,7 +196,7 @@
 
   [self controlHeader: kISpdyHeaders
                 flags: 0
-               length: body_size + [[comp_ output] length]];
+               length: (uint32_t) body_size + [[comp_ output] length]];
   [output_ appendBytes: (const void*) body length: body_size];
   [output_ appendData: [comp_ output]];
 }
