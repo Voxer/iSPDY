@@ -6,7 +6,7 @@ static ISpdyLoop* loop;
 static dispatch_once_t loop_once;
 
 @implementation ISpdyLoop {
-  NSRunLoop* runLoop_;
+  volatile NSRunLoop* runLoop_;
   dispatch_semaphore_t init_sem_;
 }
 
@@ -52,7 +52,7 @@ static dispatch_once_t loop_once;
   // If not initialized, wait for another thread to catch-up with us
   if (runLoop_ == nil)
     dispatch_semaphore_wait(init_sem_, DISPATCH_TIME_FOREVER);
-  return runLoop_;
+  return (NSRunLoop *)runLoop_;
 }
 
 @end
