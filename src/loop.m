@@ -41,6 +41,7 @@ static dispatch_once_t loop_once;
                                               userInfo: nil
                                                repeats: NO];
     runLoop_ = [NSRunLoop currentRunLoop];
+    __sync_synchronize();
     dispatch_semaphore_signal(init_sem_);
     [runLoop_ addTimer: timer forMode: NSDefaultRunLoopMode];
     [runLoop_ run];
