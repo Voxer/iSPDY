@@ -6,7 +6,6 @@ static ISpdyLoop* loop;
 static dispatch_once_t loop_once;
 
 @implementation ISpdyLoop {
-  NSThread* thread_;
   NSRunLoop* runLoop_;
   dispatch_semaphore_t init_sem_;
 }
