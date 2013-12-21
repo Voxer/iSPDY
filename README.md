@@ -80,6 +80,7 @@ svn co http://gyp.googlecode.com/svn/trunk build/gyp
 
 Running (with the help of xcode):
 ```
+git submodule update --init
 make test
 ```
 
