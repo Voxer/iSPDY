@@ -4,26 +4,33 @@ CONFIGURATION ?= Release
 LIPO ?= `xcrun -find lipo -sdk $(IOS_SDK)`
 OUTPUT ?= ./out/$(CONFIGURATION)/libispdy-combined.a
 
-all:
+CONFIGURATIONS = Debug Release
+SUFFIXES = iphoneos iphonesimulator
+
+all: xcodeproj
 	mkdir -p out/$(CONFIGURATION)
-	./gyp_ispdy -f xcode -Dsdk=$(IOS_SDK) --suffix=-iphoneos
-	xcodebuild -configuration $(CONFIGURATION) -project ispdy-iphoneos.xcodeproj
-	./gyp_ispdy -f xcode -Dsdk=$(SIMULATOR_SDK) --suffix=-iphonesimulator
-	xcodebuild -configuration $(CONFIGURATION) -project ispdy-iphonesimulator.xcodeproj
+	for suffix in $(SUFFIXES) ; do \
+		xcodebuild -configuration $(CONFIGURATION) \
+			-project ispdy-$$suffix.xcodeproj ; \
+	done
 	$(LIPO) -create \
 			./build/$(CONFIGURATION)-iphoneos/libispdy-bundled.a \
 			./build/$(CONFIGURATION)-iphonesimulator/libispdy-bundled.a \
 			-output $(OUTPUT)
 
-clean:
-	xcodebuild clean -configuration Release -project ispdy-iphoneos.xcodeproj
-	xcodebuild clean -configuration Release -project ispdy-iphonesimulator.xcodeproj
-	xcodebuild clean -configuration Debug -project ispdy-iphoneos.xcodeproj
-	xcodebuild clean -configuration Debug -project ispdy-iphonesimulator.xcodeproj
-	rm -f $(OUTPUT) \
-			./build/Debug-iphoneos/libispdy-bundled.a \
-			./build/Debug-iphonesimulator/libispdy-bundled.a \
-			./build/Release-iphoneos/libispdy-bundled.a \
-			./build/Release-iphonesimulator/libispdy-bundled.a \
+xcodeproj:
+	./gyp_ispdy -f xcode -Dsdk=$(IOS_SDK) --suffix=-iphoneos
+	./gyp_ispdy -f xcode -Dsdk=$(SIMULATOR_SDK) --suffix=-iphonesimulator
+	./gyp_ispdy -f xcode --suffix=-macosx
 
-.PHONY: all clean
+clean:
+	for config in $(CONFIGURATIONS) ; do \
+		for suffix in $(SUFFIXES) ; do \
+			xcodebuild clean -configuration $$config \
+				-project ispdy-$$suffix.xcodeproj ;\
+			rm -rf ./build/$$config-$$suffix/libispdy-bundled.a ;\
+		done \
+	done
+	rm -f $(OUTPUT)
+
+.PHONY: all clean xcodeproj
