@@ -6,84 +6,17 @@
 	objectVersion = 45;
 	objects = {
 
-/* Begin PBXAggregateTarget section */
-		287806D03B26B2E7C5CC0A57 /* All */ = {
-			isa = PBXAggregateTarget;
-			buildConfigurationList = 7C79C2A4F139309256F54485 /* Build configuration list for PBXAggregateTarget "All" */;
-			buildPhases = (
-			);
-			dependencies = (
-				9C9475372E39E12A6CFD0740 /* PBXTargetDependency */,
-				06ED385273CCF8A98BFF1C16 /* PBXTargetDependency */,
-			);
-			name = All;
-			productName = All;
-		};
-		75509F4F3EFDB5A3AF0D793C /* ispdy-bundled */ = {
-			isa = PBXAggregateTarget;
-			buildConfigurationList = 74BC5D3688D474DF170B0F7E /* Build configuration list for PBXAggregateTarget "ispdy-bundled" */;
-			buildPhases = (
-				F51E94909CFDA06E6A5A6677 /* Action "link_with_zlib" */,
-			);
-			dependencies = (
-				AB67D8914C9BEB66A4CB7664 /* PBXTargetDependency */,
-				155E8773934C3FC687CD1E38 /* PBXTargetDependency */,
-			);
-			name = "ispdy-bundled";
-			productName = "ispdy-bundled";
-		};
-/* End PBXAggregateTarget section */
-
 /* Begin PBXBuildFile section */
-		19805CC7E64F26286193EE1E /* parser.m in Sources */ = {isa = PBXBuildFile; fileRef = ACAD7D25070F3B0C1281C50D /* parser.m */; };
-		1E284E13DBF3BD29E0A8F0FE /* loop.m in Sources */ = {isa = PBXBuildFile; fileRef = 86499F11A2FFCB31850E1853 /* loop.m */; };
-		54642768F8E28758BC4ED9AC /* compressor.m in Sources */ = {isa = PBXBuildFile; fileRef = 422F510DC399B7D2261860D8 /* compressor.m */; };
-		7FCA73C8D6BFAC1B44723AC0 /* scheduler.m in Sources */ = {isa = PBXBuildFile; fileRef = AF46B072A545C096E40407D8 /* scheduler.m */; };
-		A8433E98D42F5F2114D1C1AF /* request.m in Sources */ = {isa = PBXBuildFile; fileRef = 50DA715CE8118ABAB12E6CFC /* request.m */; };
-		D5AB31416EBDACAAA11C7175 /* framer.m in Sources */ = {isa = PBXBuildFile; fileRef = C3A562BF56E752F57CB97A26 /* framer.m */; };
-		FF5EFD6A3B8C9D7C624682FF /* ispdy.m in Sources */ = {isa = PBXBuildFile; fileRef = 99A43FD204511E9550A81EA2 /* ispdy.m */; };
+		0425DC20533EE477D59B47FE /* compressor.m in Sources */ = {isa = PBXBuildFile; fileRef = 422F510DC399B7D2261860D8 /* compressor.m */; };
+		0802945D8C846661D2408DBD /* parser.m in Sources */ = {isa = PBXBuildFile; fileRef = ACAD7D25070F3B0C1281C50D /* parser.m */; };
+		0C29D45DAA55FB778A8AB1BF /* request.m in Sources */ = {isa = PBXBuildFile; fileRef = 50DA715CE8118ABAB12E6CFC /* request.m */; };
+		24BBE56049845271558E46E0 /* loop.m in Sources */ = {isa = PBXBuildFile; fileRef = 86499F11A2FFCB31850E1853 /* loop.m */; };
+		4B77BF3E78F1941DB3FCC18A /* framer.m in Sources */ = {isa = PBXBuildFile; fileRef = C3A562BF56E752F57CB97A26 /* framer.m */; };
+		705AE7435646E2F6698193D0 /* ispdy.m in Sources */ = {isa = PBXBuildFile; fileRef = 99A43FD204511E9550A81EA2 /* ispdy.m */; };
+		9AB86AE59DC71E019C72920C /* scheduler.m in Sources */ = {isa = PBXBuildFile; fileRef = AF46B072A545C096E40407D8 /* scheduler.m */; };
 /* End PBXBuildFile section */
 
-/* Begin PBXContainerItemProxy section */
-		2ABF5B1523C232C60CCFACA0 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 64C0E7D6A61E828A905ABA91 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = A751913C637D80531351E6AE;
-			remoteInfo = ispdy;
-		};
-		6D6F158212B47C75E6237DBF /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 0276E63F36423CB97F83877D /* zlib-macosx.xcodeproj */;
-			proxyType = 2;
-			remoteGlobalIDString = 475182961346C95AC8BC3600;
-			remoteInfo = zlib;
-		};
-		742F8D9E14D7921FAC39133E /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 64C0E7D6A61E828A905ABA91 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = A751913C637D80531351E6AE;
-			remoteInfo = ispdy;
-		};
-		B8B928378AF61FCC92036537 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 64C0E7D6A61E828A905ABA91 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 75509F4F3EFDB5A3AF0D793C;
-			remoteInfo = "ispdy-bundled";
-		};
-		D7B3609ED1829F60448D21CA /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 0276E63F36423CB97F83877D /* zlib-macosx.xcodeproj */;
-			proxyType = 1;
-			remoteGlobalIDString = A1A1B318B609D930C5C5B6EB;
-			remoteInfo = zlib;
-		};
-/* End PBXContainerItemProxy section */
-
 /* Begin PBXFileReference section */
-		0276E63F36423CB97F83877D /* zlib-macosx.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = "zlib-macosx.xcodeproj"; path = "deps/zlib/zlib-macosx.xcodeproj"; sourceTree = SOURCE_ROOT; };
 		11911A7BE8FAC20C42FF75E4 /* ispdy.gyp */ = {isa = PBXFileReference; explicitFileType = sourcecode; path = ispdy.gyp; sourceTree = "<group>"; };
 		422F510DC399B7D2261860D8 /* compressor.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = compressor.m; sourceTree = "<group>"; };
 		50DA715CE8118ABAB12E6CFC /* request.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = request.m; sourceTree = "<group>"; };
@@ -93,7 +26,6 @@
 		99A43FD204511E9550A81EA2 /* ispdy.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ispdy.m; sourceTree = "<group>"; };
 		ACAD7D25070F3B0C1281C50D /* parser.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = parser.m; sourceTree = "<group>"; };
 		AF46B072A545C096E40407D8 /* scheduler.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = scheduler.m; sourceTree = "<group>"; };
-		C200AA8CDA9B09B98C303EF7 /* libchrome_zlib.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libchrome_zlib.a; sourceTree = "<group>"; };
 		C3A562BF56E752F57CB97A26 /* framer.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = framer.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -108,7 +40,7 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		15BD668C5F7EA05F4F15BC10 /* src */ = {
+		15BD668C5F7EA05F4F15BC10 /* Source */ = {
 			isa = PBXGroup;
 			children = (
 				422F510DC399B7D2261860D8 /* compressor.m */,
@@ -119,42 +51,17 @@
 				50DA715CE8118ABAB12E6CFC /* request.m */,
 				AF46B072A545C096E40407D8 /* scheduler.m */,
 			);
+			name = Source;
 			path = src;
 			sourceTree = "<group>";
 		};
-		1804C59F2B4A622FBF4C9E59 /* Projects */ = {
+		5FAF26BA3831603EA5FE8A54 = {
 			isa = PBXGroup;
 			children = (
-				0276E63F36423CB97F83877D /* zlib-macosx.xcodeproj */,
-			);
-			name = Projects;
-			sourceTree = "<group>";
-		};
-		4196E5342CBD3251CC43601E /* Products */ = {
-			isa = PBXGroup;
-			children = (
-				550750E3833AEC08622889C3 /* libchrome_zlib.a */,
-			);
-			name = Products;
-			sourceTree = "<group>";
-		};
-		453897DD3F4ABD68A494749F = {
-			isa = PBXGroup;
-			children = (
-				7EAB6819C9C05518C19BB752 /* Source */,
-				1804C59F2B4A622FBF4C9E59 /* Projects */,
+				15BD668C5F7EA05F4F15BC10 /* Source */,
 				856233B35497A6166D726A18 /* Products */,
 				B110DF048F534EA18B2536AA /* Build */,
 			);
-			sourceTree = "<group>";
-		};
-		7EAB6819C9C05518C19BB752 /* Source */ = {
-			isa = PBXGroup;
-			children = (
-				B241AF43903D0B551B2DC04F /* CONFIGURATION */,
-				15BD668C5F7EA05F4F15BC10 /* src */,
-			);
-			name = Source;
 			sourceTree = "<group>";
 		};
 		856233B35497A6166D726A18 /* Products */ = {
@@ -173,14 +80,6 @@
 			);
 			name = Build;
 			sourceTree = "<group>";
-		};
-		B241AF43903D0B551B2DC04F /* CONFIGURATION */ = {
-			isa = PBXGroup;
-			children = (
-				C200AA8CDA9B09B98C303EF7 /* libchrome_zlib.a */,
-			);
-			name = CONFIGURATION;
-			sourceTree = CONFIGURATION;
 		};
 /* End PBXGroup section */
 
@@ -212,128 +111,33 @@
 			buildConfigurationList = B56B93D683B8DE014010407A /* Build configuration list for PBXProject "ispdy-macosx" */;
 			compatibilityVersion = "Xcode 3.2";
 			hasScannedForEncodings = 1;
-			mainGroup = 453897DD3F4ABD68A494749F;
+			mainGroup = 5FAF26BA3831603EA5FE8A54;
 			projectDirPath = "";
-			projectReferences = (
-				{
-					ProductGroup = 4196E5342CBD3251CC43601E /* Products */;
-					ProjectRef = 0276E63F36423CB97F83877D /* zlib-macosx.xcodeproj */;
-				},
-			);
 			projectRoot = "";
 			targets = (
-				287806D03B26B2E7C5CC0A57 /* All */,
 				A751913C637D80531351E6AE /* ispdy */,
-				75509F4F3EFDB5A3AF0D793C /* ispdy-bundled */,
 			);
 		};
 /* End PBXProject section */
-
-/* Begin PBXReferenceProxy section */
-		550750E3833AEC08622889C3 /* libchrome_zlib.a */ = {
-			isa = PBXReferenceProxy;
-			fileType = archive.ar;
-			path = libchrome_zlib.a;
-			remoteRef = 6D6F158212B47C75E6237DBF /* PBXContainerItemProxy */;
-			sourceTree = BUILT_PRODUCTS_DIR;
-		};
-/* End PBXReferenceProxy section */
-
-/* Begin PBXShellScriptBuildPhase section */
-		F51E94909CFDA06E6A5A6677 /* Action "link_with_zlib" */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-				"$(BUILT_PRODUCTS_DIR)/libispdy.a",
-				"deps/zlib/build/$(CONFIGURATION)/libchrome_zlib.a",
-			);
-			name = "Action \"link_with_zlib\"";
-			outputPaths = (
-				"$(BUILT_PRODUCTS_DIR)/libispdy-bundled.a",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "exec libtool -static \"${BUILT_PRODUCTS_DIR}/libispdy.a\" \"deps/zlib/build/${CONFIGURATION}/libchrome_zlib.a\" -o \"${BUILT_PRODUCTS_DIR}/libispdy-bundled.a\"\nexit 1\n";
-			showEnvVarsInLog = 0;
-		};
-/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		B236197CDDBC53D67F57EE73 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				FF5EFD6A3B8C9D7C624682FF /* ispdy.m in Sources */,
-				54642768F8E28758BC4ED9AC /* compressor.m in Sources */,
-				D5AB31416EBDACAAA11C7175 /* framer.m in Sources */,
-				1E284E13DBF3BD29E0A8F0FE /* loop.m in Sources */,
-				19805CC7E64F26286193EE1E /* parser.m in Sources */,
-				A8433E98D42F5F2114D1C1AF /* request.m in Sources */,
-				7FCA73C8D6BFAC1B44723AC0 /* scheduler.m in Sources */,
+				705AE7435646E2F6698193D0 /* ispdy.m in Sources */,
+				0425DC20533EE477D59B47FE /* compressor.m in Sources */,
+				4B77BF3E78F1941DB3FCC18A /* framer.m in Sources */,
+				24BBE56049845271558E46E0 /* loop.m in Sources */,
+				0802945D8C846661D2408DBD /* parser.m in Sources */,
+				0C29D45DAA55FB778A8AB1BF /* request.m in Sources */,
+				9AB86AE59DC71E019C72920C /* scheduler.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
-/* Begin PBXTargetDependency section */
-		06ED385273CCF8A98BFF1C16 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 75509F4F3EFDB5A3AF0D793C /* ispdy-bundled */;
-			targetProxy = B8B928378AF61FCC92036537 /* PBXContainerItemProxy */;
-		};
-		155E8773934C3FC687CD1E38 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			name = zlib;
-			targetProxy = D7B3609ED1829F60448D21CA /* PBXContainerItemProxy */;
-		};
-		9C9475372E39E12A6CFD0740 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = A751913C637D80531351E6AE /* ispdy */;
-			targetProxy = 742F8D9E14D7921FAC39133E /* PBXContainerItemProxy */;
-		};
-		AB67D8914C9BEB66A4CB7664 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = A751913C637D80531351E6AE /* ispdy */;
-			targetProxy = 2ABF5B1523C232C60CCFACA0 /* PBXContainerItemProxy */;
-		};
-/* End PBXTargetDependency section */
-
 /* Begin XCBuildConfiguration section */
-		25CBE948E3853E3358052EB3 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ARCHS = x86_64;
-				GCC_OPTIMIZATION_LEVEL = 0;
-				GCC_PREPROCESSOR_DEFINITIONS = (
-					DEBUG,
-					_DEBUG,
-				);
-				GCC_VERSION = com.apple.compilers.llvm.clang.1_0;
-				GCC_WARN_ABOUT_MISSING_NEWLINE = YES;
-				HEADER_SEARCH_PATHS = (
-					include,
-					deps/zlib,
-				);
-				OTHER_CFLAGS = (
-					"-fstrict-aliasing",
-					"-F/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.9.sdk/Developer/Library/Frameworks",
-					"-F/Applications/Xcode.app/Contents/Developer/Library/Frameworks",
-				);
-				PREBINDING = NO;
-				PRODUCT_NAME = "ispdy-bundled";
-				SDKROOT = macosx;
-				WARNING_CFLAGS = (
-					"-Wall",
-					"-Wendif-labels",
-					"-W",
-					"-Wno-unused-parameter",
-					"-Wundeclared-selector",
-				);
-			};
-			name = Debug;
-		};
 		40D842764495120BB72CE70E /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -347,7 +151,6 @@
 				HEADER_SEARCH_PATHS = (
 					include,
 					.,
-					deps/zlib,
 				);
 				OTHER_CFLAGS = (
 					"-fstrict-aliasing",
@@ -368,20 +171,6 @@
 			};
 			name = Release;
 		};
-		4E8A9EABFA2DCEF5C514C244 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				PRODUCT_NAME = All;
-			};
-			name = Debug;
-		};
-		4FFDC869A806DBD5B4CD3286 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				PRODUCT_NAME = All;
-			};
-			name = Release;
-		};
 		5785570D513A7EBB275B394E /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -397,37 +186,6 @@
 				SHARED_INTERMEDIATE_DIR = "$(SYMROOT)/DerivedSources/$(CONFIGURATION)";
 			};
 			name = Debug;
-		};
-		BF5E630990BB146559A74BE1 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ARCHS = x86_64;
-				GCC_OPTIMIZATION_LEVEL = 3;
-				GCC_PREPROCESSOR_DEFINITIONS = NDEBUG;
-				GCC_VERSION = com.apple.compilers.llvm.clang.1_0;
-				GCC_WARN_ABOUT_MISSING_NEWLINE = YES;
-				HEADER_SEARCH_PATHS = (
-					include,
-					deps/zlib,
-				);
-				OTHER_CFLAGS = (
-					"-fstrict-aliasing",
-					"-F/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.9.sdk/Developer/Library/Frameworks",
-					"-F/Applications/Xcode.app/Contents/Developer/Library/Frameworks",
-					"-flto",
-				);
-				PREBINDING = NO;
-				PRODUCT_NAME = "ispdy-bundled";
-				SDKROOT = macosx;
-				WARNING_CFLAGS = (
-					"-Wall",
-					"-Wendif-labels",
-					"-W",
-					"-Wno-unused-parameter",
-					"-Wundeclared-selector",
-				);
-			};
-			name = Release;
 		};
 		D7D27E8714C790FB3C5033D3 /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -445,7 +203,6 @@
 				HEADER_SEARCH_PATHS = (
 					include,
 					.,
-					deps/zlib,
 				);
 				OTHER_CFLAGS = (
 					"-fstrict-aliasing",
@@ -473,24 +230,6 @@
 			buildConfigurations = (
 				D7D27E8714C790FB3C5033D3 /* Debug */,
 				40D842764495120BB72CE70E /* Release */,
-			);
-			defaultConfigurationIsVisible = 1;
-			defaultConfigurationName = Debug;
-		};
-		74BC5D3688D474DF170B0F7E /* Build configuration list for PBXAggregateTarget "ispdy-bundled" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				25CBE948E3853E3358052EB3 /* Debug */,
-				BF5E630990BB146559A74BE1 /* Release */,
-			);
-			defaultConfigurationIsVisible = 1;
-			defaultConfigurationName = Debug;
-		};
-		7C79C2A4F139309256F54485 /* Build configuration list for PBXAggregateTarget "All" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				4E8A9EABFA2DCEF5C514C244 /* Debug */,
-				4FFDC869A806DBD5B4CD3286 /* Release */,
 			);
 			defaultConfigurationIsVisible = 1;
 			defaultConfigurationName = Debug;

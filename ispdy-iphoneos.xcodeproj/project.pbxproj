@@ -6,89 +6,21 @@
 	objectVersion = 45;
 	objects = {
 
-/* Begin PBXAggregateTarget section */
-		1D3A5DC72F06F1BC0EF95031 /* All */ = {
-			isa = PBXAggregateTarget;
-			buildConfigurationList = 09C55683732E46DE1B4CE349 /* Build configuration list for PBXAggregateTarget "All" */;
-			buildPhases = (
-			);
-			dependencies = (
-				81095170564FBC84B0113A7D /* PBXTargetDependency */,
-				4FA8E2505AAAE0F361C9B4D5 /* PBXTargetDependency */,
-			);
-			name = All;
-			productName = All;
-		};
-		CAAA0F32BC167D98343A2995 /* ispdy-bundled */ = {
-			isa = PBXAggregateTarget;
-			buildConfigurationList = A04D193CAF71CA32411E074C /* Build configuration list for PBXAggregateTarget "ispdy-bundled" */;
-			buildPhases = (
-				CB4A7ED285C3C1DF785200A1 /* Action "link_with_zlib" */,
-			);
-			dependencies = (
-				B3561F9F9DCB185A65A4BCBB /* PBXTargetDependency */,
-				A04BA2EF4E95F717F58CB0D9 /* PBXTargetDependency */,
-			);
-			name = "ispdy-bundled";
-			productName = "ispdy-bundled";
-		};
-/* End PBXAggregateTarget section */
-
 /* Begin PBXBuildFile section */
-		13002FFCB290953F1335FE15 /* ispdy.m in Sources */ = {isa = PBXBuildFile; fileRef = F2BECCAFB7B2933C633E2491 /* ispdy.m */; };
-		23AD575AA8B9ABDCC85168FE /* compressor.m in Sources */ = {isa = PBXBuildFile; fileRef = BC14B2F2F4788C9FFF53EBF6 /* compressor.m */; };
-		4259C6E4325D0CFE82BF5228 /* parser.m in Sources */ = {isa = PBXBuildFile; fileRef = 33DFEE9ACE47E7C730EA8CD2 /* parser.m */; };
-		4600519C018247D05F361412 /* request.m in Sources */ = {isa = PBXBuildFile; fileRef = B87CA2A3A16180D1988E1BB7 /* request.m */; };
-		89E15E4ABE9C7C2F7A607E92 /* loop.m in Sources */ = {isa = PBXBuildFile; fileRef = 4E0EC184FCD7551AB66886F7 /* loop.m */; };
-		A3432986623EFE9FE28DA74E /* framer.m in Sources */ = {isa = PBXBuildFile; fileRef = 6EBA2C150746BFDC0206E2BE /* framer.m */; };
-		CE9CDCE2677530342F705DD0 /* scheduler.m in Sources */ = {isa = PBXBuildFile; fileRef = DF304A7B3433254DE3D5DA14 /* scheduler.m */; };
+		107654847CACFD93749122DD /* ispdy.m in Sources */ = {isa = PBXBuildFile; fileRef = F2BECCAFB7B2933C633E2491 /* ispdy.m */; };
+		50A2E07AE4853D83D8181805 /* request.m in Sources */ = {isa = PBXBuildFile; fileRef = B87CA2A3A16180D1988E1BB7 /* request.m */; };
+		5657A0F79100DECD764AECDD /* loop.m in Sources */ = {isa = PBXBuildFile; fileRef = 4E0EC184FCD7551AB66886F7 /* loop.m */; };
+		8A36D4904B1505CE8B7E3F8E /* compressor.m in Sources */ = {isa = PBXBuildFile; fileRef = BC14B2F2F4788C9FFF53EBF6 /* compressor.m */; };
+		A511EA557BBC3B696AE45B5D /* scheduler.m in Sources */ = {isa = PBXBuildFile; fileRef = DF304A7B3433254DE3D5DA14 /* scheduler.m */; };
+		C8F58AEDCBBFAB2222FEDA2E /* framer.m in Sources */ = {isa = PBXBuildFile; fileRef = 6EBA2C150746BFDC0206E2BE /* framer.m */; };
+		D433F7DDB945F1185A037CF0 /* parser.m in Sources */ = {isa = PBXBuildFile; fileRef = 33DFEE9ACE47E7C730EA8CD2 /* parser.m */; };
 /* End PBXBuildFile section */
-
-/* Begin PBXContainerItemProxy section */
-		1A96FF986CF5EF2273EC608A /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 84FF0D5E949316272C07C97F /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = B998BAC2900FCF1CDD570ADF;
-			remoteInfo = ispdy;
-		};
-		2791712B83C24A6B3EB6F801 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 8556085F7D9D917663208F6A /* zlib-iphoneos.xcodeproj */;
-			proxyType = 1;
-			remoteGlobalIDString = 141E67DC98D7DADE2162D0A5;
-			remoteInfo = zlib;
-		};
-		2A6AD4350EC1A45AA912568B /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 84FF0D5E949316272C07C97F /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = B998BAC2900FCF1CDD570ADF;
-			remoteInfo = ispdy;
-		};
-		9EF52B764B96A12B02A684AD /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 84FF0D5E949316272C07C97F /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = CAAA0F32BC167D98343A2995;
-			remoteInfo = "ispdy-bundled";
-		};
-		BB1A91F41EB901FEB296FCAD /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 8556085F7D9D917663208F6A /* zlib-iphoneos.xcodeproj */;
-			proxyType = 2;
-			remoteGlobalIDString = 479719695568908238592C92;
-			remoteInfo = zlib;
-		};
-/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		33DFEE9ACE47E7C730EA8CD2 /* parser.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = parser.m; sourceTree = "<group>"; };
-		4032CC9845A2A0B1D5E88AB2 /* libchrome_zlib.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libchrome_zlib.a; sourceTree = "<group>"; };
 		4E0EC184FCD7551AB66886F7 /* loop.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = loop.m; sourceTree = "<group>"; };
 		6AF6F9E82A1073215C9B4291 /* libispdy.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libispdy.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		6EBA2C150746BFDC0206E2BE /* framer.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = framer.m; sourceTree = "<group>"; };
-		8556085F7D9D917663208F6A /* zlib-iphoneos.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = "zlib-iphoneos.xcodeproj"; path = "deps/zlib/zlib-iphoneos.xcodeproj"; sourceTree = SOURCE_ROOT; };
 		8AEF56409804C8D3F7FA1221 /* common.gypi */ = {isa = PBXFileReference; explicitFileType = sourcecode; path = common.gypi; sourceTree = "<group>"; };
 		B87CA2A3A16180D1988E1BB7 /* request.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = request.m; sourceTree = "<group>"; };
 		BC14B2F2F4788C9FFF53EBF6 /* compressor.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = compressor.m; sourceTree = "<group>"; };
@@ -108,7 +40,16 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		0D14550328A2D74E9754C797 /* src */ = {
+		09D72A3446683184C3DA8B19 = {
+			isa = PBXGroup;
+			children = (
+				0D14550328A2D74E9754C797 /* Source */,
+				89F1B268A8AE1DB046DF10EA /* Products */,
+				DC9A387065BBBB1DAFC5D681 /* Build */,
+			);
+			sourceTree = "<group>";
+		};
+		0D14550328A2D74E9754C797 /* Source */ = {
 			isa = PBXGroup;
 			children = (
 				BC14B2F2F4788C9FFF53EBF6 /* compressor.m */,
@@ -119,15 +60,8 @@
 				B87CA2A3A16180D1988E1BB7 /* request.m */,
 				DF304A7B3433254DE3D5DA14 /* scheduler.m */,
 			);
+			name = Source;
 			path = src;
-			sourceTree = "<group>";
-		};
-		210EFE4BB995EEAC98A24260 /* Products */ = {
-			isa = PBXGroup;
-			children = (
-				89A6D92890020BCCC191C32C /* libchrome_zlib.a */,
-			);
-			name = Products;
 			sourceTree = "<group>";
 		};
 		89F1B268A8AE1DB046DF10EA /* Products */ = {
@@ -138,31 +72,6 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
-		BA4E24499DA4FB4CFB51AE0A /* Projects */ = {
-			isa = PBXGroup;
-			children = (
-				8556085F7D9D917663208F6A /* zlib-iphoneos.xcodeproj */,
-			);
-			name = Projects;
-			sourceTree = "<group>";
-		};
-		CE50F17E74E8E64B0ECD7F83 /* Source */ = {
-			isa = PBXGroup;
-			children = (
-				D96130B7FEC9645E2A02930E /* deps/zlib/build/$(CONFIGURATION)-iphoneos */,
-				0D14550328A2D74E9754C797 /* src */,
-			);
-			name = Source;
-			sourceTree = "<group>";
-		};
-		D96130B7FEC9645E2A02930E /* deps/zlib/build/$(CONFIGURATION)-iphoneos */ = {
-			isa = PBXGroup;
-			children = (
-				4032CC9845A2A0B1D5E88AB2 /* libchrome_zlib.a */,
-			);
-			path = "deps/zlib/build/$(CONFIGURATION)-iphoneos";
-			sourceTree = "<group>";
-		};
 		DC9A387065BBBB1DAFC5D681 /* Build */ = {
 			isa = PBXGroup;
 			children = (
@@ -170,16 +79,6 @@
 				EDBF9BDBD9F612EF82FD2FA4 /* ispdy.gyp */,
 			);
 			name = Build;
-			sourceTree = "<group>";
-		};
-		DDE0ADDD4B5A5389B14C614D = {
-			isa = PBXGroup;
-			children = (
-				CE50F17E74E8E64B0ECD7F83 /* Source */,
-				BA4E24499DA4FB4CFB51AE0A /* Projects */,
-				89F1B268A8AE1DB046DF10EA /* Products */,
-				DC9A387065BBBB1DAFC5D681 /* Build */,
-			);
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -212,93 +111,31 @@
 			buildConfigurationList = 97733FC07CD992A00FB661F2 /* Build configuration list for PBXProject "ispdy-iphoneos" */;
 			compatibilityVersion = "Xcode 3.2";
 			hasScannedForEncodings = 1;
-			mainGroup = DDE0ADDD4B5A5389B14C614D;
+			mainGroup = 09D72A3446683184C3DA8B19;
 			projectDirPath = "";
-			projectReferences = (
-				{
-					ProductGroup = 210EFE4BB995EEAC98A24260 /* Products */;
-					ProjectRef = 8556085F7D9D917663208F6A /* zlib-iphoneos.xcodeproj */;
-				},
-			);
 			projectRoot = "";
 			targets = (
-				1D3A5DC72F06F1BC0EF95031 /* All */,
 				B998BAC2900FCF1CDD570ADF /* ispdy */,
-				CAAA0F32BC167D98343A2995 /* ispdy-bundled */,
 			);
 		};
 /* End PBXProject section */
-
-/* Begin PBXReferenceProxy section */
-		89A6D92890020BCCC191C32C /* libchrome_zlib.a */ = {
-			isa = PBXReferenceProxy;
-			fileType = archive.ar;
-			path = libchrome_zlib.a;
-			remoteRef = BB1A91F41EB901FEB296FCAD /* PBXContainerItemProxy */;
-			sourceTree = BUILT_PRODUCTS_DIR;
-		};
-/* End PBXReferenceProxy section */
-
-/* Begin PBXShellScriptBuildPhase section */
-		CB4A7ED285C3C1DF785200A1 /* Action "link_with_zlib" */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-				"$(BUILT_PRODUCTS_DIR)/libispdy.a",
-				"deps/zlib/build/$(CONFIGURATION)-iphoneos/libchrome_zlib.a",
-			);
-			name = "Action \"link_with_zlib\"";
-			outputPaths = (
-				"$(BUILT_PRODUCTS_DIR)/libispdy-bundled.a",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "exec libtool -static \"${BUILT_PRODUCTS_DIR}/libispdy.a\" \"deps/zlib/build/${CONFIGURATION}-iphoneos/libchrome_zlib.a\" -o \"${BUILT_PRODUCTS_DIR}/libispdy-bundled.a\"\nexit 1\n";
-			showEnvVarsInLog = 0;
-		};
-/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		AB29254E9127608D3848D5F3 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				13002FFCB290953F1335FE15 /* ispdy.m in Sources */,
-				23AD575AA8B9ABDCC85168FE /* compressor.m in Sources */,
-				A3432986623EFE9FE28DA74E /* framer.m in Sources */,
-				89E15E4ABE9C7C2F7A607E92 /* loop.m in Sources */,
-				4259C6E4325D0CFE82BF5228 /* parser.m in Sources */,
-				4600519C018247D05F361412 /* request.m in Sources */,
-				CE9CDCE2677530342F705DD0 /* scheduler.m in Sources */,
+				107654847CACFD93749122DD /* ispdy.m in Sources */,
+				8A36D4904B1505CE8B7E3F8E /* compressor.m in Sources */,
+				C8F58AEDCBBFAB2222FEDA2E /* framer.m in Sources */,
+				5657A0F79100DECD764AECDD /* loop.m in Sources */,
+				D433F7DDB945F1185A037CF0 /* parser.m in Sources */,
+				50A2E07AE4853D83D8181805 /* request.m in Sources */,
+				A511EA557BBC3B696AE45B5D /* scheduler.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
-
-/* Begin PBXTargetDependency section */
-		4FA8E2505AAAE0F361C9B4D5 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = CAAA0F32BC167D98343A2995 /* ispdy-bundled */;
-			targetProxy = 9EF52B764B96A12B02A684AD /* PBXContainerItemProxy */;
-		};
-		81095170564FBC84B0113A7D /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = B998BAC2900FCF1CDD570ADF /* ispdy */;
-			targetProxy = 1A96FF986CF5EF2273EC608A /* PBXContainerItemProxy */;
-		};
-		A04BA2EF4E95F717F58CB0D9 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			name = zlib;
-			targetProxy = 2791712B83C24A6B3EB6F801 /* PBXContainerItemProxy */;
-		};
-		B3561F9F9DCB185A65A4BCBB /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = B998BAC2900FCF1CDD570ADF /* ispdy */;
-			targetProxy = 2A6AD4350EC1A45AA912568B /* PBXContainerItemProxy */;
-		};
-/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		259C6554D53D5A98ABDAD2D8 /* Release */ = {
@@ -309,62 +146,11 @@
 			};
 			name = Release;
 		};
-		3100A97C284783A7C692446D /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				PRODUCT_NAME = All;
-			};
-			name = Debug;
-		};
 		5459E02B5E6D0632E756BE8A /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				INTERMEDIATE_DIR = "$(PROJECT_DERIVED_FILE_DIR)/$(CONFIGURATION)";
 				SHARED_INTERMEDIATE_DIR = "$(SYMROOT)/DerivedSources/$(CONFIGURATION)";
-			};
-			name = Debug;
-		};
-		5955DB49FB86B627C986B4AF /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				PRODUCT_NAME = All;
-			};
-			name = Release;
-		};
-		60ABA0094D8225B74B7417E2 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ARCHS = (
-					armv7,
-					armv7s,
-					arm64,
-				);
-				GCC_OPTIMIZATION_LEVEL = 0;
-				GCC_PREPROCESSOR_DEFINITIONS = (
-					DEBUG,
-					_DEBUG,
-				);
-				GCC_VERSION = com.apple.compilers.llvm.clang.1_0;
-				GCC_WARN_ABOUT_MISSING_NEWLINE = YES;
-				HEADER_SEARCH_PATHS = (
-					include,
-					deps/zlib,
-				);
-				OTHER_CFLAGS = (
-					"-fstrict-aliasing",
-					"-F/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS7.0.sdk/Developer/Library/Frameworks",
-					"-F/Applications/Xcode.app/Contents/Developer/Library/Frameworks",
-				);
-				PREBINDING = NO;
-				PRODUCT_NAME = "ispdy-bundled";
-				SDKROOT = iphoneos;
-				WARNING_CFLAGS = (
-					"-Wall",
-					"-Wendif-labels",
-					"-W",
-					"-Wno-unused-parameter",
-					"-Wundeclared-selector",
-				);
 			};
 			name = Debug;
 		};
@@ -388,7 +174,6 @@
 				HEADER_SEARCH_PATHS = (
 					include,
 					.,
-					deps/zlib,
 				);
 				OTHER_CFLAGS = (
 					"-fstrict-aliasing",
@@ -425,7 +210,6 @@
 				HEADER_SEARCH_PATHS = (
 					include,
 					.,
-					deps/zlib,
 				);
 				OTHER_CFLAGS = (
 					"-fstrict-aliasing",
@@ -446,53 +230,9 @@
 			};
 			name = Release;
 		};
-		C56CF0BCEEC88A1FD62C0E44 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ARCHS = (
-					armv7,
-					armv7s,
-					arm64,
-				);
-				GCC_OPTIMIZATION_LEVEL = 3;
-				GCC_PREPROCESSOR_DEFINITIONS = NDEBUG;
-				GCC_VERSION = com.apple.compilers.llvm.clang.1_0;
-				GCC_WARN_ABOUT_MISSING_NEWLINE = YES;
-				HEADER_SEARCH_PATHS = (
-					include,
-					deps/zlib,
-				);
-				OTHER_CFLAGS = (
-					"-fstrict-aliasing",
-					"-F/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS7.0.sdk/Developer/Library/Frameworks",
-					"-F/Applications/Xcode.app/Contents/Developer/Library/Frameworks",
-					"-flto",
-				);
-				PREBINDING = NO;
-				PRODUCT_NAME = "ispdy-bundled";
-				SDKROOT = iphoneos;
-				WARNING_CFLAGS = (
-					"-Wall",
-					"-Wendif-labels",
-					"-W",
-					"-Wno-unused-parameter",
-					"-Wundeclared-selector",
-				);
-			};
-			name = Release;
-		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		09C55683732E46DE1B4CE349 /* Build configuration list for PBXAggregateTarget "All" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				3100A97C284783A7C692446D /* Debug */,
-				5955DB49FB86B627C986B4AF /* Release */,
-			);
-			defaultConfigurationIsVisible = 1;
-			defaultConfigurationName = Debug;
-		};
 		97733FC07CD992A00FB661F2 /* Build configuration list for PBXProject "ispdy-iphoneos" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -507,15 +247,6 @@
 			buildConfigurations = (
 				6529C6A3DED07F81C67AE269 /* Debug */,
 				C283277CC8E3A71F1A48F2DC /* Release */,
-			);
-			defaultConfigurationIsVisible = 1;
-			defaultConfigurationName = Debug;
-		};
-		A04D193CAF71CA32411E074C /* Build configuration list for PBXAggregateTarget "ispdy-bundled" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				60ABA0094D8225B74B7417E2 /* Debug */,
-				C56CF0BCEEC88A1FD62C0E44 /* Release */,
 			);
 			defaultConfigurationIsVisible = 1;
 			defaultConfigurationName = Debug;
