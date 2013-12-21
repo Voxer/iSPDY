@@ -1,6 +1,6 @@
-# spdy-ios
+# ISpdy
 
-spdy-ios
+ISpdy client for macosx and iphoneos.
 
 ## Usage example
 
@@ -28,6 +28,14 @@ int main() {
 
 For more info - please read the [include file][4] it is quite informative and
 documented.
+
+## Features
+
+* Low-memory footprint
+* Push stream support
+* Basic priority scheduling for outgoing data
+* Trailing headers
+* Ping support
 
 ## NPN
 
