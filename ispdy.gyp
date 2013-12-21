@@ -5,9 +5,6 @@
     "direct_dependent_settings": {
       "include_dirs": [ "include" ],
     },
-    "dependencies": [
-      "deps/zlib/zlib.gyp:zlib",
-    ],
     "include_dirs": [
       "include",
       ".",
@@ -25,6 +22,7 @@
       "libraries": [
         "CoreServices.framework",
         "Security.framework",
+        "-lz",
       ],
     },
     "xcode_settings": {
@@ -40,59 +38,6 @@
           "include/ispdy.h",
         ],
       }]
-    ],
-  }, {
-    "target_name": "ispdy-bundled",
-    "type": "none",
-    "dependencies": [
-      "ispdy",
-      "deps/zlib/zlib.gyp:zlib",
-    ],
-    "conditions": [
-      ["library == 'static_library'", {
-        "actions": [
-          {
-            "action_name": "link_with_zlib",
-            "conditions": [
-              ["GENERATOR == 'xcode'", {
-                "conditions": [["sdk.startswith('iphoneos')", {
-                  "inputs": [
-                    "<(PRODUCT_DIR)/libispdy.a",
-                    "deps/zlib/build/<(CONFIGURATION_NAME)-iphoneos/libchrome_zlib.a",
-                  ],
-                }, {
-                  "conditions": [["sdk.startswith('iphonesimulator')", {
-                    "inputs": [
-                      "<(PRODUCT_DIR)/libispdy.a",
-                      "deps/zlib/build/<(CONFIGURATION_NAME)-iphonesimulator/libchrome_zlib.a",
-                    ],
-                  }, {
-                    "inputs": [
-                      "<(PRODUCT_DIR)/libispdy.a",
-                      "deps/zlib/build/<(CONFIGURATION_NAME)/libchrome_zlib.a",
-                    ],
-                  }]],
-                }]],
-              }, {
-                "inputs": [
-                  "<(PRODUCT_DIR)/libispdy.a",
-                  "<(PRODUCT_DIR)/libchrome_zlib.a",
-                ],
-              }],
-            ],
-            "outputs": [
-              "<(PRODUCT_DIR)/libispdy-bundled.a",
-            ],
-            "action": [
-              "libtool",
-              "-static",
-              "<@(_inputs)",
-              "-o",
-              "<@(_outputs)",
-            ],
-          },
-        ],
-      }],
     ],
   }]
 }
