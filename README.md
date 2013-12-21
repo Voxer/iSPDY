@@ -1,6 +1,6 @@
 # ISpdy
 
-ISpdy client for macosx and iphoneos.
+Spdy client for macosx and iphoneos.
 
 ## Usage example
 
