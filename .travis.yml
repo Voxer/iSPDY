@@ -1,0 +1,4 @@
+language: objective-c
+before_install:
+      - cd test && npm update && (node server.js &)
+script: "cd test && xcodebuild && ./build/Debug/test-runner"

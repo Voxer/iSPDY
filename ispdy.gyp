@@ -22,7 +22,6 @@
       "libraries": [
         "CoreServices.framework",
         "Security.framework",
-        "-lz",
       ],
     },
     "xcode_settings": {

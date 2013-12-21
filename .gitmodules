@@ -1,0 +1,3 @@
+[submodule "deps/Kiwi/Kiwi"]
+	path = deps/Kiwi/Kiwi
+	url = git@github.com:allending/Kiwi.git

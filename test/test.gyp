@@ -11,6 +11,7 @@
     ],
     "link_settings": {
       "libraries": [
+        "libz.dylib",
         "Foundation.framework",
         "CoreFoundation.framework",
       ],

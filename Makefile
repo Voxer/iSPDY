@@ -53,6 +53,12 @@ framework: lipo
 		fi \
 	done
 
+test:
+	cd test && npm update && \
+		(node server.js & \
+		 (xcodebuild && ./build/Debug/test-runner || true) && \
+		 kill $$!)
+
 clean:
 	for config in $(CONFIGURATIONS) ; do \
 		for suffix in $(SUFFIXES) ; do \
@@ -66,4 +72,4 @@ clean:
 	done
 	rm -f $(OUTPUT_iphoneos) $(OUTPUT_macosx)
 
-.PHONY: all clean xcodeproj lip framework
+.PHONY: all clean xcodeproj lip framework test

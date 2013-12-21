@@ -35,56 +35,27 @@ svn co http://gyp.googlecode.com/svn/trunk build/gyp
 
 Building:
 ```
-./gyp_ispdy -f xcode -Dsdk=iosphone
-xcodebuild -configuration Release
+make
 ```
 
-The result will be located at: `./build/Release-iphoneos/libispdy-bundled.a`.
+The results will be located at:
 
-NOTE: you'll need to add `./deps/zlib/build/Release/libchrome_zlib.a` to the
-list of libraries, as `libispdy.a` depends on it.
-
-## Building lipo version for both iOS and simulator
-
-```
-make all
-```
-
-## Building framework
-
-```
-./gyp_ispdy -f xcode framework ...
-xcodebuild -configuration Release
-```
-
-The result will be located at `./build/Release-(sdktarget)/ispdy.framework`.
+* `./out/Release/libispdy.a` static library for both iphoneos and
+  iphonesimulator
+* `./out/Release/libispdy-macosx.a` static library for macosx
+* `./out/Release/ISpdy-iphoneos.framework`
+* `./out/Release/ISpdy-macosx.framework`
 
 ## Running tests
 
 Preparing:
 ```
 svn co http://gyp.googlecode.com/svn/trunk build/gyp
-git clone git@github.com:allending/Kiwi.git deps/Kiwi/Kiwi
-cd test && npm install && cd ..
-node test/server.js & # To start SPDY server
 ```
 
-Building and running test suite with [ninja][0]:
+Running (with the help of xcode):
 ```
-./gyp_ispdy -f ninja test
-ninja -C out/Debug && ./out/Debug/test-runner
-```
-
-Building with [make][1]:
-```
-./gyp_ispdy -f make
-make -C out && ./out/Debug/test-runner
-```
-
-Building with [Xcode][2]:
-```
-./gyp_ispdy -f xcode
-cd ./test && xcodebuild && ./build/Debug/test-runner
+make test
 ```
 
 [0]: http://martine.github.io/ninja/
