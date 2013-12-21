@@ -5,7 +5,7 @@ LIPO ?= `xcrun -find lipo -sdk $(IOS_SDK)`
 OUTPUT ?= ./out/$(CONFIGURATION)/libispdy-combined.a
 
 CONFIGURATIONS = Debug Release
-SUFFIXES = iphoneos iphonesimulator
+SUFFIXES = iphoneos iphonesimulator macosx
 
 all: xcodeproj
 	mkdir -p out/$(CONFIGURATION)
