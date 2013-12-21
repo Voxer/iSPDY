@@ -76,33 +76,33 @@ typedef enum {
 
 @interface ISpdySettings : NSObject
 
-@property int32_t initial_window;
+@property (nonatomic) int32_t initial_window;
 
 @end
 
 @interface ISpdyGoaway : NSObject
 
-@property int32_t stream_id;
-@property ISpdyGoawayStatus status;
+@property (nonatomic) int32_t stream_id;
+@property (nonatomic) ISpdyGoawayStatus status;
 
 @end
 
 @interface ISpdyRequest ()
 
-@property uint32_t stream_id;
+@property (nonatomic) uint32_t stream_id;
 
 @end
 
 @interface ISpdyPush ()
 
-@property uint32_t associated_id;
+@property (nonatomic) uint32_t associated_id;
 
 @end
 
 @interface ISpdy ()
 
 // Self-retaining reference for closeSoon
-@property (strong) ISpdy* goaway_retain_;
+@property (nonatomic, strong) ISpdy* goaway_retain_;
 
 @end
 
@@ -158,17 +158,17 @@ typedef enum {
 @interface ISpdyRequest ()
 
 @property ISpdy* connection;
-@property ISpdyCompressor* decompressor;
+@property (nonatomic) ISpdyCompressor* decompressor;
 
 // Indicates queued end
 @property BOOL pending_closed_by_us;
 @property BOOL closed_by_us;
 @property BOOL closed_by_them;
-@property BOOL seen_response;
-@property NSInteger initial_window_in;
-@property NSInteger initial_window_out;
-@property NSInteger window_in;
-@property NSInteger window_out;
+@property (nonatomic) BOOL seen_response;
+@property (nonatomic) NSInteger initial_window_in;
+@property (nonatomic) NSInteger initial_window_out;
+@property (nonatomic) NSInteger window_in;
+@property (nonatomic) NSInteger window_out;
 
 @end
 
