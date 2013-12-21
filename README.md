@@ -22,11 +22,28 @@ int main() {
   [req writeString: @"and another chunk"];
   [req end];
 
-  [conn closeSoon];
+  [conn closeSoon: 0.0];
 }
 ```
 
-## Bulding for iOS
+For more info - please read the [include file][4] it is quite informative and
+documented.
+
+## NPN
+
+Note that ispdy doesn't support neither NPN, nor ALPN, because doing this will
+require us bundling a last version of statically built openssl, which is quite
+bad for the resulting binary size (and rather complicated too).
+
+However, it works perfectly with [node-spdy][3]'s `plain` mode, in which it
+autodetects the incoming protocol by looking at the incoming data, instead of
+relying on NPN/ALPN.
+
+## AFNetworking support
+
+...Not yet, but in future plans!
+
+## Bulding
 
 Preparing:
 ```
@@ -61,3 +78,5 @@ make test
 [0]: http://martine.github.io/ninja/
 [1]: http://www.gnu.org/software/make/
 [2]: https://developer.apple.com/xcode/
+[3]: https://github.com/indutny/node-spdy
+[4]: https://github.com/Voxer/ispdy/blob/master/include/ispdy.h
