@@ -288,7 +288,7 @@ static const char spdy3_dict_[] = {
   z_stream* stream = isDeflate == YES ? &deflate_ : &inflate_;
 
   stream->next_in = (unsigned char*) [input bytes];
-  stream->avail_in = [input length];
+  stream->avail_in = (unsigned int) [input length];
 
   // Truncate output
   [output_ setLength: 0];
@@ -302,7 +302,7 @@ static const char spdy3_dict_[] = {
   offset = 0;
   do {
     stream->next_out = (unsigned char*) [output_ bytes] + offset;
-    stream->avail_out = [output_ length] - offset;
+    stream->avail_out = (unsigned int) ([output_ length] - offset);
 
     if (isDeflate == YES) {
       ret = deflate(stream, Z_SYNC_FLUSH);
