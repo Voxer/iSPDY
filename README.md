@@ -31,11 +31,15 @@ documented.
 
 ## Features
 
+* Low-latency tuning options
 * Low-memory footprint
 * Push stream support
 * Basic priority scheduling for outgoing data
 * Trailing headers
 * Ping support
+* Transparent decompression of response using Content-Encoding header
+* Background socket reclaim detection and support on iOS
+* VoIP mode support on iOS
 
 ## NPN
 
