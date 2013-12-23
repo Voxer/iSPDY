@@ -1,3 +1,6 @@
 [submodule "deps/Kiwi/Kiwi"]
 	path = deps/Kiwi/Kiwi
 	url = git@github.com:allending/Kiwi.git
+[submodule "build/gyp"]
+	path = build/gyp
+	url = https://chromium.googlesource.com/external/gyp.git

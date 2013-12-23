@@ -18,7 +18,6 @@ DerivedData
 .idea/
 
 # Project specific
-/build/gyp/
 /out/
 /deps/Kiwi/*.xcodeproj/
 ispdy.xcodeproj/
