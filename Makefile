@@ -39,11 +39,11 @@ framework: lipo
 		mkdir -p $(FRAMEWORK_OUTPUT)/Versions/$(VERSION)/Headers; \
 		cp -af include/ispdy.h \
 			$(FRAMEWORK_OUTPUT)/Versions/$(VERSION)/Headers/ISpdy.h ; \
-		ln -sfh $(VERSION) \
+		ln -sfn $(VERSION) \
 				$(FRAMEWORK_OUTPUT)/Versions/Current; \
-		ln -sfh Versions/Current/Headers \
+		ln -sfn Versions/Current/Headers \
 				$(FRAMEWORK_OUTPUT)/Headers; \
-		ln -sfh Versions/Current/$(FRAMEWORK_NAME) \
+		ln -sfn Versions/Current/$(FRAMEWORK_NAME) \
 				$(FRAMEWORK_OUTPUT)/$(FRAMEWORK_NAME); \
 		if [[ $$platform = "iphoneos" ]]; then\
 			cp -af $(OUTPUT_iphoneos) \
