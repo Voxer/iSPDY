@@ -72,8 +72,8 @@ The results will be located at:
 * `./out/Release/libispdy.a` static library for both iphoneos and
   iphonesimulator
 * `./out/Release/libispdy-macosx.a` static library for macosx
-* `./out/Release/ISpdy-iphoneos.framework`
-* `./out/Release/ISpdy-macosx.framework`
+* `./out/Release/iphoneos/ISpdy.framework`
+* `./out/Release/macosx/ISpdy.framework`
 
 ## Running tests
 

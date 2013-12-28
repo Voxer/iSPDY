@@ -7,8 +7,8 @@ CONFIGURATION ?= Release
 LIPO ?= `xcrun -find lipo -sdk $(IOS_SDK)`
 OUTPUT_iphoneos ?= ./out/$(CONFIGURATION)/libispdy-combined.a
 OUTPUT_macosx ?= ./out/$(CONFIGURATION)/libispdy-macosx.a
-FRAMEWORK_NAME ?= ISpdy-$$platform
-FRAMEWORK_OUTPUT ?= ./out/$(CONFIGURATION)/$(FRAMEWORK_NAME).framework
+FRAMEWORK_NAME ?= ISpdy
+FRAMEWORK_OUTPUT ?= ./out/$(CONFIGURATION)/$$platform/$(FRAMEWORK_NAME).framework
 
 CONFIGURATIONS = Debug Release
 SUFFIXES = iphoneos iphonesimulator macosx
@@ -37,7 +37,8 @@ lipo: xcodeproj
 framework: lipo
 	for platform in $(PLATFORMS) ; do \
 		mkdir -p $(FRAMEWORK_OUTPUT)/Versions/$(VERSION)/Headers; \
-		cp -af include/* $(FRAMEWORK_OUTPUT)/Versions/$(VERSION)/Headers/ ; \
+		cp -af include/ispdy.h \
+			$(FRAMEWORK_OUTPUT)/Versions/$(VERSION)/Headers/ISpdy.h ; \
 		ln -sfh $(VERSION) \
 				$(FRAMEWORK_OUTPUT)/Versions/Current; \
 		ln -sfh Versions/Current/Headers \
