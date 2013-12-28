@@ -621,13 +621,17 @@ typedef enum {
   if (![self close])
     return;
 
-  [self _closeStreams: err];
-  [self _destroyPings: err];
+  // Ensure that state is closed to avoid races
+  _state = kISpdyStateClosed;
 
   // Fire global error
   [self _delegateDispatch: ^{
     [self.delegate connection: self handleError: err];
   }];
+
+  // Fire stream errors
+  [self _closeStreams: err];
+  [self _destroyPings: err];
 }
 
 
