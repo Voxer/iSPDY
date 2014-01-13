@@ -19,6 +19,5 @@ DerivedData
 
 # Project specific
 /out/
-/deps/Kiwi/*.xcodeproj/
 ispdy.xcodeproj/
 node_modules/
