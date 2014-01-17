@@ -224,6 +224,10 @@ typedef enum {
 
 
 - (void) dealloc {
+  // Ensure that socket will be removed from the loop and we won't
+  // get any further events on it
+  [self close];
+
   delegate_queue_ = NULL;
   connection_queue_ = NULL;
 }
@@ -366,7 +370,7 @@ typedef enum {
   if (in_stream_ == nil || out_stream_ == nil)
     return NO;
 
-  [self _connectionDispatch: ^{
+  [self _connectionDispatchSync: ^{
     if (goaway_timeout_ != NULL)
       dispatch_source_cancel(goaway_timeout_);
     if (connection_timeout_ != NULL)
