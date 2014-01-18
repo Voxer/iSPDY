@@ -370,7 +370,7 @@ typedef enum {
   if (in_stream_ == nil || out_stream_ == nil)
     return NO;
 
-  [self _connectionDispatchSync: ^{
+  [self _connectionDispatch: ^{
     if (goaway_timeout_ != NULL)
       dispatch_source_cancel(goaway_timeout_);
     if (connection_timeout_ != NULL)
