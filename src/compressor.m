@@ -237,6 +237,13 @@ static const char spdy3_dict_[] = {
   NSError* error_;
 }
 
+- (void) dealloc {
+  inflateEnd(&inflate_);
+  if (mode_ == kISpdyCompressorModeDictDeflate) {
+    deflateEnd(&deflate_);
+  }
+}
+
 - (id) init: (ISpdyVersion) version {
   return [self init: version withMode: kISpdyCompressorModeDictDeflate];
 }
