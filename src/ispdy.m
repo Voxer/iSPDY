@@ -883,7 +883,7 @@ typedef enum {
   CFIndex count = SecTrustGetCertificateCount(trust);
   for (CFIndex i = 0; i < count; i++) {
     SecCertificateRef cert = SecTrustGetCertificateAtIndex(trust, i);
-    NSData* der = (__bridge NSData*) SecCertificateCopyData(cert);
+    NSData* der = (__bridge_transfer NSData*) SecCertificateCopyData(cert);
 
     for (NSData* pinned in pinned_certs_) {
       if ([der isEqualToData: pinned]) {
