@@ -246,12 +246,8 @@ typedef enum {
 
 
 - (void) removeFromRunLoop: (NSRunLoop*) loop forMode: (NSString*) mode {
-  ISpdyLoopWrap* wrap = [ISpdyLoopWrap stateForLoop: loop andMode: mode];
   [self _connectionDispatch: ^{
-    [scheduled_loops_ removeObject: wrap];
-
-    [in_stream_ removeFromRunLoop: wrap.loop forMode: wrap.mode];
-    [out_stream_ removeFromRunLoop: wrap.loop forMode: wrap.mode];
+    [self _removeFromRunLoop: loop forMode: mode];
   }];
 }
 
@@ -266,49 +262,14 @@ typedef enum {
 
 - (void) setNoDelay: (BOOL) enable {
   [self _connectionDispatch: ^{
-    NSStreamStatus status = [out_stream_ streamStatus];
-
-    // If stream is not open yet, queue setting option
-    if (status != NSStreamStatusOpen && status != NSStreamStatusWriting) {
-      no_delay_ = YES;
-      return;
-    }
-
-    __block int r;
-    [self _fdWithBlock: ^(CFSocketNativeHandle fd) {
-      int ienable = enable;
-      r = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &ienable, sizeof(ienable));
-    }];
-    NSAssert(r == 0, @"Set NODELAY failed");
+    [self _setNoDelay: enable];
   }];
 }
 
 
 - (void) setKeepAlive: (NSInteger) keepalive {
   [self _connectionDispatch: ^{
-    NSStreamStatus status = [out_stream_ streamStatus];
-
-    // If stream is not open yet, queue setting option
-    if (status != NSStreamStatusOpen && status != NSStreamStatusWriting) {
-      keep_alive_ = keepalive;
-      return;
-    }
-
-    __block int r;
-    [self _fdWithBlock: ^(CFSocketNativeHandle fd) {
-      int enable = keepalive != 0;
-      int ikeepalive = (int) keepalive;
-
-      r = setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &enable, sizeof(enable));
-      if (r == 0 && enable) {
-        r = setsockopt(fd,
-                       IPPROTO_TCP,
-                       TCP_KEEPALIVE,
-                       &ikeepalive,
-                       sizeof(ikeepalive));
-      }
-    }];
-    NSAssert(r == 0, @"Set NODELAY failed");
+    [self _setKeepAlive: keepalive];
   }];
 }
 
@@ -387,8 +348,8 @@ typedef enum {
 
     if (on_ispdy_loop_) {
       on_ispdy_loop_ = NO;
-      [self removeFromRunLoop: [ISpdyLoop defaultLoop]
-                      forMode: NSDefaultRunLoopMode];
+      [self _removeFromRunLoop: [ISpdyLoop defaultLoop]
+                       forMode: NSDefaultRunLoopMode];
     }
 
     [self _closeStreams: [ISpdyError errorWithCode: kISpdyErrClose]];
@@ -490,17 +451,7 @@ typedef enum {
 
 - (void) setTimeout: (NSTimeInterval) timeout {
   [self _connectionDispatch: ^() {
-    if (connection_timeout_ != NULL) {
-      dispatch_source_cancel(connection_timeout_);
-      connection_timeout_ = NULL;
-    }
-    if (timeout == 0.0)
-      return;
-
-    connection_timeout_ = [self _timerWithTimeInterval: timeout andBlock: ^{
-      [self _handleError:
-          [ISpdyError errorWithCode: kISpdyErrConnectionTimeout]];
-    }];
+    [self _setTimeout: timeout];
   }];
 }
 
@@ -572,6 +523,75 @@ typedef enum {
   dispatch_resume(timer);
 
   return timer;
+}
+
+
+- (void) _setTimeout: (NSTimeInterval) timeout {
+  if (connection_timeout_ != NULL) {
+    dispatch_source_cancel(connection_timeout_);
+    connection_timeout_ = NULL;
+  }
+  if (timeout == 0.0)
+    return;
+
+  connection_timeout_ = [self _timerWithTimeInterval: timeout andBlock: ^{
+    [self _handleError:
+        [ISpdyError errorWithCode: kISpdyErrConnectionTimeout]];
+  }];
+}
+
+
+- (void) _removeFromRunLoop: (NSRunLoop*) loop forMode: (NSString*) mode {
+  ISpdyLoopWrap* wrap = [ISpdyLoopWrap stateForLoop: loop andMode: mode];
+  [scheduled_loops_ removeObject: wrap];
+
+  [in_stream_ removeFromRunLoop: wrap.loop forMode: wrap.mode];
+  [out_stream_ removeFromRunLoop: wrap.loop forMode: wrap.mode];
+}
+
+
+- (void) _setNoDelay: (BOOL) enable {
+  NSStreamStatus status = [out_stream_ streamStatus];
+
+  // If stream is not open yet, queue setting option
+  if (status != NSStreamStatusOpen && status != NSStreamStatusWriting) {
+    no_delay_ = YES;
+    return;
+  }
+
+  __block int r;
+  [self _fdWithBlock: ^(CFSocketNativeHandle fd) {
+    int ienable = enable;
+    r = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &ienable, sizeof(ienable));
+  }];
+  NSAssert(r == 0, @"Set NODELAY failed");
+}
+
+
+- (void) _setKeepAlive: (NSInteger) keepalive {
+  NSStreamStatus status = [out_stream_ streamStatus];
+
+  // If stream is not open yet, queue setting option
+  if (status != NSStreamStatusOpen && status != NSStreamStatusWriting) {
+    keep_alive_ = keepalive;
+    return;
+  }
+
+  __block int r;
+  [self _fdWithBlock: ^(CFSocketNativeHandle fd) {
+    int enable = keepalive != 0;
+    int ikeepalive = (int) keepalive;
+
+    r = setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &enable, sizeof(enable));
+    if (r == 0 && enable) {
+      r = setsockopt(fd,
+                     IPPROTO_TCP,
+                     TCP_KEEPALIVE,
+                     &ikeepalive,
+                     sizeof(ikeepalive));
+    }
+  }];
+  NSAssert(r == 0, @"Set NODELAY failed");
 }
 
 
@@ -913,9 +933,9 @@ typedef enum {
     if (event == NSStreamEventOpenCompleted && stream == out_stream_) {
       // Set queued option
       if (no_delay_)
-        [self setNoDelay: no_delay_];
+        [self _setNoDelay: no_delay_];
       if (keep_alive_ != -1)
-        [self setKeepAlive: keep_alive_];
+        [self _setKeepAlive: keep_alive_];
 
       // Notify delegate
       [self _delegateDispatch: ^{
@@ -935,7 +955,7 @@ typedef enum {
     if (event == NSStreamEventOpenCompleted ||
         event == NSStreamEventErrorOccurred ||
         event == NSStreamEventEndEncountered) {
-      [self setTimeout: 0];
+      [self _setTimeout: 0];
     }
 
     if (event == NSStreamEventErrorOccurred) {
