@@ -142,6 +142,12 @@ typedef enum {
 - (dispatch_source_t) _timerWithTimeInterval: (NSTimeInterval) interval
                                     andBlock: (void (^)()) block;
 
+// Private version of setTimeout and friends
+- (void) _setTimeout: (NSTimeInterval) timeout;
+- (void) _removeFromRunLoop: (NSRunLoop*) loop forMode: (NSString*) mode;
+- (void) _setNoDelay: (BOOL) enable;
+- (void) _setKeepAlive: (NSInteger) keepalive;
+
 // Write raw data to the underlying socket, returns YES if write wasn't buffered
 - (NSInteger) _writeRaw: (NSData*) data withMode: (ISpdyWriteMode) mode;
 
