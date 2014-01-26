@@ -226,7 +226,9 @@ typedef enum {
 - (void) dealloc {
   // Ensure that socket will be removed from the loop and we won't
   // get any further events on it
-  [self close];
+  [self _connectionDispatchSync: ^{
+    [self _close];
+  }];
 
   delegate_queue_ = NULL;
   connection_queue_ = NULL;
@@ -332,27 +334,7 @@ typedef enum {
     return NO;
 
   [self _connectionDispatch: ^{
-    if (goaway_timeout_ != NULL)
-      dispatch_source_cancel(goaway_timeout_);
-    if (connection_timeout_ != NULL)
-      dispatch_source_cancel(connection_timeout_);
-    goaway_timeout_ = NULL;
-    connection_timeout_ = NULL;
-    self.goaway_retain_ = nil;
-
-    _state = kISpdyStateClosed;
-    [in_stream_ close];
-    [out_stream_ close];
-    in_stream_ = nil;
-    out_stream_ = nil;
-
-    if (on_ispdy_loop_) {
-      on_ispdy_loop_ = NO;
-      [self _removeFromRunLoop: [ISpdyLoop defaultLoop]
-                       forMode: NSDefaultRunLoopMode];
-    }
-
-    [self _closeStreams: [ISpdyError errorWithCode: kISpdyErrClose]];
+    [self _close];
   }];
 
   return YES;
@@ -367,7 +349,7 @@ typedef enum {
     if (timeout != 0.0) {
       goaway_timeout_ = [self _timerWithTimeInterval: timeout andBlock: ^{
         // Force close connection
-        [self close];
+        [self _close];
       }];
     }
     goaway_ = YES;
@@ -595,6 +577,36 @@ typedef enum {
 }
 
 
+- (BOOL) _close {
+  if (in_stream_ == nil || out_stream_ == nil)
+    return NO;
+
+  if (goaway_timeout_ != NULL)
+    dispatch_source_cancel(goaway_timeout_);
+  if (connection_timeout_ != NULL)
+    dispatch_source_cancel(connection_timeout_);
+  goaway_timeout_ = NULL;
+  connection_timeout_ = NULL;
+  self.goaway_retain_ = nil;
+
+  _state = kISpdyStateClosed;
+  [in_stream_ close];
+  [out_stream_ close];
+  in_stream_ = nil;
+  out_stream_ = nil;
+
+  if (on_ispdy_loop_) {
+    on_ispdy_loop_ = NO;
+    [self _removeFromRunLoop: [ISpdyLoop defaultLoop]
+                     forMode: NSDefaultRunLoopMode];
+  }
+
+  [self _closeStreams: [ISpdyError errorWithCode: kISpdyErrClose]];
+
+  return YES;
+}
+
+
 - (NSInteger) scheduledWrite: (NSData*) data {
   return [self _writeRaw: data withMode: kISpdyWriteNoChunkBuffering];
 }
@@ -642,7 +654,7 @@ typedef enum {
 
 - (void) _handleError: (ISpdyError*) err {
   // Already closed - ignore
-  if (![self close])
+  if (![self _close])
     return;
 
   // Ensure that state is closed to avoid races
@@ -830,7 +842,7 @@ typedef enum {
 
 - (void) _handleDrain {
   if (goaway_ && active_streams_ == 0 && [buffer_ length] == 0)
-    [self close];
+    [self _close];
 }
 
 
