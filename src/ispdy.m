@@ -226,9 +226,7 @@ typedef enum {
 - (void) dealloc {
   // Ensure that socket will be removed from the loop and we won't
   // get any further events on it
-  [self _connectionDispatchSync: ^{
-    [self _close];
-  }];
+  [self close];
 
   delegate_queue_ = NULL;
   connection_queue_ = NULL;
@@ -590,16 +588,17 @@ typedef enum {
   self.goaway_retain_ = nil;
 
   _state = kISpdyStateClosed;
-  [in_stream_ close];
-  [out_stream_ close];
-  in_stream_ = nil;
-  out_stream_ = nil;
 
   if (on_ispdy_loop_) {
     on_ispdy_loop_ = NO;
     [self _removeFromRunLoop: [ISpdyLoop defaultLoop]
                      forMode: NSDefaultRunLoopMode];
   }
+
+  [in_stream_ close];
+  [out_stream_ close];
+  in_stream_ = nil;
+  out_stream_ = nil;
 
   [self _closeStreams: [ISpdyError errorWithCode: kISpdyErrClose]];
 
