@@ -309,6 +309,16 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
  */
 @property (readonly) ISpdyState state;
 
+
+/**
+ *  a uint32_t that a user of ISPDY can set to keep track
+ *  of the connection. 
+ *  One simple way is to assign monotically increasing numbers to the connection
+ *  This way, on a connection timeout, client can ignore the call back if it has 
+ *  already opened another connection
+ */
+@property (nonatomic) uint32_t  opaque_id;
+
 /**
  * Initialize connection to work with specified protocol version.
  *
