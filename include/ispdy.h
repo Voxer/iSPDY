@@ -98,9 +98,9 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
  */
 @interface ISpdyResponse : NSObject
 
-@property NSInteger code;
-@property NSString* status;
-@property NSDictionary* headers;
+@property (nonatomic) NSInteger code;
+@property (nonatomic) NSString* status;
+@property (nonatomic) NSDictionary* headers;
 
 @end
 
@@ -131,22 +131,22 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
 /**
  * Request method, should be initialized using `init: url:` selector.
  */
-@property NSString* method;
+@property (nonatomic) NSString* method;
 
 /**
  * Request url, should be initialized using `init: url:` selector.
  */
-@property NSString* url;
+@property (nonatomic) NSString* url;
 
 /**
  * HTTP Headers
  */
-@property NSDictionary* headers;
+@property (nonatomic) NSDictionary* headers;
 
 /**
  * Stream priority (highest: 0, lowest: 7)
  */
-@property NSUInteger priority;
+@property (nonatomic) NSUInteger priority;
 
 /**
  * Just a property to store user-defined reference, not used internally.
@@ -234,12 +234,12 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
 
 @interface ISpdyPush : ISpdyRequest
 
-@property ISpdyRequest* associated;
-@property NSString* method;
-@property NSString* url;
-@property NSString* scheme;
-@property NSString* version;
-@property NSDictionary* headers;
+@property (nonatomic) ISpdyRequest* associated;
+@property (nonatomic) NSString* method;
+@property (nonatomic) NSString* url;
+@property (nonatomic) NSString* scheme;
+@property (nonatomic) NSString* version;
+@property (nonatomic) NSDictionary* headers;
 
 @end
 
@@ -292,12 +292,12 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
 /**
  * Host passed to `init:host:port:secure:`
  */
-@property (readonly) NSString* host;
+@property (nonatomic, readonly) NSString* host;
 
 /**
  * Hostname passed to `init:host:port:secure:`
  */
-@property (readonly) NSString* hostname;
+@property (nonatomic, readonly) NSString* hostname;
 
 /**
  * Time of the last received frame
