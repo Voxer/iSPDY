@@ -27,6 +27,7 @@
 #import <netinet/tcp.h>  // TCP_NODELAY
 #import <string.h>  // memmove
 #import <sys/socket.h>  // setsockopt
+#import <errno.h>  // errno
 
 #import "ispdy.h"
 #import "common.h"  // Common internal parts
@@ -547,7 +548,7 @@ typedef enum {
     int ienable = enable;
     r = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &ienable, sizeof(ienable));
   }];
-  NSAssert(r == 0, @"Set NODELAY failed");
+  NSAssert(r == 0 || errno == EINVAL, @"Set NODELAY failed");
 }
 
 
@@ -574,7 +575,7 @@ typedef enum {
                      sizeof(ikeepalive));
     }
   }];
-  NSAssert(r == 0, @"Set NODELAY failed");
+  NSAssert(r == 0 || errno == EINVAL, @"Set NODELAY failed");
 }
 
 
