@@ -371,7 +371,10 @@ typedef enum {
   request.connection = self;
 
   [self _connectionDispatch: ^{
-    NSAssert(!goaway_, @"Can't send streams after GOAWAY was sent/received");
+    if (goaway_) {
+      [self _error: request code: kISpdyErrSendAfterGoawayError];
+      return;
+    }
 
     request.initial_window_in = kInitialWindowSizeIn;
     request.initial_window_out = initial_window_;
@@ -1265,6 +1268,8 @@ typedef enum {
       return @"ISpdy error: failed to verify certificate against pinned one";
     case kISpdyErrGoawayError:
       return @"ISpdy error: server asked to go away";
+    case kISpdyErrSendAfterGoawayError:
+      return @"ISpdy error: request sent after go away";
     default:
       return [NSString stringWithFormat: @"Unexpected spdy error %d",
           self.code];
