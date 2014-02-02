@@ -27,6 +27,7 @@
 #import <netinet/tcp.h>  // TCP_NODELAY
 #import <string.h>  // memmove
 #import <sys/socket.h>  // setsockopt
+#import <errno.h>  // errno
 
 #import "ispdy.h"
 #import "common.h"  // Common internal parts
@@ -371,7 +372,10 @@ typedef enum {
   request.connection = self;
 
   [self _connectionDispatch: ^{
-    NSAssert(!goaway_, @"Can't send streams after GOAWAY was sent/received");
+    if (goaway_) {
+      [self _error: request code: kISpdyErrSendAfterGoawayError];
+      return;
+    }
 
     request.initial_window_in = kInitialWindowSizeIn;
     request.initial_window_out = initial_window_;
@@ -544,7 +548,7 @@ typedef enum {
     int ienable = enable;
     r = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &ienable, sizeof(ienable));
   }];
-  NSAssert(r == 0, @"Set NODELAY failed");
+  NSAssert(r == 0 || errno == EINVAL, @"Set NODELAY failed");
 }
 
 
@@ -571,7 +575,7 @@ typedef enum {
                      sizeof(ikeepalive));
     }
   }];
-  NSAssert(r == 0, @"Set NODELAY failed");
+  NSAssert(r == 0 || errno == EINVAL, @"Set NODELAY failed");
 }
 
 
@@ -1265,6 +1269,8 @@ typedef enum {
       return @"ISpdy error: failed to verify certificate against pinned one";
     case kISpdyErrGoawayError:
       return @"ISpdy error: server asked to go away";
+    case kISpdyErrSendAfterGoawayError:
+      return @"ISpdy error: request sent after go away";
     default:
       return [NSString stringWithFormat: @"Unexpected spdy error %d",
           self.code];
