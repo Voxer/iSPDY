@@ -333,7 +333,7 @@ typedef enum {
     return NO;
 
   [self _connectionDispatch: ^{
-    [self _close];
+    [self _close: NO];
   }];
 
   return YES;
@@ -348,7 +348,7 @@ typedef enum {
     if (timeout != 0.0) {
       goaway_timeout_ = [self _timerWithTimeInterval: timeout andBlock: ^{
         // Force close connection
-        [self _close];
+        [self _close: NO];
       }];
     }
     goaway_ = YES;
@@ -579,7 +579,7 @@ typedef enum {
 }
 
 
-- (BOOL) _close {
+- (BOOL) _close: (BOOL) error {
   if (in_stream_ == nil || out_stream_ == nil)
     return NO;
 
@@ -604,7 +604,8 @@ typedef enum {
   in_stream_ = nil;
   out_stream_ = nil;
 
-  [self _closeStreams: [ISpdyError errorWithCode: kISpdyErrClose]];
+  if (!error)
+    [self _closeStreams: [ISpdyError errorWithCode: kISpdyErrClose]];
 
   return YES;
 }
@@ -657,7 +658,7 @@ typedef enum {
 
 - (void) _handleError: (ISpdyError*) err {
   // Already closed - ignore
-  if (![self _close])
+  if (![self _close: YES])
     return;
 
   // Ensure that state is closed to avoid races
@@ -845,7 +846,7 @@ typedef enum {
 
 - (void) _handleDrain {
   if (goaway_ && active_streams_ == 0 && [buffer_ length] == 0)
-    [self _close];
+    [self _close: NO];
 }
 
 
