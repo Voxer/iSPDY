@@ -336,7 +336,7 @@ typedef enum {
 
   // Send initial window
   if (version_ != kISpdyV2) {
-    [self _connectionDispatch: ^{
+    [self _connectionDispatchSync: ^{
       [framer_ clear];
       [framer_ initialWindow: kInitialWindowSizeIn];
       [self _writeRaw: [framer_ output] withMode: kISpdyWriteChunkBuffering];
