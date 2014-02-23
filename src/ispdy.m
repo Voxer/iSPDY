@@ -297,6 +297,11 @@ typedef enum {
     __block int r;
     __block int err = 0;
     [self _fdWithBlock: ^(CFSocketNativeHandle fd) {
+      if (fd == -1) {
+        r = 0;
+        return;
+      }
+
       socklen_t len = sizeof(err);
       r = getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &len);
       NSAssert(r != 0 || len == sizeof(err), @"Unexpected getsocktopt result");
@@ -505,7 +510,9 @@ typedef enum {
   CFDataRef data =
       CFWriteStreamCopyProperty((__bridge CFWriteStreamRef) out_stream_,
                                 kCFStreamPropertySocketNativeHandle);
-  NSAssert(data != NULL, @"CFWriteStreamCopyProperty failed");
+  if (data == NULL)
+    return block(-1);
+
   CFSocketNativeHandle handle;
   CFDataGetBytes(data, CFRangeMake(0, sizeof(handle)), (UInt8*) &handle);
 
@@ -579,7 +586,10 @@ typedef enum {
   __block int r;
   [self _fdWithBlock: ^(CFSocketNativeHandle fd) {
     int ienable = enable;
-    r = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &ienable, sizeof(ienable));
+    if (fd == -1)
+      r = 0;
+    else
+      r = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &ienable, sizeof(ienable));
   }];
   NSAssert(r == 0 || errno == EINVAL, @"Set NODELAY failed");
 }
@@ -598,6 +608,11 @@ typedef enum {
   [self _fdWithBlock: ^(CFSocketNativeHandle fd) {
     int enable = keepalive != 0;
     int ikeepalive = (int) keepalive;
+
+    if (fd == -1) {
+      r = 0;
+      return;
+    }
 
     r = setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &enable, sizeof(enable));
     if (r == 0 && enable) {
