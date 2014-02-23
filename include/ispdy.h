@@ -49,6 +49,7 @@ typedef enum {
   kISpdyErrRst,
   kISpdyErrParseError,
   kISpdyErrDoubleResponse,
+  kISpdyErrCheckSocketError,
   kISpdyErrSocketError,
   kISpdyErrDecompressionError,
   kISpdyErrSSLPinningError,
@@ -73,6 +74,15 @@ typedef enum {
   kISpdyPingOk,
   kISpdyPingTimedOut
 } ISpdyPingStatus;
+
+/**
+ * checkSocket results
+ */
+typedef enum {
+  kISpdyCheckNotConnected,
+  kISpdyCheckGood,
+  kISpdyCheckBad
+} ISpdyCheckStatus;
 
 /**
  * Callback for ping method.
@@ -382,6 +392,11 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
  * Configure the socket for VoIP usage
  */
 - (void) enableVoip;
+
+/**
+ * Check underlying TCP socket's status and emit error in case of trouble
+ */
+- (ISpdyCheckStatus) checkSocket;
 
 /**
  * Connect to remote server.
