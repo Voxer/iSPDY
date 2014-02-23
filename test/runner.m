@@ -152,6 +152,9 @@ describe(@"ISpdy server", ^{
         [[theValue([args count]) should] equal: theValue(1)];
         [[theValue(connected) shouldNot] equal: theValue(YES)];
         connected = YES;
+        // Check socket
+        NSAssert([conn checkSocket] == kISpdyCheckGood,
+                 @"Check socket fail");
         return nil;
       }];
       [mock stub: @selector(connection:handlePush:)
@@ -207,6 +210,10 @@ describe(@"ISpdy server", ^{
 
       // Send request
       [conn send: req];
+
+      // Check socket
+      NSAssert([conn checkSocket] == kISpdyCheckNotConnected,
+               @"Check socket fail");
 
       // Pipe data
       pipe_req(req, data, YES);

@@ -283,6 +283,44 @@ typedef enum {
 }
 
 
+- (ISpdyCheckStatus) checkSocket {
+  __block ISpdyCheckStatus res;
+  [self _connectionDispatchSync: ^{
+    NSStreamStatus status = [out_stream_ streamStatus];
+
+    // If stream is not open yet, queue setting option
+    if (status != NSStreamStatusOpen && status != NSStreamStatusWriting) {
+      res = kISpdyCheckNotConnected;
+      return;
+    }
+
+    __block int r;
+    __block int err = 0;
+    [self _fdWithBlock: ^(CFSocketNativeHandle fd) {
+      if (fd == -1) {
+        r = 0;
+        return;
+      }
+
+      socklen_t len = sizeof(err);
+      r = getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &len);
+      NSAssert(r != 0 || len == sizeof(err), @"Unexpected getsocktopt result");
+    }];
+
+    if (err == 0 && r == 0) {
+      res = kISpdyCheckGood;
+      return;
+    }
+
+    NSNumber* nerr = [NSNumber numberWithUnsignedInt: err];
+    [self _close: [ISpdyError errorWithCode: kISpdyErrCheckSocketError
+                                 andDetails: nerr]];
+    res = kISpdyCheckBad;
+  }];
+  return res;
+}
+
+
 - (BOOL) connect {
   // Reinitialize streams if connection was closed
   if (in_stream_ == nil) {
@@ -303,7 +341,7 @@ typedef enum {
 
   // Send initial window
   if (version_ != kISpdyV2) {
-    [self _connectionDispatch: ^{
+    [self _connectionDispatchSync: ^{
       [framer_ clear];
       [framer_ initialWindow: kInitialWindowSizeIn];
       [self _writeRaw: [framer_ output] withMode: kISpdyWriteChunkBuffering];
@@ -333,7 +371,7 @@ typedef enum {
     return NO;
 
   [self _connectionDispatch: ^{
-    [self _close: NO];
+    [self _close: nil];
   }];
 
   return YES;
@@ -348,7 +386,7 @@ typedef enum {
     if (timeout != 0.0) {
       goaway_timeout_ = [self _timerWithTimeInterval: timeout andBlock: ^{
         // Force close connection
-        [self _close: NO];
+        [self _close: nil];
       }];
     }
     goaway_ = YES;
@@ -472,7 +510,9 @@ typedef enum {
   CFDataRef data =
       CFWriteStreamCopyProperty((__bridge CFWriteStreamRef) out_stream_,
                                 kCFStreamPropertySocketNativeHandle);
-  NSAssert(data != NULL, @"CFWriteStreamCopyProperty failed");
+  if (data == NULL)
+    return block(-1);
+
   CFSocketNativeHandle handle;
   CFDataGetBytes(data, CFRangeMake(0, sizeof(handle)), (UInt8*) &handle);
 
@@ -519,7 +559,7 @@ typedef enum {
     return;
 
   connection_timeout_ = [self _timerWithTimeInterval: timeout andBlock: ^{
-    [self _handleError:
+    [self _close:
         [ISpdyError errorWithCode: kISpdyErrConnectionTimeout]];
   }];
 }
@@ -546,7 +586,10 @@ typedef enum {
   __block int r;
   [self _fdWithBlock: ^(CFSocketNativeHandle fd) {
     int ienable = enable;
-    r = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &ienable, sizeof(ienable));
+    if (fd == -1)
+      r = 0;
+    else
+      r = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &ienable, sizeof(ienable));
   }];
   NSAssert(r == 0 || errno == EINVAL, @"Set NODELAY failed");
 }
@@ -566,6 +609,11 @@ typedef enum {
     int enable = keepalive != 0;
     int ikeepalive = (int) keepalive;
 
+    if (fd == -1) {
+      r = 0;
+      return;
+    }
+
     r = setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &enable, sizeof(enable));
     if (r == 0 && enable) {
       r = setsockopt(fd,
@@ -579,7 +627,7 @@ typedef enum {
 }
 
 
-- (BOOL) _close: (BOOL) error {
+- (BOOL) _close: (ISpdyError*) err {
   if (in_stream_ == nil || out_stream_ == nil)
     return NO;
 
@@ -604,8 +652,17 @@ typedef enum {
   in_stream_ = nil;
   out_stream_ = nil;
 
-  if (!error)
-    [self _closeStreams: [ISpdyError errorWithCode: kISpdyErrClose]];
+  if (err == nil) {
+    err = [ISpdyError errorWithCode: kISpdyErrClose];
+  } else {
+    [self _delegateDispatch: ^{
+      [self.delegate connection: self handleError: err];
+    }];
+  }
+
+  // Fire stream errors
+  [self _closeStreams: err];
+  [self _destroyPings: err];
 
   return YES;
 }
@@ -621,7 +678,7 @@ typedef enum {
 
   if (status == NSStreamStatusNotOpen) {
     ISpdyError* err = [ISpdyError errorWithCode: kISpdyErrConnectionEnd];
-    [self _handleError: err];
+    [self _close: err];
     return [data length];
   }
 
@@ -653,25 +710,6 @@ typedef enum {
   }
 
   return r;
-}
-
-
-- (void) _handleError: (ISpdyError*) err {
-  // Already closed - ignore
-  if (![self _close: YES])
-    return;
-
-  // Ensure that state is closed to avoid races
-  _state = kISpdyStateClosed;
-
-  // Fire global error
-  [self _delegateDispatch: ^{
-    [self.delegate connection: self handleError: err];
-  }];
-
-  // Fire stream errors
-  [self _closeStreams: err];
-  [self _destroyPings: err];
 }
 
 
@@ -846,7 +884,7 @@ typedef enum {
 
 - (void) _handleDrain {
   if (goaway_ && active_streams_ == 0 && [buffer_ length] == 0)
-    [self _close: NO];
+    [self _close: nil];
 }
 
 
@@ -964,7 +1002,8 @@ typedef enum {
       if (secure_ && ![self _checkPinnedCertificates: stream]) {
         // Failure
         ISpdyError* err = [ISpdyError errorWithCode: kISpdyErrSSLPinningError];
-        return [self _handleError: err];
+        [self _close: err];
+        return;
       }
     }
 
@@ -977,12 +1016,14 @@ typedef enum {
     if (event == NSStreamEventErrorOccurred) {
       ISpdyError* err = [ISpdyError errorWithCode: kISpdyErrSocketError
                                        andDetails: [stream streamError]];
-      return [self _handleError: err];
+      [self _close: err];
+      return;
     }
 
     if (event == NSStreamEventEndEncountered) {
       ISpdyError* err = [ISpdyError errorWithCode: kISpdyErrConnectionEnd];
-      return [self _handleError: err];
+      [self _close: err];
+      return;
     }
 
     if (event == NSStreamEventHasSpaceAvailable) {
@@ -998,7 +1039,8 @@ typedef enum {
       if (r == -1) {
         ISpdyError* err = [ISpdyError errorWithCode: kISpdyErrSocketError
                                          andDetails: [stream streamError]];
-        return [self _handleError: err];
+        [self _close: err];
+        return;
       }
 
       // Shift data
@@ -1022,7 +1064,8 @@ typedef enum {
       if (r < 0) {
         ISpdyError* err = [ISpdyError errorWithCode: kISpdyErrSocketError
                                          andDetails: [stream streamError]];
-        return [self _handleError: err];
+        [self _close: err];
+        return;
       }
 
       [parser_ execute: buf length: (NSUInteger) r];
@@ -1191,8 +1234,8 @@ typedef enum {
 
 
 - (void) handleParserError: (NSError*) err {
-  return [self _handleError: [ISpdyError errorWithCode: kISpdyErrParseError
-                                            andDetails: err]];
+  [self _close: [ISpdyError errorWithCode: kISpdyErrParseError
+                               andDetails: err]];
 }
 
 @end
@@ -1263,6 +1306,10 @@ typedef enum {
       return @"ISpdy error: got double SYN_REPLY for a single stream";
     case kISpdyErrSocketError:
       return [NSString stringWithFormat: @"ISpdy error: socket error - %@",
+          details];
+    case kISpdyErrCheckSocketError:
+      return [NSString
+          stringWithFormat: @"ISpdy error: check socket error - %@",
           details];
     case kISpdyErrDecompressionError:
       return @"ISpdy error: failed to decompress incoming data";

@@ -147,13 +147,10 @@ typedef enum {
 - (void) _removeFromRunLoop: (NSRunLoop*) loop forMode: (NSString*) mode;
 - (void) _setNoDelay: (BOOL) enable;
 - (void) _setKeepAlive: (NSInteger) keepalive;
-- (BOOL) _close: (BOOL) error;
+- (BOOL) _close: (ISpdyError*) err;
 
 // Write raw data to the underlying socket, returns YES if write wasn't buffered
 - (NSInteger) _writeRaw: (NSData*) data withMode: (ISpdyWriteMode) mode;
-
-// Handle global errors
-- (void) _handleError: (ISpdyError*) err;
 
 // Close all streams and send error to each of them
 - (void) _closeStreams: (ISpdyError*) err;
