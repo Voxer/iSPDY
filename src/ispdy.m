@@ -237,7 +237,7 @@ typedef enum {
 - (void) scheduleInRunLoop: (NSRunLoop*) loop forMode: (NSString*) mode {
   ISpdyLoopWrap* wrap = [ISpdyLoopWrap stateForLoop: loop andMode: mode];
 
-  [self _connectionDispatch: ^{
+  [self _connectionDispatchSync: ^{
     [scheduled_loops_ addObject: wrap];
 
     [in_stream_ scheduleInRunLoop: wrap.loop forMode: wrap.mode];
