@@ -85,6 +85,15 @@ typedef enum {
 } ISpdyCheckStatus;
 
 /**
+ * Log levels
+ */
+typedef enum {
+  kISpdyLogInfo,
+  kISpdyLogWarning,
+  kISpdyLogError
+} ISpdyLogLevel;
+
+/**
  * Callback for ping method.
  */
 typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
@@ -287,6 +296,17 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
 
 @end
 
+/**
+ * Delegate for handling connection-level log events
+ */
+@protocol ISpdyLogDelegate
+
+- (void) logSpdyEvents: (ISpdy*) conn
+                 level: (ISpdyLogLevel) level
+               message: (NSString*) message;
+
+@end
+
 /** ISpdy connection class
  *
  * Connects to server and holds underlying socket, parsing incoming data and
@@ -298,7 +318,7 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
 /**
  * Connection-level delegate, should be provided to handle global errors.
  */
-@property (weak) id <ISpdyDelegate> delegate;
+@property (weak) id <ISpdyDelegate, ISpdyLogDelegate> delegate;
 
 /**
  * Host passed to `init:host:port:secure:`
