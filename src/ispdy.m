@@ -235,13 +235,8 @@ typedef enum {
 
 
 - (void) scheduleInRunLoop: (NSRunLoop*) loop forMode: (NSString*) mode {
-  ISpdyLoopWrap* wrap = [ISpdyLoopWrap stateForLoop: loop andMode: mode];
-
-  [self _connectionDispatchSync: ^{
-    [scheduled_loops_ addObject: wrap];
-
-    [in_stream_ scheduleInRunLoop: wrap.loop forMode: wrap.mode];
-    [out_stream_ scheduleInRunLoop: wrap.loop forMode: wrap.mode];
+  [self _connectionDispatch: ^{
+    [self _scheduleInRunLoop: loop forMode: mode];
   }];
 }
 
@@ -333,7 +328,9 @@ typedef enum {
                secure: secure_];
   }
 
-  [self _lazySchedule];
+  [self _connectionDispatchSync: ^{
+    [self _lazySchedule];
+  }];
 
   _state = kISpdyStateConnecting;
   [in_stream_ open];
@@ -525,8 +522,8 @@ typedef enum {
 - (void) _lazySchedule {
   if ([scheduled_loops_ count] == 0) {
     on_ispdy_loop_ = YES;
-    [self scheduleInRunLoop: [ISpdyLoop defaultLoop]
-                    forMode: NSDefaultRunLoopMode];
+    [self _scheduleInRunLoop: [ISpdyLoop defaultLoop]
+                     forMode: NSDefaultRunLoopMode];
   }
 }
 
@@ -562,6 +559,16 @@ typedef enum {
     [self _close:
         [ISpdyError errorWithCode: kISpdyErrConnectionTimeout]];
   }];
+}
+
+
+- (void) _scheduleInRunLoop: (NSRunLoop*) loop forMode: (NSString*) mode {
+  ISpdyLoopWrap* wrap = [ISpdyLoopWrap stateForLoop: loop andMode: mode];
+
+  [scheduled_loops_ addObject: wrap];
+
+  [in_stream_ scheduleInRunLoop: wrap.loop forMode: wrap.mode];
+  [out_stream_ scheduleInRunLoop: wrap.loop forMode: wrap.mode];
 }
 
 
