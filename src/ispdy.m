@@ -50,6 +50,9 @@ typedef enum {
   kISpdySSLPinningApproved
 } ISpdySSLPinningResult;
 
+#define LOG(level, ...)                                                       \
+  [self _log: (level) file: @__FILE__ line: __LINE__ format: __VA_ARGS__]
+
 // Implementations
 
 @implementation ISpdy {
@@ -504,7 +507,10 @@ typedef enum {
 }
 
 
-- (void) _log: (ISpdyLogLevel) level format: (NSString*) format, ... {
+- (void) _log: (ISpdyLogLevel) level
+         file: (NSString*) file
+         line: (NSInteger) line
+       format: (NSString*) format, ... {
   if (self.delegate == nil)
     return;
 
@@ -512,9 +518,12 @@ typedef enum {
   if (![d respondsToSelector: @selector(logSpdyEvents:level:message:)])
     return;
 
+  NSString* lnfmt =
+      [NSString stringWithFormat: @"%@:%ld %@", file, line, format];
+
   va_list args;
   va_start(args, format);
-  NSString* str = [[NSString alloc] initWithFormat: format arguments: args];
+  NSString* str = [[NSString alloc] initWithFormat: lnfmt arguments: args];
   va_end(args);
 
   [self _delegateDispatch: ^{
@@ -1005,12 +1014,13 @@ typedef enum {
 // NSSocket delegate methods
 
 - (void) stream: (NSStream*) stream handleEvent: (NSStreamEvent) event {
+  NSString* stream_kind = stream == in_stream_ ? @"in" : @"out";
   if (event == NSStreamEventOpenCompleted) {
-    [self _log: kISpdyLogInfo format: @"NSStream open"];
+    LOG(kISpdyLogInfo, @"NSStream<%@> open", stream_kind);
   } else if (event == NSStreamEventEndEncountered) {
-    [self _log: kISpdyLogInfo format: @"NSStream end"];
+    LOG(kISpdyLogInfo, @"NSStream<%@> end", stream_kind);
   } else if (event == NSStreamEventErrorOccurred) {
-    [self _log: kISpdyLogWarning format: @"NSStream error"];
+    LOG(kISpdyLogInfo, @"NSStream<%@> error", stream_kind);
   }
   [self _connectionDispatchSync: ^{
     // Already closed, just return
@@ -1378,3 +1388,5 @@ typedef enum {
 }
 
 @end
+
+#undef LOG

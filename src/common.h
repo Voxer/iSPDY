@@ -133,7 +133,10 @@ typedef enum {
                                  ISpdySchedulerDelegate>
 
 // Invoke delegate logging if present
-- (void) _log: (ISpdyLogLevel) level format: (NSString*) msg, ...;
+- (void) _log: (ISpdyLogLevel) level
+         file: (NSString*) file
+         line: (NSInteger) line
+       format: (NSString*) format, ...;
 
 // Get fd out of streams
 - (void) _fdWithBlock: (void(^)(CFSocketNativeHandle)) block;
