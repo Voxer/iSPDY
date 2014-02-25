@@ -25,6 +25,7 @@
 #import <dispatch/dispatch.h>  // dispatch_queue_t
 #import <netinet/in.h>  // IPPROTO_TCP
 #import <netinet/tcp.h>  // TCP_NODELAY
+#import <stdarg.h>  // va_start, va_end
 #import <string.h>  // memmove
 #import <sys/socket.h>  // setsockopt
 #import <errno.h>  // errno
@@ -506,6 +507,25 @@ typedef enum {
 }
 
 
+- (void) _log: (ISpdyLogLevel) level format: (NSString*) format, ... {
+  if (self.delegate == nil)
+    return;
+
+  NSObject* d = (NSObject*) self.delegate;
+  if (![d respondsToSelector: @selector(logSpdyEvents:level:message:)])
+    return;
+
+  va_list args;
+  va_start(args, format);
+  NSString* str = [[NSString alloc] initWithFormat: format arguments: args];
+  va_end(args);
+
+  [self _delegateDispatch: ^{
+    [self.delegate logSpdyEvents: self level: level message: str];
+  }];
+}
+
+
 - (void) _fdWithBlock: (void(^)(CFSocketNativeHandle)) block {
   CFDataRef data =
       CFWriteStreamCopyProperty((__bridge CFWriteStreamRef) out_stream_,
@@ -978,6 +998,13 @@ typedef enum {
 // NSSocket delegate methods
 
 - (void) stream: (NSStream*) stream handleEvent: (NSStreamEvent) event {
+  if (event == NSStreamEventOpenCompleted) {
+    [self _log: kISpdyLogInfo format: @"NSStream open"];
+  } else if (event == NSStreamEventEndEncountered) {
+    [self _log: kISpdyLogInfo format: @"NSStream end"];
+  } else if (event == NSStreamEventErrorOccurred) {
+    [self _log: kISpdyLogWarning format: @"NSStream error"];
+  }
   [self _connectionDispatchSync: ^{
     // Already closed, just return
     if (in_stream_ == nil || out_stream_ == nil)
