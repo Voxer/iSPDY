@@ -991,9 +991,9 @@ typedef enum {
       if (keep_alive_ != -1)
         [self _setKeepAlive: keep_alive_];
 
+       _state = kISpdyStateConnected;
       // Notify delegate
       [self _delegateDispatch: ^{
-        _state = kISpdyStateConnected;
         [self.delegate handleConnect: self];
       }];
     } else if (event == NSStreamEventHasBytesAvailable ||
