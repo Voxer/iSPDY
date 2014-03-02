@@ -403,13 +403,15 @@ typedef enum {
 
 
 - (void) send: (ISpdyRequest*) request {
-  if (request == nil)
+  if (request == nil) {
     LOG(kISpdyLogWarning, @"Trying to send request nil request", request);
-  if (request.connection != nil)
-    LOG(kISpdyLogWarning, @"Trying to send request %p twice", request);
-
-  if (request.connection != nil)
     return;
+  }
+  if (request.connection != nil) {
+    LOG(kISpdyLogWarning, @"Trying to send request %p twice", request);
+    return;
+  }
+
   request.connection = self;
 
   [self _connectionDispatch: ^{
