@@ -403,8 +403,10 @@ typedef enum {
 
 
 - (void) send: (ISpdyRequest*) request {
-  NSAssert(request != nil, @"Received nil as stream to send");
-  NSAssert(request.connection == nil, @"Request was already sent");
+  if (request == nil)
+    LOG(kISpdyLogWarning, @"Trying to send request nil request", request);
+  if (request.connection != nil)
+    LOG(kISpdyLogWarning, @"Trying to send request %p twice", request);
 
   if (request.connection != nil)
     return;
