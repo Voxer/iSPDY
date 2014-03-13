@@ -569,10 +569,13 @@ typedef enum {
                                                    connection_queue_);
   NSAssert(timer, @"Failed to create dispatch timer source");
 
+  uint64_t intervalNS = (uint64_t) (interval * 1e9);
+  uint64_t leeway = (intervalNS >> 2) < 100000ULL ?
+      (intervalNS >> 2) : 100000ULL;
   dispatch_source_set_timer(timer,
-                            dispatch_walltime(NULL, (int64_t) interval * 1e9),
-                            0,
-                            0);
+                            dispatch_walltime(NULL, intervalNS),
+                            intervalNS,
+                            leeway);
   dispatch_source_set_event_handler(timer, block);
   dispatch_resume(timer);
 
