@@ -27,6 +27,7 @@
 
 // Forward-declarations
 @class ISpdyPing;
+@class ISpdyStallWrap;
 @class ISpdyCompressor;
 
 typedef enum {
@@ -237,6 +238,12 @@ typedef enum {
 - (void) _unqueueOutput;
 - (void) _unqueueHeaders;
 
+// Internal stall methods
+- (void) _onStall: (ISpdyStallCallback) cb after: (NSTimeInterval) interval;
+- (void) _rearmStall: (ISpdyStallWrap*) wrap;
+- (void) _rearmStalls;
+- (void) _clearStalls;
+
 @end
 
 @interface ISpdyLoopWrap : NSObject
@@ -245,6 +252,18 @@ typedef enum {
 @property NSString* mode;
 
 + (ISpdyLoopWrap*) stateForLoop: (NSRunLoop*) loop andMode: (NSString*) mode;
+- (BOOL) isEqual: (id) anObject;
+
+@end
+
+@interface ISpdyStallWrap : NSObject
+
+@property (strong) ISpdyStallCallback cb;
+@property NSTimeInterval interval;
+@property dispatch_source_t timer;
+
++ (ISpdyStallWrap*) stallForCallback: (ISpdyStallCallback) cb
+                         andInterval: (NSTimeInterval) interval;
 - (BOOL) isEqual: (id) anObject;
 
 @end

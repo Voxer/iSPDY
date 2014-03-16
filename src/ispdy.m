@@ -1180,6 +1180,9 @@ typedef enum {
           }
         }
         if ([body length] != 0) {
+          // Rearm stall timers
+          [req _rearmStalls];
+
           NSError* err = [req _decompress: body withBlock: ^(NSData* data) {
             if ([data length] == 0)
               return;
@@ -1325,6 +1328,26 @@ typedef enum {
   ISpdyLoopWrap* wrap = (ISpdyLoopWrap*) anObject;
   return [wrap.loop isEqual: self.loop] &&
          [wrap.mode isEqualToString: self.mode];
+}
+
+@end
+
+@implementation ISpdyStallWrap
+
++ (ISpdyStallWrap*) stallForCallback: (ISpdyStallCallback) cb
+                         andInterval: (NSTimeInterval) interval {
+  ISpdyStallWrap* wrap = [ISpdyStallWrap alloc];
+  wrap.cb = cb;
+  wrap.interval = interval;
+  return wrap;
+}
+
+- (BOOL) isEqual: (id) anObject {
+  if (![anObject isMemberOfClass: [ISpdyStallWrap class]])
+    return NO;
+
+  ISpdyStallWrap* wrap = (ISpdyStallWrap*) anObject;
+  return [wrap.cb isEqual: self.cb];
 }
 
 @end

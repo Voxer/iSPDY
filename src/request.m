@@ -35,6 +35,10 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   NSMutableArray* output_queue_;
   NSMutableDictionary* headers_queue_;
   NSMutableDictionary* in_headers_queue_;
+
+  // Stall callbacks
+  NSMutableSet* stalls_;
+
   dispatch_source_t response_timeout_;
   NSTimeInterval response_timeout_interval_;
 }
@@ -100,6 +104,13 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
   [self.connection _connectionDispatch: ^{
     [self.connection _addHeaders: headers to: self];
+  }];
+}
+
+
+- (void) onStall: (ISpdyStallCallback) cb after: (NSTimeInterval) interval {
+  [self.connection _connectionDispatch: ^{
+    [self _onStall: cb after: interval];
   }];
 }
 
@@ -178,6 +189,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 - (void) _tryClose {
   if (self.connection == nil)
     return;
+  [self _clearStalls];
   if (self.closed_by_us && self.closed_by_them)
     [self _close: nil sync: NO];
 }
@@ -276,6 +288,50 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
   [self addHeaders: headers_queue_];
   headers_queue_ = nil;
+}
+
+
+- (void) _onStall: (ISpdyStallCallback) cb after: (NSTimeInterval) interval {
+  ISpdyStallWrap* wrap = [ISpdyStallWrap stallForCallback: cb
+                                              andInterval: interval];
+
+  if (stalls_ == nil)
+    stalls_ = [NSMutableSet setWithCapacity: 1];
+
+  [stalls_ addObject: wrap];
+
+  [self _rearmStall: wrap];
+}
+
+
+- (void) _rearmStall: (ISpdyStallWrap*) wrap {
+  if (![stalls_ containsObject: wrap]) {
+    wrap.timer = NULL;
+    return;
+  }
+
+  if (wrap.timer != NULL) {
+    dispatch_source_cancel(wrap.timer);
+    wrap.timer = NULL;
+  }
+
+  wrap.timer =  [self.connection _timerWithTimeInterval: wrap.interval
+                                               andBlock: ^{
+    wrap.timer = NULL;
+    wrap.cb();
+  }];
+}
+
+
+- (void) _rearmStalls {
+  for (ISpdyStallWrap* wrap in stalls_) {
+    [self _rearmStall: wrap];
+  }
+}
+
+
+- (void) _clearStalls {
+  stalls_ = nil;
 }
 
 @end
