@@ -145,6 +145,7 @@ describe(@"ISpdy server", ^{
       __block BOOL connected = NO;
       __block BOOL got_push = NO;
       __block BOOL got_push_input = NO;
+      __block BOOL got_push_headers = NO;
       __block BOOL got_push_end = NO;
       id mock = [KWMock mockForProtocol: @protocol(ISpdyDelegate)];
 
@@ -177,6 +178,16 @@ describe(@"ISpdy server", ^{
          withBlock: ^id (NSArray* args) {
           NSAssert(got_push_end == NO, @"Double-end");
           got_push_end = YES;
+          return nil;
+        }];
+        [mock stub: @selector(request:handleHeaders:)
+         withBlock: ^id (NSArray* args) {
+          NSAssert(got_push_headers == NO, @"Double-headers");
+          got_push_headers = YES;
+
+          NSDictionary* headers = (NSDictionary*) [args objectAtIndex: 1];
+          [[[headers valueForKey: @"oh-yes"] should] equal: @"yay"];
+
           return nil;
         }];
         [push setDelegate: mock];
@@ -236,6 +247,8 @@ describe(@"ISpdy server", ^{
       [[expectFutureValue(theValue(got_push_end)) shouldEventually]
           equal: theValue(YES)];
       [[expectFutureValue(theValue(got_push_input)) shouldEventually]
+          equal: theValue(YES)];
+      [[expectFutureValue(theValue(got_push_headers)) shouldEventually]
           equal: theValue(YES)];
     };
 

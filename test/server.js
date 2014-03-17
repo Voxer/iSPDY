@@ -9,6 +9,7 @@ function pipe_and_push(req, res, compression) {
     stream.on('error', function(err) {
       console.log('Push error: %j', err.toString());
     });
+    stream.sendHeaders({ 'oh-yes': 'yay' });
     stream.end('push data');
   });
 
