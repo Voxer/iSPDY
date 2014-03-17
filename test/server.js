@@ -36,6 +36,11 @@ spdy.createServer({
   plain: true,
   ssl: false
 }, function(req, res) {
+  if (req.url === '/fail') {
+    res.socket.destroy();
+    return;
+  }
+
   if (!req.headers['content-length'] ||
       req.headers['x-ispdy'] !== 'yikes' ||
       req.method !== 'POST') {

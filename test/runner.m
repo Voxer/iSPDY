@@ -273,6 +273,39 @@ describe(@"ISpdy server", ^{
           beNonNil];
     };
 
+    void (^failure)(ISpdyTestConf) = ^(ISpdyTestConf conf) {
+      ISpdy* conn = [[ISpdy alloc] init: conf.version
+                                   host: @"localhost"
+                                   port: 3232
+                                 secure: NO];
+
+      BOOL r = [conn connect];
+      [[theValue(r) should] equal:theValue(YES)];
+
+      // Perform POST request to echo server
+      ISpdyRequest* req = [[ISpdyRequest alloc] init: @"GET" url: @"/fail"];
+
+      // Create delegate with mocked handlers
+      id mock = [KWMock mockForProtocol: @protocol(ISpdyRequestDelegate)];
+
+      __block ISpdyError* err;
+      id (^onEnd)(NSArray*) = ^id (NSArray* args) {
+        [[theValue([args count]) should] equal: theValue(2)];
+
+        err = [args objectAtIndex: 1];
+
+        return nil;
+      };
+      [mock stub: @selector(request:handleResponse:) withBlock: nil];
+      [mock stub: @selector(request:handleEnd:) withBlock: onEnd];
+      req.delegate = mock;
+
+      [conn send: req];
+
+      [[expectFutureValue(err) shouldEventuallyBeforeTimingOutAfter(5.0)]
+          beNonNil];
+    };
+
     eachConf(^(ISpdyTestConf conf) {
       it(@"should return body that was sent", ^{
         pipe(conf, [@"hello world" dataUsingEncoding: NSUTF8StringEncoding]);
@@ -291,6 +324,10 @@ describe(@"ISpdy server", ^{
 
       it(@"should timeout on slow responses", ^{
         slow_response(conf);
+      });
+
+      it(@"should handle failures", ^{
+        failure(conf);
       });
     });
   });
