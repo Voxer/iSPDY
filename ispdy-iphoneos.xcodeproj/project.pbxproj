@@ -177,7 +177,7 @@
 				);
 				OTHER_CFLAGS = (
 					"-fstrict-aliasing",
-					"-F/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS7.0.sdk/Developer/Library/Frameworks",
+					"-F/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS7.1.sdk/Developer/Library/Frameworks",
 					"-F/Applications/Xcode.app/Contents/Developer/Library/Frameworks",
 				);
 				PREBINDING = NO;
@@ -213,7 +213,7 @@
 				);
 				OTHER_CFLAGS = (
 					"-fstrict-aliasing",
-					"-F/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS7.0.sdk/Developer/Library/Frameworks",
+					"-F/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS7.1.sdk/Developer/Library/Frameworks",
 					"-F/Applications/Xcode.app/Contents/Developer/Library/Frameworks",
 					"-flto",
 				);
