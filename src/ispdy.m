@@ -278,6 +278,8 @@ typedef enum {
   [self _connectionDispatch: ^{
     [in_stream_ setProperty: NSStreamNetworkServiceTypeVoIP
                      forKey: NSStreamNetworkServiceType];
+    [out_stream_ setProperty: NSStreamNetworkServiceTypeVoIP
+                      forKey: NSStreamNetworkServiceType];
   }];
 }
 
