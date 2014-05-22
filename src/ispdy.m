@@ -840,6 +840,9 @@ typedef enum {
     rest = data;
   }
 
+  if (request.window_out <= 0)
+    LOG(kISpdyLogInfo, @"Window emptied");
+
   if (rest != nil)
     [request _queueOutput: rest];
 }

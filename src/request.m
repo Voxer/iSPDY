@@ -27,6 +27,12 @@
 #import "common.h"
 #import "compressor.h"  // ISpdyCompressor
 
+#define LOG(level, ...)                                                       \
+  [self.connection _log: (level)                                              \
+                   file: @__FILE__                                            \
+                   line: __LINE__                                             \
+                 format: __VA_ARGS__]
+
 static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 @implementation ISpdyRequest {
@@ -219,6 +225,8 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 
 - (void) _updateWindow: (NSInteger) delta {
+  if (self.window_out <= 0 && self.window_out + delta > 0)
+    LOG(kISpdyLogInfo, @"Window filled %d", self.window_out);
   self.window_out += delta;
 
   // Try writing queued data
