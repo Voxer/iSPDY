@@ -464,7 +464,7 @@ typedef enum {
       [pings_ removeObjectForKey: ping.ping_id];
 
       [self _delegateDispatch: ^{
-        ping.block(kISpdyPingTimedOut, -1.0);
+        [ping _invoke: kISpdyPingTimedOut rtt: -1.0];
       }];
     }];
     ping.start_date = [NSDate date];
@@ -779,7 +779,7 @@ typedef enum {
     [self _delegateDispatch: ^{
       dispatch_source_cancel(ping.timeout);
       ping.timeout = NULL;
-      ping.block(kISpdyPingTimedOut, -1.0);
+      [ping _invoke: kISpdyPingTimedOut rtt: -1.0];
     }];
   }
 }
@@ -924,8 +924,8 @@ typedef enum {
   ping.timeout = NULL;
 
   [self _delegateDispatch: ^{
-    ping.block(kISpdyPingOk,
-               [[NSDate date] timeIntervalSinceDate: ping.start_date]);
+    [ping _invoke: kISpdyPingOk
+              rtt: [[NSDate date] timeIntervalSinceDate: ping.start_date]];
   }];
 }
 
@@ -1310,7 +1310,12 @@ typedef enum {
 
 @implementation ISpdyPing
 
-// No-op too
+- (void) _invoke: (ISpdyPingStatus) status rtt: (NSTimeInterval) rtt {
+  if (self.block == NULL)
+    return;
+  self.block(status, rtt);
+  self.block = NULL;
+}
 
 @end
 

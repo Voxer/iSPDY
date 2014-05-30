@@ -256,6 +256,8 @@ typedef enum {
 @property dispatch_source_t timeout;
 @property NSDate* start_date;
 
+- (void) _invoke: (ISpdyPingStatus) status rtt: (NSTimeInterval) rtt;
+
 @end
 
 @interface ISpdyError (ISpdyErrorPrivate)
