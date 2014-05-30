@@ -72,7 +72,8 @@ typedef enum {
  */
 typedef enum {
   kISpdyPingOk,
-  kISpdyPingTimedOut
+  kISpdyPingTimedOut,
+  kISpdyPingConnectionEnd
 } ISpdyPingStatus;
 
 /**

@@ -779,7 +779,7 @@ typedef enum {
     [self _delegateDispatch: ^{
       dispatch_source_cancel(ping.timeout);
       ping.timeout = NULL;
-      [ping _invoke: kISpdyPingTimedOut rtt: -1.0];
+      [ping _invoke: kISpdyPingConnectionEnd rtt: -1.0];
     }];
   }
 }
