@@ -153,7 +153,9 @@ typedef enum {
 - (void) _scheduleInRunLoop: (NSRunLoop*) loop forMode: (NSString*) mode;
 - (void) _removeFromRunLoop: (NSRunLoop*) loop forMode: (NSString*) mode;
 - (void) _setNoDelay: (BOOL) enable;
-- (void) _setKeepAlive: (NSInteger) keepalive;
+- (void) _setKeepAliveDelay: (NSInteger) delay
+                   interval: (NSInteger) interval
+                   andCount: (NSInteger) count;
 - (BOOL) _close: (ISpdyError*) err;
 
 // Write raw data to the underlying socket, returns YES if write wasn't buffered

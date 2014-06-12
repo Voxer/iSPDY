@@ -67,7 +67,11 @@ typedef enum {
   ISpdyParser* parser_;
   ISpdyScheduler* scheduler_;
   BOOL no_delay_;
-  NSInteger keep_alive_;
+  struct {
+    NSInteger delay;
+    NSInteger interval;
+    NSInteger count;
+  } keep_alive_;
 
   // SSL pinned certs
   NSMutableSet* pinned_certs_;
@@ -141,7 +145,7 @@ typedef enum {
   active_streams_ = 0;
   ping_id_ = 1;
   goaway_ = NO;
-  keep_alive_ = -1;
+  keep_alive_.delay = -1;
   initial_window_ = kInitialWindowSizeOut;
 
   streams_ = [[NSMutableDictionary alloc] initWithCapacity: 100];
@@ -267,9 +271,11 @@ typedef enum {
 }
 
 
-- (void) setKeepAlive: (NSInteger) keepalive {
+- (void) setKeepAliveDelay: (NSInteger) delay
+                  interval: (NSInteger) interval
+                  andCount: (NSInteger) count {
   [self _connectionDispatch: ^{
-    [self _setKeepAlive: keepalive];
+   [self _setKeepAliveDelay: delay interval: interval andCount: count];
   }];
 }
 
@@ -641,19 +647,25 @@ typedef enum {
 }
 
 
-- (void) _setKeepAlive: (NSInteger) keepalive {
+- (void) _setKeepAliveDelay: (NSInteger) delay
+                   interval: (NSInteger) interval
+                   andCount: (NSInteger) count {
   NSStreamStatus status = [out_stream_ streamStatus];
 
   // If stream is not open yet, queue setting option
   if (status != NSStreamStatusOpen && status != NSStreamStatusWriting) {
-    keep_alive_ = keepalive;
+    keep_alive_.delay = delay;
+    keep_alive_.interval = interval;
+    keep_alive_.count = count;
     return;
   }
 
   __block int r;
   [self _fdWithBlock: ^(CFSocketNativeHandle fd) {
-    int enable = keepalive != 0;
-    int ikeepalive = (int) keepalive;
+    int enable = delay != 0;
+    int ikeepalive = (int) delay;
+    int iinterval = (int) interval;
+    int icount = (int) count;
 
     if (fd == -1) {
       r = 0;
@@ -667,9 +679,23 @@ typedef enum {
                      TCP_KEEPALIVE,
                      &ikeepalive,
                      sizeof(ikeepalive));
+      if (r == 0) {
+        r = setsockopt(fd,
+                       IPPROTO_TCP,
+                       TCP_KEEPINTVL,
+                       &iinterval,
+                       sizeof(iinterval));
+      }
+      if (r == 0) {
+        r = setsockopt(fd,
+                       IPPROTO_TCP,
+                       TCP_KEEPCNT,
+                       &icount,
+                       sizeof(icount));
+      }
     }
   }];
-  NSAssert(r == 0 || errno == EINVAL, @"Set NODELAY failed");
+  NSAssert(r == 0 || errno == EINVAL, @"Set KEEPALIVE failed");
 }
 
 
@@ -1045,8 +1071,11 @@ typedef enum {
       // Set queued option
       if (no_delay_)
         [self _setNoDelay: no_delay_];
-      if (keep_alive_ != -1)
-        [self _setKeepAlive: keep_alive_];
+      if (keep_alive_.delay != -1) {
+        [self _setKeepAliveDelay: keep_alive_.delay
+                        interval: keep_alive_.interval
+                        andCount: keep_alive_.count];
+      }
 
        _state = kISpdyStateConnected;
       // Notify delegate

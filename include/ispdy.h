@@ -405,9 +405,13 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
 
 /**
  * Enable/disable TCP keepalive and set its timeout
- * @param keepalive  0 - to disable, positive - to set timeout and enable
+ * @param delay  0 - to disable, positive - to set keepalive delay (in seconds)
+ * @param interval  keepalive probe interval
+ * @param count  keepalive probe count before giving up
  */
-- (void) setKeepAlive: (NSInteger) keepalive;
+- (void) setKeepAliveDelay: (NSInteger) delay
+                  interval: (NSInteger) interval
+                  andCount: (NSInteger) count;
 
 /**
  * Configure the socket for VoIP usage
