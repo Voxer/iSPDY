@@ -274,11 +274,12 @@ typedef enum {
 }
 
 
-- (void) enableVoip {
+- (void) setVoip: (BOOL) enable {
   [self _connectionDispatch: ^{
-    [in_stream_ setProperty: NSStreamNetworkServiceTypeVoIP
+    const NSString* type = enable ? NSStreamNetworkServiceTypeVoIP : nil;
+    [in_stream_ setProperty: type
                      forKey: NSStreamNetworkServiceType];
-    [out_stream_ setProperty: NSStreamNetworkServiceTypeVoIP
+    [out_stream_ setProperty: type
                       forKey: NSStreamNetworkServiceType];
   }];
 }

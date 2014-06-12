@@ -412,7 +412,7 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
 /**
  * Configure the socket for VoIP usage
  */
-- (void) enableVoip;
+- (void) setVoip: (BOOL) enable;
 
 /**
  * Check underlying TCP socket's status and emit error in case of trouble
