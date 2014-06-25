@@ -330,6 +330,10 @@ typedef enum {
 
 
 - (BOOL) connect {
+  // Disallow reconnects
+  if (_state == kISpdyStateClosed)
+    return NO;
+
   // Reinitialize streams if connection was closed
   if (in_stream_ == nil) {
     NSAssert(out_stream_ == nil, @"Both streams should be closed");
@@ -424,6 +428,11 @@ typedef enum {
   request.connection = self;
 
   [self _connectionDispatch: ^{
+    if (_state == kISpdyStateClosed) {
+      LOG(kISpdyLogWarning, @"Trying to send request after close", request);
+      [self _error: request code: kISpdyErrSendAfterClose];
+      return;
+    }
     if (goaway_) {
       [self _error: request code: kISpdyErrSendAfterGoawayError];
       return;
@@ -475,6 +484,15 @@ typedef enum {
       }];
     }];
     ping.start_date = [NSDate date];
+
+    // Connection closed - invoke ping's block
+    if (_state == kISpdyStateClosed) {
+      [self _delegateDispatch: ^{
+        [ping _invoke: kISpdyPingConnectionEnd rtt: -1.0];
+      }];
+      return;
+    }
+
     [pings_ setObject: ping forKey: ping.ping_id];
 
     [framer_ clear];
@@ -1410,6 +1428,8 @@ typedef enum {
       return @"ISpdy error: server asked to go away";
     case kISpdyErrSendAfterGoawayError:
       return @"ISpdy error: request sent after go away";
+    case kISpdyErrSendAfterClose:
+      return @"ISpdy error: request sent after close";
     default:
       return [NSString stringWithFormat: @"Unexpected spdy error %d",
           self.code];

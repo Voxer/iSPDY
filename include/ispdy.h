@@ -54,7 +54,8 @@ typedef enum {
   kISpdyErrDecompressionError,
   kISpdyErrSSLPinningError,
   kISpdyErrGoawayError,
-  kISpdyErrSendAfterGoawayError
+  kISpdyErrSendAfterGoawayError,
+  kISpdyErrSendAfterClose
 } ISpdyErrorCode;
 
 /**
