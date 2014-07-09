@@ -871,6 +871,7 @@ typedef enum {
                    fin: rest == nil && write_fin
               withData: pending];
     [scheduler_ schedule: [framer_ output] withPriority: request.priority];
+    LOG(kISpdyLogInfo, @"DATA(%d) scheduled", [pending length]);
 
     if (write_fin) {
       NSAssert(request.closed_by_us == NO, @"Already closed!");
