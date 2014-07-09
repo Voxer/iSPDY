@@ -1221,7 +1221,7 @@ typedef enum {
           req.window_in -= [body length];
 
           // Send WINDOW_UPDATE if exhausted
-          if (req.window_in <= 0) {
+          if (req.window_in <= (req.initial_window_in / 2)) {
             NSInteger delta = (uint32_t) req.initial_window_in - req.window_in;
             NSAssert(delta >= 0 && delta <= 0x7fffffff,
                      @"delta OOB");
