@@ -59,6 +59,8 @@ typedef enum {
   ISpdyVersion version_;
   UInt16 port_;
   BOOL secure_;
+  CFReadStreamRef cf_in_stream_;
+  CFWriteStreamRef cf_out_stream_;
   NSInputStream* in_stream_;
   NSOutputStream* out_stream_;
   ISpdyCompressor* in_comp_;
@@ -165,19 +167,15 @@ typedef enum {
   if (scheduled_loops_ == nil)
     scheduled_loops_ = [NSMutableSet setWithCapacity: 1];
 
-  // Initialize connection
-  CFReadStreamRef cf_in_stream;
-  CFWriteStreamRef cf_out_stream;
-
   CFStreamCreatePairWithSocketToHost(
       NULL,
       (__bridge CFStringRef) host,
       port,
-      &cf_in_stream,
-      &cf_out_stream);
+      &cf_in_stream_,
+      &cf_out_stream_);
 
-  in_stream_ = (NSInputStream*) CFBridgingRelease(cf_in_stream);
-  out_stream_ = (NSOutputStream*) CFBridgingRelease(cf_out_stream);
+  in_stream_ = (__bridge NSInputStream*) cf_in_stream_;
+  out_stream_ = (__bridge NSOutputStream*) cf_out_stream_;
 
   if (in_stream_ == nil || out_stream_ == nil) {
     in_stream_ = nil;
@@ -239,6 +237,11 @@ typedef enum {
 
   delegate_queue_ = NULL;
   connection_queue_ = NULL;
+
+  in_stream_ = nil;
+  out_stream_ = nil;
+  CFRelease(cf_in_stream_);
+  CFRelease(cf_out_stream_);
 }
 
 
@@ -550,7 +553,7 @@ typedef enum {
     return;
 
   NSString* lnfmt =
-      [NSString stringWithFormat: @"%@:%ld %@", file, line, format];
+      [NSString stringWithFormat: @"%@:%ld %@", file, (long) line, format];
 
   va_list args;
   va_start(args, format);
