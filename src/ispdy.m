@@ -1451,7 +1451,8 @@ typedef enum {
   ISpdyError* r = [ISpdyError alloc];
   NSDictionary* dict;
 
-  dict = [NSDictionary dictionaryWithObject: details forKey: @"details"];
+  if (details != nil)
+    dict = [NSDictionary dictionaryWithObject: details forKey: @"details"];
   return [r initWithDomain: @"ispdy" code: (NSInteger) code userInfo: dict];
 }
 
