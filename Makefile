@@ -1,5 +1,6 @@
 VERSION ?= 0.1
 
+export GYP_GENERATOR_FLAGS = "xcode_project_version=3.2"
 IOS_SDK ?= iphoneos
 SIMULATOR_SDK ?= iphonesimulator
 MACOSX_SDK ?= macosx
