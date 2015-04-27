@@ -166,6 +166,7 @@
 				EXECUTABLE_PREFIX = lib;
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_PREPROCESSOR_DEFINITIONS = (
+					SENTEST_IGNORE_DEPRECATION_WARNING,
 					DEBUG,
 					_DEBUG,
 				);
@@ -177,7 +178,7 @@
 				);
 				OTHER_CFLAGS = (
 					"-fstrict-aliasing",
-					"-F/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS7.1.sdk/Developer/Library/Frameworks",
+					"-F/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS8.3.sdk/Developer/Library/Frameworks",
 					"-F/Applications/Xcode.app/Contents/Developer/Library/Frameworks",
 				);
 				PREBINDING = NO;
@@ -204,7 +205,10 @@
 				CLANG_ENABLE_OBJC_ARC = YES;
 				EXECUTABLE_PREFIX = lib;
 				GCC_OPTIMIZATION_LEVEL = 3;
-				GCC_PREPROCESSOR_DEFINITIONS = NDEBUG;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					SENTEST_IGNORE_DEPRECATION_WARNING,
+					NDEBUG,
+				);
 				GCC_VERSION = com.apple.compilers.llvm.clang.1_0;
 				GCC_WARN_ABOUT_MISSING_NEWLINE = YES;
 				HEADER_SEARCH_PATHS = (
@@ -213,7 +217,7 @@
 				);
 				OTHER_CFLAGS = (
 					"-fstrict-aliasing",
-					"-F/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS7.1.sdk/Developer/Library/Frameworks",
+					"-F/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS8.3.sdk/Developer/Library/Frameworks",
 					"-F/Applications/Xcode.app/Contents/Developer/Library/Frameworks",
 					"-flto",
 				);
