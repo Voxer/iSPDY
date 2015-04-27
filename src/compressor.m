@@ -360,7 +360,7 @@ static const char spdy3_dict_[] = {
       [output_ increaseLengthBy: kCompBufferSize];
       continue;
     }
-  } while (stream->avail_in != 0);
+  } while (stream->avail_in != 0 || stream->avail_out == 0);
 
   // Output was a bit bigger, shrink it's length to represent useful value
   [output_ setLength: offset];
