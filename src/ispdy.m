@@ -652,7 +652,7 @@ typedef enum {
 
   // If stream is not open yet, queue setting option
   if (status != NSStreamStatusOpen && status != NSStreamStatusWriting) {
-    no_delay_ = YES;
+    no_delay_ = enable;
     return;
   }
 
