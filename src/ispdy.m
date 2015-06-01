@@ -69,7 +69,7 @@ typedef enum {
   ISpdyParser* parser_;
   ISpdyScheduler* scheduler_;
   BOOL no_delay_;
-  NSInteger snd_buf_size_;
+  int snd_buf_size_;
   struct {
     NSInteger delay;
     NSInteger interval;
@@ -277,7 +277,7 @@ typedef enum {
 }
 
 
-- (void) setSendBufferSize: (NSInteger) size {
+- (void) setSendBufferSize: (int) size {
   [self _connectionDispatch: ^{
     [self _setSendBufferSize: size];
   }];
@@ -678,7 +678,7 @@ typedef enum {
 }
 
 
-- (void) _setSendBufferSize: (NSInteger) size {
+- (void) _setSendBufferSize: (int) size {
   NSStreamStatus status = [out_stream_ streamStatus];
 
   // If stream is not open yet, queue setting option
@@ -689,11 +689,10 @@ typedef enum {
 
   __block int r;
   [self _fdWithBlock: ^(CFSocketNativeHandle fd) {
-    int snd_buf = size;
     if (fd == -1)
       r = 0;
     else
-      r = setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &snd_buf, sizeof(snd_buf));
+      r = setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &size, sizeof(size));
   }];
   NSAssert(r == 0 || errno == EINVAL, @"Set SO_SNDBUF failed");
 }

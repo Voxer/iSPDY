@@ -153,7 +153,7 @@ typedef enum {
 - (void) _scheduleInRunLoop: (NSRunLoop*) loop forMode: (NSString*) mode;
 - (void) _removeFromRunLoop: (NSRunLoop*) loop forMode: (NSString*) mode;
 - (void) _setNoDelay: (BOOL) enable;
-- (void) _setSendBufferSize: (NSInteger) size;
+- (void) _setSendBufferSize: (int) size;
 - (void) _setKeepAliveDelay: (NSInteger) delay
                    interval: (NSInteger) interval
                    andCount: (NSInteger) count;

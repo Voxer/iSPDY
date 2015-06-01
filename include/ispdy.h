@@ -408,7 +408,7 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
 /**
  * Set send buffer size
  */
-- (void) setSendBufferSize: (NSInteger) size;
+- (void) setSendBufferSize: (int) size;
 
 /**
  * Enable/disable TCP keepalive and set its timeout
