@@ -404,6 +404,12 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
  */
 - (void) setNoDelay: (BOOL) enable;
 
+
+/**
+ * Set send buffer size
+ */
+- (void) setSendBufferSize: (NSInteger) size;
+
 /**
  * Enable/disable TCP keepalive and set its timeout
  * @param delay  0 - to disable, positive - to set keepalive delay (in seconds)

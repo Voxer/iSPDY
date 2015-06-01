@@ -69,6 +69,7 @@ typedef enum {
   ISpdyParser* parser_;
   ISpdyScheduler* scheduler_;
   BOOL no_delay_;
+  NSInteger snd_buf_size_;
   struct {
     NSInteger delay;
     NSInteger interval;
@@ -147,6 +148,8 @@ typedef enum {
   active_streams_ = 0;
   ping_id_ = 1;
   goaway_ = NO;
+  no_delay_ = NO;
+  snd_buf_size_ = -1;
   keep_alive_.delay = -1;
   initial_window_ = kInitialWindowSizeOut;
 
@@ -270,6 +273,13 @@ typedef enum {
 - (void) setNoDelay: (BOOL) enable {
   [self _connectionDispatch: ^{
     [self _setNoDelay: enable];
+  }];
+}
+
+
+- (void) setSendBufferSize: (NSInteger) size {
+  [self _connectionDispatch: ^{
+    [self _setSendBufferSize: size];
   }];
 }
 
@@ -665,6 +675,27 @@ typedef enum {
       r = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &ienable, sizeof(ienable));
   }];
   NSAssert(r == 0 || errno == EINVAL, @"Set NODELAY failed");
+}
+
+
+- (void) _setSendBufferSize: (NSInteger) size {
+  NSStreamStatus status = [out_stream_ streamStatus];
+
+  // If stream is not open yet, queue setting option
+  if (status != NSStreamStatusOpen && status != NSStreamStatusWriting) {
+    snd_buf_size_ = size;
+    return;
+  }
+
+  __block int r;
+  [self _fdWithBlock: ^(CFSocketNativeHandle fd) {
+    int snd_buf = size;
+    if (fd == -1)
+      r = 0;
+    else
+      r = setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &snd_buf, sizeof(snd_buf));
+  }];
+  NSAssert(r == 0 || errno == EINVAL, @"Set SO_SNDBUF failed");
 }
 
 
@@ -1092,6 +1123,8 @@ typedef enum {
       // Set queued option
       if (no_delay_)
         [self _setNoDelay: no_delay_];
+      if (snd_buf_size_ != -1)
+        [self _setSendBufferSize: snd_buf_size_];
       if (keep_alive_.delay != -1) {
         [self _setKeepAliveDelay: keep_alive_.delay
                         interval: keep_alive_.interval
