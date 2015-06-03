@@ -349,7 +349,11 @@ static const char spdy3_dict_[] = {
         ret = inflate(stream, Z_SYNC_FLUSH);
       }
     }
-    if (ret != Z_OK && ret != Z_STREAM_END)
+
+    // NOTE: zlib might return Z_BUF_ERROR if both input and output lengths were
+    // 0. This means that on previous cycle of this loop avail_out was 0. We have
+    // cycled one more time to check if there is any pending data in zlib
+    if (ret != Z_OK && ret != Z_STREAM_END && ret != Z_BUF_ERROR)
       goto fatal;
 
     // Shift offset
