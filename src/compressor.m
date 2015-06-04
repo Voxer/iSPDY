@@ -357,7 +357,7 @@ static const char spdy3_dict_[] = {
       goto fatal;
 
     // Shift offset
-    offset += [output_ length] - offset - stream->avail_out;
+    offset = [output_ length] - stream->avail_out;
 
     // Need to fit more data
     if (stream->avail_out == 0) {
