@@ -694,7 +694,7 @@ typedef enum {
     else
       r = setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &size, sizeof(size));
   }];
-  NSAssert(r == 0 || errno == EINVAL, @"Set SO_SNDBUF failed");
+  //NSAssert(r == 0 || errno == EINVAL, @"Set SO_SNDBUF failed");
 }
 
 
