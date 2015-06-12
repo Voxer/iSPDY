@@ -22,9 +22,9 @@ Pod::Spec.new do |s|
 
 
 
-  s.frameworks = 'CoreServices', 'Security'
+  s.frameworks = 'CoreFoundation', 'Security'
 
-  s.library   = 'libz'
+  s.libraries   = 'z'
 
   s.requires_arc = true
 
