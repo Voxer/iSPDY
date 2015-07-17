@@ -53,7 +53,7 @@
   NSUInteger len = [buffer_ length];
   NSUInteger read = 0;
 
-  while (len >= 8) {
+  while (len >= kSpdyHeaderSize) {
     BOOL skip = NO;
     BOOL is_control = (input[0] & 0x80) != 0;
     ISpdyFrameType frame_type;
@@ -78,13 +78,13 @@
     body_len = ntohl(*(uint32_t*) (input + 4)) & 0x00ffffff;
 
     // Don't have enough data yet
-    if (len < body_len + 8)
+    if (len < body_len + kSpdyHeaderSize)
       break;
 
     // Skip header
-    len -= 8;
-    input += 8;
-    read += 8;
+    len -= kSpdyHeaderSize;
+    input += kSpdyHeaderSize;
+    read += kSpdyHeaderSize;
 
     switch (frame_type) {
       case kISpdyData:

@@ -39,6 +39,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   id <ISpdyRequestDelegate> delegate_;
   NSMutableArray* input_queue_;
   NSMutableArray* output_queue_;
+  NSUInteger output_queue_size_;
   NSMutableDictionary* headers_queue_;
   NSMutableDictionary* in_headers_queue_;
   dispatch_source_t response_timeout_;
@@ -59,7 +60,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
     return [self _queueOutput: data];
 
   [self.connection _connectionDispatch: ^{
-    [self.connection _writeData: data to: self fin: NO];
+    [self.connection _writeData: data to: self];
   }];
 }
 
@@ -91,7 +92,8 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   }
 
   [self.connection _connectionDispatch: ^{
-    [self.connection _writeData: data to: self fin: YES];
+    self.pending_closed_by_us = YES;
+    [self.connection _writeData: data to: self];
   }];
 }
 
@@ -240,6 +242,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
     output_queue_ = [NSMutableArray arrayWithCapacity: 16];
 
   [output_queue_ addObject: data];
+  output_queue_size_ += [data length];
 }
 
 
@@ -263,15 +266,20 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 }
 
 
+- (NSUInteger) _queuedDataSize {
+  return output_queue_size_;
+}
+
+
 - (void) _unqueueOutput {
   if (output_queue_ == nil)
     return;
 
   NSUInteger count = [output_queue_ count];
   for (NSUInteger i = 0; i < count; i++) {
-    [self.connection _writeData: [output_queue_ objectAtIndex: i]
-                             to: self
-                            fin: NO];
+    NSData* data = [output_queue_ objectAtIndex: i];
+    output_queue_size_ -= [data length];
+    [self.connection _writeData: data to: self];
   }
 
   [output_queue_ removeObjectsInRange: NSMakeRange(0, count)];

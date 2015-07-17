@@ -43,6 +43,8 @@ static const NSInteger kInitialWindowSizeIn = 1048576;
 static const NSInteger kInitialWindowSizeOut = 65536;
 static const NSUInteger kMaxPriority = 7;
 static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
+static const NSInteger kSocketMaxWriteSize = 65536;
+static const NSUInteger kSocketMaxBufferSize = 128 * 1024;
 
 typedef enum {
   kISpdySSLPinningNone,
@@ -70,6 +72,7 @@ typedef enum {
   ISpdyScheduler* scheduler_;
   BOOL no_delay_;
   int snd_buf_size_;
+  NSInteger max_write_size_;
   struct {
     NSInteger delay;
     NSInteger interval;
@@ -107,7 +110,9 @@ typedef enum {
   NSMutableDictionary* pings_;
 
   // Connection write buffer
-  NSMutableData* buffer_;
+  NSMutableArray* buffer_data_;
+  NSMutableArray* buffer_callback_;
+  NSUInteger buffer_size_;
 
   // Dispatch queue for invoking methods on delegates
   dispatch_queue_t delegate_queue_;
@@ -126,6 +131,16 @@ typedef enum {
   if (!self)
     return self;
 
+  if (delegate_queue_ == nil) {
+    // Initialize dispatch queue
+    delegate_queue_ = dispatch_queue_create("com.voxer.ispdy.delegate",
+                                            NULL);
+    NSAssert(delegate_queue_ != NULL, @"Failed to get main queue");
+    connection_queue_ = dispatch_queue_create("com.voxer.ispdy.connection",
+                                              NULL);
+    NSAssert(connection_queue_ != NULL, @"Failed to get main queue");
+  }
+
   version_ = version;
   port_ = port;
   secure_ = secure;
@@ -134,7 +149,8 @@ typedef enum {
   out_comp_ = [[ISpdyCompressor alloc] init: version];
   framer_ = [[ISpdyFramer alloc] init: version compressor: out_comp_];
   parser_ = [[ISpdyParser alloc] init: version compressor: in_comp_];
-  scheduler_ = [ISpdyScheduler schedulerWithMaxPriority: kMaxPriority];
+  scheduler_ = [ISpdyScheduler schedulerWithMaxPriority: kMaxPriority
+                                            andDispatch: connection_queue_];
   _last_frame = &last_frame_;
   _state = kISpdyStateInitial;
 
@@ -151,16 +167,16 @@ typedef enum {
   no_delay_ = NO;
   snd_buf_size_ = -1;
   keep_alive_.delay = -1;
+  max_write_size_ = kSocketMaxWriteSize;
   initial_window_ = kInitialWindowSizeOut;
 
   streams_ = [[NSMutableDictionary alloc] initWithCapacity: 100];
   pings_ = [[NSMutableDictionary alloc] initWithCapacity: 10];
 
-  // Truncate or create buffer
-  if (buffer_ != nil)
-    [buffer_ setLength: 0];
-  else
-    buffer_ = [[NSMutableData alloc] initWithCapacity: 4096];
+  // Create buffer
+  buffer_data_ = [NSMutableArray arrayWithCapacity: 100];
+  buffer_callback_ = [NSMutableArray arrayWithCapacity: 100];
+  buffer_size_ = 0;
 
   // Initialize pinned certs
   if (pinned_certs_ == nil)
@@ -206,16 +222,6 @@ typedef enum {
         NSAssert(NO, @"Failed to set SSL hostname");
       }
     }
-  }
-
-  if (delegate_queue_ == nil) {
-    // Initialize dispatch queue
-    delegate_queue_ = dispatch_queue_create("com.voxer.ispdy.delegate",
-                                            NULL);
-    NSAssert(delegate_queue_ != NULL, @"Failed to get main queue");
-    connection_queue_ = dispatch_queue_create("com.voxer.ispdy.connection",
-                                              NULL);
-    NSAssert(connection_queue_ != NULL, @"Failed to get main queue");
   }
 
   return self;
@@ -280,6 +286,13 @@ typedef enum {
 - (void) setSendBufferSize: (int) size {
   [self _connectionDispatch: ^{
     [self _setSendBufferSize: size];
+  }];
+}
+
+
+- (void) setMaxWriteSize: (NSInteger) size {
+  [self _connectionDispatch: ^{
+    [self _setMaxWriteSize: size];
   }];
 }
 
@@ -371,7 +384,10 @@ typedef enum {
     [self _connectionDispatchSync: ^{
       [framer_ clear];
       [framer_ initialWindow: kInitialWindowSizeIn];
-      [self _writeRaw: [framer_ output] withMode: kISpdyWriteChunkBuffering];
+      [scheduler_ schedule: [framer_ output]
+               forPriority: 0
+                 andStream: 0
+              withCallback: nil];
     }];
   }
 
@@ -420,7 +436,10 @@ typedef enum {
 
     [framer_ clear];
     [framer_ goaway: stream_id_ - 2 status: kISpdyGoawayOk];
-    [self _writeRaw: [framer_ output] withMode: kISpdyWriteChunkBuffering];
+    [scheduler_ schedule: [framer_ output]
+             forPriority: 0
+               andStream: 0
+            withCallback: nil];
 
     // Close connection if needed
     [self _handleDrain];
@@ -468,7 +487,10 @@ typedef enum {
                 method: request.method
                     to: request.url
                headers: request.headers];
-    [self _writeRaw: [framer_ output] withMode: kISpdyWriteChunkBuffering];
+    [scheduler_ schedule: [framer_ output]
+             forPriority: 0
+               andStream: 0
+            withCallback: nil];
 
     // Send body if accumulated
     [request _unqueueOutput];
@@ -510,8 +532,10 @@ typedef enum {
 
     [framer_ clear];
     [framer_ ping: (uint32_t) [ping.ping_id integerValue]];
-    [self _writeRaw: [framer_ output]
-           withMode: kISpdyWriteChunkBuffering];
+    [scheduler_ schedule: [framer_ output]
+             forPriority: 0
+               andStream: 0
+            withCallback: nil];
   }];
 }
 
@@ -698,6 +722,11 @@ typedef enum {
 }
 
 
+- (void) _setMaxWriteSize: (NSInteger) size {
+  max_write_size_ = size;
+}
+
+
 - (void) _setKeepAliveDelay: (NSInteger) delay
                    interval: (NSInteger) interval
                    andCount: (NSInteger) count {
@@ -791,49 +820,92 @@ typedef enum {
 }
 
 
-- (NSInteger) scheduledWrite: (NSData*) data {
-  return [self _writeRaw: data withMode: kISpdyWriteNoChunkBuffering];
+- (BOOL) scheduledWrite: (NSData*) data
+           withCallback: (ISpdySchedulerCallback) cb {
+  if (buffer_size_ > kSocketMaxBufferSize) {
+    LOG(kISpdyLogDebug, @"Can\'t schedule write, buffer is full");
+    return NO;
+  }
+
+  [buffer_data_ addObject: data];
+  [buffer_callback_ addObject: cb];
+  buffer_size_ += [data length];
+
+  LOG(kISpdyLogDebug,
+      @"Scheduled write size=%d total buffered=%d",
+      [data length],
+      buffer_size_);
+
+  [self _scheduleSocketWrite];
+
+  return YES;
 }
 
 
-- (NSInteger) _writeRaw: (NSData*) data withMode: (ISpdyWriteMode) mode {
+- (void) _scheduleSocketWrite {
+  // TODO(indutny): do it on event loop's thread
+  [self _doSocketWrite];
+}
+
+
+- (void) _doSocketWrite {
   NSStreamStatus status = [out_stream_ streamStatus];
 
   if (status == NSStreamStatusNotOpen) {
     ISpdyError* err = [ISpdyError errorWithCode: kISpdyErrConnectionEnd];
     [self _close: err];
-    return [data length];
+    return;
   }
 
   // If stream is not open yet, or if there's already queued data -
   // queue more.
   if ((status != NSStreamStatusOpen && status != NSStreamStatusWriting) ||
-      ![out_stream_ hasSpaceAvailable] ||
-      [buffer_ length] > 0) {
-    if (mode != kISpdyWriteNoChunkBuffering) {
-      [buffer_ appendData: data];
-      return [data length];
-    }
-    return 0;
+      ![out_stream_ hasSpaceAvailable]) {
+    return;
   }
 
-  // Try writing to stream first
+  // Release more frames!
+  if (buffer_size_ == 0)
+    return [scheduler_ unschedule];
+
+  NSData* data = [buffer_data_ objectAtIndex: 0];
+  ISpdySchedulerCallback cb = [buffer_callback_ objectAtIndex: 0];
+
+  // Socket available for write
+  LOG(kISpdyLogDebug,
+      @"Socket send size=%d out of buffer=%d",
+      [data length],
+      buffer_size_);
   NSInteger r = [out_stream_ write: [data bytes] maxLength: [data length]];
-
-  // Error will be handled on socket level, no need in buffering
-  if (r == -1)
-    return [data length];
-
-  if (mode == kISpdyWriteNoChunkBuffering)
-    return r;
-
-  // Only part of data was written, queue rest
-  if (r < (NSInteger) [data length]) {
-    const void* input = [data bytes] + r;
-    [buffer_ appendBytes: input length: [data length] - r];
+  LOG(kISpdyLogDebug, @"Socket sent size=%d", r);
+  if (r == -1) {
+    ISpdyError* err = [ISpdyError errorWithCode: kISpdyErrSocketError
+                                     andDetails: [out_stream_ streamError]];
+    [self _close: err];
+    return;
   }
 
-  return r;
+  NSAssert(buffer_size_ >= r, @"Socket buffer overflow");
+  buffer_size_ -= r;
+
+  // Incomplete write
+  if (r < (NSInteger) [data length]) {
+    NSData* subdata = [data
+        subdataWithRange: NSMakeRange(r, [data length] - r)];
+
+    [buffer_data_ replaceObjectAtIndex: 0 withObject: subdata];
+    return;
+  }
+
+  // Shift
+  [buffer_data_ removeObjectAtIndex: 0];
+  [buffer_callback_ removeObjectAtIndex: 0];
+
+  // Notify caller
+  cb();
+
+  if (buffer_size_ == 0)
+    [self _handleDrain];
 }
 
 
@@ -864,15 +936,9 @@ typedef enum {
 }
 
 
-- (void) _writeData: (NSData*) data
-                 to: (ISpdyRequest*) request
-                fin: (BOOL) fin {
+- (void) _writeData: (NSData*) data to: (ISpdyRequest*) request {
   // Reset timeout
   [request _resetTimeout];
-
-  NSData* pending = data;
-  NSInteger pending_length = [pending length];
-  NSData* rest = nil;
 
   // Already closed
   if (request.closed_by_us == YES)
@@ -880,50 +946,80 @@ typedef enum {
 
   NSAssert(request.connection != nil, @"Request was closed");
 
-  if (request.window_out != 0) {
-    // Perform flow control
-    if (version_ != kISpdyV2) {
-      // Only part of the data could be written now
-      if (pending_length > request.window_out) {
-        // Queue tail
-        rest = [pending subdataWithRange: NSMakeRange(
-            request.window_out,
-            pending_length - request.window_out)];
-
-        // Send head
-        pending =
-            [pending subdataWithRange: NSMakeRange(0, request.window_out)];
-
-        pending_length = [pending length];
-      }
-      request.window_out -= pending_length;
-    }
-
-    BOOL write_fin = fin || request.pending_closed_by_us;
-    [framer_ clear];
-    [framer_ dataFrame: request.stream_id
-                   fin: rest == nil && write_fin
-              withData: pending];
-    [scheduler_ schedule: [framer_ output] withPriority: request.priority];
-
-    if (write_fin) {
-      NSAssert(request.closed_by_us == NO, @"Already closed!");
-      if (rest == nil) {
-        request.closed_by_us = YES;
-        request.pending_closed_by_us = NO;
-      } else {
-        request.pending_closed_by_us = YES;
-      }
-    }
-  } else {
-    rest = data;
+  // Empty window, queue
+  if (request.window_out == 0) {
+    [request _queueOutput: data];
+    LOG(kISpdyLogDebug, @"Queued output on request size=%d", [data length]);
+    return;
   }
+
+  NSData* pending = data;
+  NSInteger pending_length = [pending length];
+  NSData* rest = nil;
+  NSInteger max_avail;
+
+  max_avail = pending_length;
+
+  // DATA should fit into one socket write
+  if (max_avail > max_write_size_ - kSpdyHeaderSize)
+    max_avail = max_write_size_ - kSpdyHeaderSize;
+
+  // Perform flow control
+  if (version_ != kISpdyV2 && max_avail > request.window_out)
+    max_avail = request.window_out;
+
+  // Only part of the data could be written now
+  if (pending_length > max_avail) {
+    // Queue tail
+    rest = [pending subdataWithRange: NSMakeRange(
+        max_avail,
+        pending_length - max_avail)];
+
+    // Send head
+    pending = [pending subdataWithRange: NSMakeRange(0, max_avail)];
+    pending_length = [pending length];
+  }
+
+  if (version_ != kISpdyV2)
+    request.window_out -= pending_length;
+
+  if (rest != nil) {
+    [request _queueOutput: rest];
+    LOG(kISpdyLogDebug, @"Queued output on request size=%d", [rest length]);
+  }
+
+  BOOL write_fin = request.pending_closed_by_us && ![request _hasQueuedData];
+  LOG(kISpdyLogDebug,
+      @"Request sending DATA size=%d fin=%d",
+      [pending length],
+      write_fin);
+
+  [framer_ clear];
+  [framer_ dataFrame: request.stream_id
+                 fin: write_fin
+            withData: pending];
+  [scheduler_ schedule: [framer_ output]
+           forPriority: request.priority
+             andStream: request.stream_id
+          withCallback: ^() {
+    LOG(kISpdyLogDebug,
+        @"Request DATA sent size=%d/%u",
+        [pending length],
+        [request _queuedDataSize]);
+
+    // Not last DATA - unqueue anything pending
+    if (!write_fin) {
+      [request _unqueueOutput];
+      return;
+    }
+
+    // Last DATA frame, nothing queued
+    request.closed_by_us = YES;
+    [request _tryClose];
+  }];
 
   if (request.window_out <= 0)
     LOG(kISpdyLogInfo, @"Window emptied");
-
-  if (rest != nil)
-    [request _queueOutput: rest];
 }
 
 
@@ -933,14 +1029,20 @@ typedef enum {
 
   [framer_ clear];
   [framer_ headers: request.stream_id withHeaders: headers];
-  [self _writeRaw: [framer_ output] withMode: kISpdyWriteChunkBuffering];
+  [scheduler_ schedule: [framer_ output]
+           forPriority: 0
+             andStream: 0
+          withCallback: nil];
 }
 
 
 - (void) _rst: (uint32_t) stream_id code: (uint8_t) code {
   [framer_ clear];
   [framer_ rst: stream_id code: code];
-  [self _writeRaw: [framer_ output] withMode: kISpdyWriteChunkBuffering];
+  [scheduler_ schedule: [framer_ output]
+           forPriority: 0
+             andStream: 0
+          withCallback: nil];
 }
 
 
@@ -960,17 +1062,8 @@ typedef enum {
   if (request.closed_by_us || request.pending_closed_by_us)
     return;
 
-  if (![request _hasQueuedData]) {
-    [framer_ clear];
-    [framer_ dataFrame: request.stream_id
-                   fin: 1
-              withData: nil];
-    request.closed_by_us = YES;
-    [scheduler_ schedule: [framer_ output] withPriority: request.priority];
-    [request _tryClose];
-  } else {
-    request.pending_closed_by_us = YES;
-  }
+  request.pending_closed_by_us = YES;
+  [self _writeData: nil to: request];
 }
 
 
@@ -1010,7 +1103,7 @@ typedef enum {
 
 
 - (void) _handleDrain {
-  if (goaway_ && active_streams_ == 0 && [buffer_ length] == 0)
+  if (goaway_ && active_streams_ == 0 && buffer_size_ == 0)
     [self _close: nil];
 }
 
@@ -1167,32 +1260,9 @@ typedef enum {
     }
 
     if (event == NSStreamEventHasSpaceAvailable) {
-      // If there're no control frames to send - send data
-      if ([buffer_ length] == 0)
-        return [scheduler_ unschedule];
-
       NSAssert(out_stream_ == stream, @"Write event on input stream?!");
 
-      // Socket available for write
-      NSInteger r = [out_stream_ write: [buffer_ bytes]
-                             maxLength: [buffer_ length]];
-      if (r == -1) {
-        ISpdyError* err = [ISpdyError errorWithCode: kISpdyErrSocketError
-                                         andDetails: [stream streamError]];
-        [self _close: err];
-        return;
-      }
-
-      // Shift data
-      if (r < (NSInteger) [buffer_ length]) {
-        void* bytes = [buffer_ mutableBytes];
-        memmove(bytes, bytes + r, [buffer_ length] - r);
-      }
-      // Truncate
-      BOOL drained = r != 0 && [buffer_ length] == (NSUInteger) r;
-      [buffer_ setLength: [buffer_ length] - r];
-      if (drained)
-        [self _handleDrain];
+      [self _doSocketWrite];
     } else if (event == NSStreamEventHasBytesAvailable) {
       NSAssert(in_stream_ == stream, @"Read event on output stream?!");
 
@@ -1263,8 +1333,10 @@ typedef enum {
                      @"delta OOB");
             [framer_ clear];
             [framer_ windowUpdate: stream_id update: (uint32_t) delta];
-            [self _writeRaw: [framer_ output]
-                   withMode: kISpdyWriteChunkBuffering];
+            [scheduler_ schedule: [framer_ output]
+                     forPriority: 0
+                       andStream: 0
+                    withCallback: nil];
             req.window_in += delta;
           }
         }
@@ -1346,8 +1418,10 @@ typedef enum {
           // Just reply
           [framer_ clear];
           [framer_ ping: (uint32_t) ping_id];
-          [self _writeRaw: [framer_ output]
-                 withMode: kISpdyWriteChunkBuffering];
+          [scheduler_ schedule: [framer_ output]
+                   forPriority: 0
+                     andStream: 0
+                  withCallback: nil];
 
         // Client-initiated ping
         } else {

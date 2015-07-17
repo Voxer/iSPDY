@@ -161,7 +161,7 @@
 				);
 				OTHER_CFLAGS = (
 					"-fstrict-aliasing",
-					"-F/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator8.3.sdk/Developer/Library/Frameworks",
+					"-F/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator8.4.sdk/Developer/Library/Frameworks",
 					"-F/Applications/Xcode.app/Contents/Developer/Library/Frameworks",
 				);
 				PREBINDING = NO;
@@ -215,7 +215,7 @@
 				);
 				OTHER_CFLAGS = (
 					"-fstrict-aliasing",
-					"-F/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator8.3.sdk/Developer/Library/Frameworks",
+					"-F/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator8.4.sdk/Developer/Library/Frameworks",
 					"-F/Applications/Xcode.app/Contents/Developer/Library/Frameworks",
 					"-flto",
 				);

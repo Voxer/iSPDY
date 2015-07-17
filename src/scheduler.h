@@ -21,10 +21,16 @@
 // SOFTWARE.
 
 #import <Foundation/Foundation.h>
+#import <dispatch/dispatch.h>  // dispatch_queue_t
+
+typedef void (^ISpdySchedulerCallback)();
+typedef BOOL (^ISpdySchedulerUnscheduleCallback)(NSData* data,
+                                                 ISpdySchedulerCallback cb);
 
 @protocol ISpdySchedulerDelegate
 
-- (NSInteger) scheduledWrite: (NSData*) data;
+- (BOOL) scheduledWrite: (NSData*) data
+           withCallback: (ISpdySchedulerCallback) cb;
 
 @end
 
@@ -32,8 +38,44 @@
 
 @property id <ISpdySchedulerDelegate> delegate;
 
-+ (ISpdyScheduler*) schedulerWithMaxPriority: (NSUInteger) maxPriority;
-- (void) schedule: (NSData*) data withPriority: (NSUInteger) priority;
++ (ISpdyScheduler*) schedulerWithMaxPriority: (NSUInteger) maxPriority
+                                 andDispatch: (dispatch_queue_t) dispatch;
+
+- (void) schedule: (NSData*) data
+      forPriority: (NSUInteger) priority
+        andStream: (uint32_t) stream_id
+     withCallback: (ISpdySchedulerCallback) cb;
 - (void) unschedule;
+
+@end
+
+@interface ISpdySchedulerQueue : NSObject
+
+@property (weak) ISpdyScheduler* scheduler;
+
++ (ISpdySchedulerQueue*) queueWithScheduler: (ISpdyScheduler*) scheduler;
+- (ISpdySchedulerQueue*) initWithScheduler: (ISpdyScheduler*) scheduler;
+
+- (void) appendData: (NSData*) data
+         forStream: (uint32_t) stream_id
+       withCallback: (ISpdySchedulerCallback) cb;
+- (BOOL) unschedule: (ISpdySchedulerUnscheduleCallback) cb;
+- (BOOL) unscheduleOne: (ISpdySchedulerUnscheduleCallback) cb;
+
+@end
+
+@interface ISpdySchedulerItem : NSObject
+
+@property (weak) ISpdySchedulerQueue* queue;
+@property uint32_t stream_id;
+
++ (ISpdySchedulerItem*) itemWithQueue: (ISpdySchedulerQueue*) queue
+                            andStream: (uint32_t) stream_id;
+- (ISpdySchedulerItem*) initWithQueue: (ISpdySchedulerQueue*) queue
+                            andStream: (uint32_t) stream_id;
+
+- (void) appendData: (NSData*) data withCallback: (ISpdySchedulerCallback) cb;
+- (BOOL) isEmpty;
+- (BOOL) unschedule: (ISpdySchedulerUnscheduleCallback) cb;
 
 @end

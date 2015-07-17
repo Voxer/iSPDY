@@ -90,6 +90,7 @@ typedef enum {
  * Log levels
  */
 typedef enum {
+  kISpdyLogDebug,
   kISpdyLogInfo,
   kISpdyLogWarning,
   kISpdyLogError
@@ -419,6 +420,11 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
  * Set send buffer size
  */
 - (void) setSendBufferSize: (int) size;
+
+/**
+ * Set max chunk size for socket write
+ */
+- (void) setMaxWriteSize: (BOOL) enable;
 
 /**
  * Enable/disable TCP keepalive and set its timeout

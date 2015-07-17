@@ -20,75 +20,195 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#import <string.h>  // memmove
-
 #import "scheduler.h"
 
-static const NSUInteger kBufferCapacity = 1024;
+static const NSInteger kSchedulerItemCapacity = 10;
 
 @implementation ISpdyScheduler {
-  NSArray* buffers_;
-  NSUInteger length_;
+  ISpdySchedulerQueue* sync_;
+  NSArray* queues_;
+  NSUInteger pending_;
+  dispatch_queue_t dispatch_;
+  BOOL pending_dispatch_;
 }
 
-+ (ISpdyScheduler*) schedulerWithMaxPriority: (NSUInteger) maxPriority {
++ (ISpdyScheduler*) schedulerWithMaxPriority: (NSUInteger) maxPriority
+                                 andDispatch: (dispatch_queue_t) dispatch {
   ISpdyScheduler* scheduler = [ISpdyScheduler alloc];
 
-  NSMutableArray* buffers = [NSMutableArray arrayWithCapacity: maxPriority];
+  NSMutableArray* queues = [NSMutableArray arrayWithCapacity: maxPriority];
   for (NSUInteger i = 0; i <= maxPriority; i++)
-    [buffers addObject: [NSMutableData dataWithCapacity: kBufferCapacity]];
-  scheduler->buffers_ = buffers;
+    [queues addObject: [ISpdySchedulerQueue queueWithScheduler: scheduler]];
+  scheduler->queues_ = queues;
+  scheduler->pending_ = 0;
+  scheduler->dispatch_ = dispatch;
+  scheduler->sync_ = [ISpdySchedulerQueue queueWithScheduler: scheduler];
+  scheduler->pending_dispatch_ = NO;
 
   return scheduler;
 }
 
 
-- (void) schedule: (NSData*) data withPriority: (NSUInteger) priority {
+- (void) schedule: (NSData*) data
+      forPriority: (NSUInteger) priority
+        andStream: (uint32_t) stream_id
+     withCallback: (ISpdySchedulerCallback) cb {
   NSAssert(self.delegate != nil, @"Delegate wasn't set");
-  NSAssert(priority < [buffers_ count], @"Priority OOB");
+  NSAssert(priority < [queues_ count], @"Priority OOB");
 
-  NSMutableData* buffer = (NSMutableData*) [buffers_ objectAtIndex: priority];
+  ISpdySchedulerQueue* queue;
+  if (stream_id == 0)
+    queue = sync_;
+  else
+    queue = (ISpdySchedulerQueue*) [queues_ objectAtIndex: priority];
 
-  // Optimization, write directly to output stream, skipping unschedule call
-  if (length_ == 0) {
-    NSUInteger r = [self.delegate scheduledWrite: data];
+  // Clone the framer output
+  NSData* clone = [NSData dataWithBytes: [data bytes] length: [data length]];
+  if (cb == nil)
+    [queue appendData: clone forStream: stream_id withCallback: ^() {}];
+  else
+    [queue appendData: clone forStream: stream_id withCallback: cb];
+  pending_++;
 
-    // Wholly written
-    if (r == [data length])
+  if (pending_dispatch_)
+    return;
+
+  pending_dispatch_ = YES;
+  dispatch_async(dispatch_, ^() {
+    // Someone has already unscheduled everything
+    if (!pending_dispatch_)
       return;
-
-    // Part of data wasn't written right now, slice it and buffer
-    [buffer appendBytes: [data bytes] + r length: [data length] - r];
-    length_ += [data length] - r;
-  } else {
-    [buffer appendData: data];
-    length_ += [data length];
-  }
+    [self unschedule];
+  });
 }
 
 
 - (void) unschedule {
-  NSAssert(self.delegate != nil, @"Delegate wasn't set");
-  NSUInteger count = [buffers_ count];
-  for (NSUInteger i = 0; i < count; i++) {
-    NSMutableData* buffer = (NSMutableData*) [buffers_ objectAtIndex: i];
-    if ([buffer length] == 0)
-      continue;
-    NSInteger r = [self.delegate scheduledWrite: buffer];
+  pending_dispatch_ = NO;
 
-    void* bytes = [buffer mutableBytes];
-    memmove(bytes, bytes + r, [buffer length] - r);
-    [buffer setLength: [buffer length] - r];
-    length_ -= r;
+  ISpdySchedulerUnscheduleCallback cb = ^BOOL (NSData* data,
+                                               ISpdySchedulerCallback done) {
+    if ([self.delegate scheduledWrite: data withCallback: done]) {
+      pending_--;
+      return YES;
+    }
+    return NO;
+  };
 
-    // Target stream is full, wait for next `unschedule` call
-    if ([buffer length] != 0)
+  // Write all sync data first
+  if (![sync_ unschedule: cb])
+    return;
+
+  for (ISpdySchedulerQueue* queue in queues_)
+    if (![queue unschedule: cb])
       break;
+}
 
-    // No more bytes to schedule
-    if (length_ == 0)
-      break;
+@end
+
+@implementation ISpdySchedulerQueue {
+  NSMutableDictionary* map_;
+  NSMutableArray* list_;
+  NSUInteger index_;
+}
+
++ (ISpdySchedulerQueue*) queueWithScheduler: (ISpdyScheduler*) scheduler {
+  return [[ISpdySchedulerQueue alloc] initWithScheduler: scheduler];
+}
+
+- (ISpdySchedulerQueue*) initWithScheduler: (ISpdyScheduler*) scheduler {
+  self.scheduler = scheduler;
+
+  // TODO(indutny): no magic constants
+  map_ = [NSMutableDictionary dictionaryWithCapacity: 100];
+  list_ = [NSMutableArray arrayWithCapacity: 100];
+  index_ = 0;
+  return self;
+}
+
+- (void) appendData: (NSData*) data
+          forStream: (uint32_t) stream_id
+       withCallback: (ISpdySchedulerCallback) cb {
+  NSNumber* key = [NSNumber numberWithUnsignedInt: stream_id];
+
+  ISpdySchedulerItem* item = [map_ objectForKey: key];
+  if (item == nil) {
+    item = [ISpdySchedulerItem itemWithQueue: self andStream: stream_id];
+    [map_ setObject: item forKey: key];
+    [list_ addObject: item];
   }
+
+  [item appendData: data withCallback: cb];
+}
+
+- (BOOL) unschedule: (ISpdySchedulerUnscheduleCallback) cb {
+  while ([list_ count] > 0) {
+    if (![self unscheduleOne: cb])
+      return NO;
+  }
+  return YES;
+}
+
+
+- (BOOL) unscheduleOne: (ISpdySchedulerUnscheduleCallback) cb {
+  index_ %= [list_ count];
+  NSUInteger index = index_;
+  index_++;
+
+  ISpdySchedulerItem* item = [list_ objectAtIndex: index];
+  BOOL result = [item unschedule: cb];
+
+  if ([item isEmpty]) {
+    NSNumber* key = [NSNumber numberWithUnsignedInt: item.stream_id];
+
+    [list_ removeObjectAtIndex: index];
+    [map_ removeObjectForKey: key];
+  }
+
+  return result;
+}
+
+@end
+
+@implementation ISpdySchedulerItem {
+  NSMutableArray* datas_;
+  NSMutableArray* callbacks_;
+}
+
++ (ISpdySchedulerItem*) itemWithQueue: (ISpdySchedulerQueue*) queue
+                            andStream: (uint32_t) stream_id {
+  return [[ISpdySchedulerItem alloc] initWithQueue: queue andStream: stream_id];
+}
+
+- (ISpdySchedulerItem*) initWithQueue: (ISpdySchedulerQueue*) queue
+                            andStream: (uint32_t) stream_id {
+  self.queue = queue;
+  self.stream_id = stream_id;
+
+  datas_ = [NSMutableArray arrayWithCapacity: kSchedulerItemCapacity];
+  callbacks_ = [NSMutableArray arrayWithCapacity: kSchedulerItemCapacity];
+
+  return self;
+}
+
+- (void) appendData: (NSData*) data withCallback: (ISpdySchedulerCallback) cb {
+  [datas_ addObject: data];
+  [callbacks_ addObject: cb];
+}
+
+- (BOOL) isEmpty {
+  return [datas_ count] == 0;
+}
+
+- (BOOL) unschedule: (ISpdySchedulerUnscheduleCallback) done {
+  NSData* data = [datas_ objectAtIndex: 0];
+  ISpdySchedulerCallback cb = [callbacks_ objectAtIndex: 0];
+  if (done(data, cb)) {
+    [datas_ removeObjectAtIndex: 0];
+    [callbacks_ removeObjectAtIndex: 0];
+    return YES;
+  }
+  return NO;
 }
 
 @end

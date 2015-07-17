@@ -29,11 +29,6 @@
 @class ISpdyPing;
 @class ISpdyCompressor;
 
-typedef enum {
-  kISpdyWriteNoChunkBuffering,
-  kISpdyWriteChunkBuffering
-} ISpdyWriteMode;
-
 // Possible SPDY Protocol RST codes
 typedef enum {
   kISpdyRstProtocolError = 0x1,
@@ -154,13 +149,11 @@ typedef enum {
 - (void) _removeFromRunLoop: (NSRunLoop*) loop forMode: (NSString*) mode;
 - (void) _setNoDelay: (BOOL) enable;
 - (void) _setSendBufferSize: (int) size;
+- (void) _setMaxWriteSize: (NSInteger) size;
 - (void) _setKeepAliveDelay: (NSInteger) delay
                    interval: (NSInteger) interval
                    andCount: (NSInteger) count;
 - (BOOL) _close: (ISpdyError*) err;
-
-// Write raw data to the underlying socket, returns YES if write wasn't buffered
-- (NSInteger) _writeRaw: (NSData*) data withMode: (ISpdyWriteMode) mode;
 
 // Close all streams and send error to each of them
 - (void) _closeStreams: (ISpdyError*) err;
@@ -171,7 +164,7 @@ typedef enum {
 // See ISpdyRequest for description
 - (void) _end: (ISpdyRequest*) request;
 - (void) _removeStream: (ISpdyRequest*) request;
-- (void) _writeData: (NSData*) data to: (ISpdyRequest*) request fin: (BOOL) fin;
+- (void) _writeData: (NSData*) data to: (ISpdyRequest*) request;
 - (void) _addHeaders: (NSDictionary*) headers to: (ISpdyRequest*) request;
 - (void) _rst: (uint32_t) stream_id code: (uint8_t) code;
 - (void) _error: (ISpdyRequest*) request code: (ISpdyErrorCode) code;
@@ -179,6 +172,10 @@ typedef enum {
 - (void) _handleDrain;
 - (void) _handleGoaway: (ISpdyGoaway*) goaway;
 - (void) _handlePush: (ISpdyPush*) push forRequest: (ISpdyRequest*) req;
+
+// Socket routines
+- (void) _scheduleSocketWrite;
+- (void) _doSocketWrite;
 
 // dispatch delegate callback
 - (void) _delegateDispatch: (void (^)()) block;
@@ -237,6 +234,7 @@ typedef enum {
 - (void) _queueOutput: (NSData*) data;
 - (void) _queueHeaders: (NSDictionary*) headers;
 - (BOOL) _hasQueuedData;
+- (NSUInteger) _queuedDataSize;
 - (void) _unqueueOutput;
 - (void) _unqueueHeaders;
 

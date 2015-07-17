@@ -24,6 +24,8 @@
 #import "ispdy.h"  // ISpdyVersion, ISpdyResponse, ISpdySettings, ...
 #import "common.h"  // Common internal parts
 
+static const NSInteger kSpdyHeaderSize = 8;
+
 // Forward-declarations
 @class ISpdyCompressor;
 
