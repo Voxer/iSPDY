@@ -808,6 +808,7 @@ typedef enum {
   // If stream is not open yet, or if there's already queued data -
   // queue more.
   if ((status != NSStreamStatusOpen && status != NSStreamStatusWriting) ||
+      ![out_stream_ hasSpaceAvailable] ||
       [buffer_ length] > 0) {
     if (mode != kISpdyWriteNoChunkBuffering) {
       [buffer_ appendData: data];
