@@ -100,6 +100,11 @@ typedef enum {
  */
 typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
 
+/**
+ * Callback for stall method.
+ */
+typedef void (^ISpdyStallCallback)(void);
+
 @interface ISpdyError : NSError
 
 - (ISpdyErrorCode) code;
@@ -247,6 +252,12 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
  *                 if zero - reset timeout
  */
 - (void) setTimeout: (NSTimeInterval) timeout;
+
+/**
+ * Set stall callback that will be called if there will be no data exchange
+ * in a specified time interval.
+ */
+- (void) onStall: (ISpdyStallCallback) cb after: (NSTimeInterval) interval;
 
 @end
 
