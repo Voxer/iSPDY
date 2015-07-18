@@ -142,7 +142,11 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 @implementation ISpdyRequest (ISpdyRequestPrivate)
 
 - (void) _setConnection: (ISpdy*) connection {
-  self.connection = connection;
+  // Make sure we can't be pushing to the queue
+  @synchronized (self) {
+    self.connection = connection;
+  }
+
   if (connection == nil)
     return;
 
@@ -158,12 +162,14 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 
 - (void) _connectionDispatch: (void (^)()) block {
-  if (self.connection == nil) {
-    if (connection_queue_ == nil)
-      connection_queue_ = [NSMutableArray arrayWithCapacity: 2];
+  @synchronized (self) {
+    if (self.connection == nil) {
+      if (connection_queue_ == nil)
+        connection_queue_ = [NSMutableArray arrayWithCapacity: 2];
 
-    [connection_queue_ addObject: block];
-    return;
+      [connection_queue_ addObject: block];
+      return;
+    }
   }
 
   [self.connection _connectionDispatch: block];
