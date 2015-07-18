@@ -116,6 +116,7 @@ static const NSInteger kSchedulerItemCapacity = 10;
   return [[ISpdySchedulerQueue alloc] initWithScheduler: scheduler];
 }
 
+
 - (ISpdySchedulerQueue*) initWithScheduler: (ISpdyScheduler*) scheduler {
   self.scheduler = scheduler;
 
@@ -125,6 +126,7 @@ static const NSInteger kSchedulerItemCapacity = 10;
   index_ = 0;
   return self;
 }
+
 
 - (void) appendData: (NSData*) data
           forStream: (uint32_t) stream_id
@@ -140,6 +142,7 @@ static const NSInteger kSchedulerItemCapacity = 10;
 
   [item appendData: data withCallback: cb];
 }
+
 
 - (BOOL) unschedule: (ISpdySchedulerUnscheduleCallback) cb {
   while ([list_ count] > 0) {
@@ -180,6 +183,7 @@ static const NSInteger kSchedulerItemCapacity = 10;
   return [[ISpdySchedulerItem alloc] initWithQueue: queue andStream: stream_id];
 }
 
+
 - (ISpdySchedulerItem*) initWithQueue: (ISpdySchedulerQueue*) queue
                             andStream: (uint32_t) stream_id {
   self.queue = queue;
@@ -191,14 +195,17 @@ static const NSInteger kSchedulerItemCapacity = 10;
   return self;
 }
 
+
 - (void) appendData: (NSData*) data withCallback: (ISpdySchedulerCallback) cb {
   [datas_ addObject: data];
   [callbacks_ addObject: cb];
 }
 
+
 - (BOOL) isEmpty {
   return [datas_ count] == 0;
 }
+
 
 - (BOOL) unschedule: (ISpdySchedulerUnscheduleCallback) done {
   NSData* data = [datas_ objectAtIndex: 0];

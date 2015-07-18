@@ -457,8 +457,6 @@ typedef enum {
     return;
   }
 
-  request.connection = self;
-
   [self _connectionDispatch: ^{
     if (_state == kISpdyStateClosed) {
       LOG(kISpdyLogWarning, @"Trying to send request after close", request);
@@ -492,11 +490,8 @@ typedef enum {
                andStream: 0
             withCallback: nil];
 
-    // Send body if accumulated
-    [request _unqueueOutput];
-
-    // Send trailing headers
-    [request _unqueueHeaders];
+    // Will unqueue data and headers
+    [request _setConnection: self];
 
     // Start timer, if needed
     [request _resetTimeout];
@@ -936,90 +931,53 @@ typedef enum {
 }
 
 
-- (void) _writeData: (NSData*) data to: (ISpdyRequest*) request {
-  // Reset timeout
-  [request _resetTimeout];
-
+- (void) _writeData: (NSData*) data
+            withFin: (BOOL) fin
+                 to: (ISpdyRequest*) request {
   // Already closed
   if (request.closed_by_us == YES)
     return;
 
   NSAssert(request.connection != nil, @"Request was closed");
 
-  // Empty window, queue
-  if (request.window_out == 0) {
-    [request _queueOutput: data];
-    LOG(kISpdyLogDebug, @"Queued output on request size=%d", [data length]);
-    return;
-  }
-
-  NSData* pending = data;
-  NSInteger pending_length = [pending length];
-  NSData* rest = nil;
-  NSInteger max_avail;
-
-  max_avail = pending_length;
-
-  // DATA should fit into one socket write
-  if (max_avail > max_write_size_ - kSpdyHeaderSize)
-    max_avail = max_write_size_ - kSpdyHeaderSize;
-
-  // Perform flow control
-  if (version_ != kISpdyV2 && max_avail > request.window_out)
-    max_avail = request.window_out;
-
-  // Only part of the data could be written now
-  if (pending_length > max_avail) {
-    // Queue tail
-    rest = [pending subdataWithRange: NSMakeRange(
-        max_avail,
-        pending_length - max_avail)];
-
-    // Send head
-    pending = [pending subdataWithRange: NSMakeRange(0, max_avail)];
-    pending_length = [pending length];
-  }
-
-  if (version_ != kISpdyV2)
-    request.window_out -= pending_length;
-
-  if (rest != nil) {
-    [request _queueOutput: rest];
-    LOG(kISpdyLogDebug, @"Queued output on request size=%d", [rest length]);
-  }
-
-  BOOL write_fin = request.pending_closed_by_us && ![request _hasQueuedData];
   LOG(kISpdyLogDebug,
       @"Request sending DATA size=%d fin=%d",
-      [pending length],
-      write_fin);
+      [data length],
+      fin);
 
   [framer_ clear];
   [framer_ dataFrame: request.stream_id
-                 fin: write_fin
-            withData: pending];
+                 fin: fin
+            withData: data];
   [scheduler_ schedule: [framer_ output]
            forPriority: request.priority
              andStream: request.stream_id
           withCallback: ^() {
-    LOG(kISpdyLogDebug,
-        @"Request DATA sent size=%d/%u",
-        [pending length],
-        [request _queuedDataSize]);
+    LOG(kISpdyLogDebug, @"Request DATA sent size=%d", [data length]);
 
-    // Not last DATA - unqueue anything pending
-    if (!write_fin) {
-      [request _unqueueOutput];
+    if (!fin)
       return;
-    }
 
-    // Last DATA frame, nothing queued
+    // Last DATA frame
     request.closed_by_us = YES;
-    [request _tryClose];
+    [request _maybeClose];
   }];
+}
 
-  if (request.window_out <= 0)
-    LOG(kISpdyLogInfo, @"Window emptied");
+
+- (void) _splitOutput: (NSData*) output
+              withFin: (BOOL) fin
+             andBlock: (void (^)(NSData* data, BOOL fin)) block {
+  for (NSUInteger off = 0; off < [output length]; off += max_write_size_) {
+    NSUInteger avail = [output length] - off;
+    BOOL is_last = avail <= max_write_size_;
+
+    if (!is_last)
+      avail = max_write_size_;
+
+    NSData* slice = [output subdataWithRange: NSMakeRange(off, avail)];
+    block(slice, is_last && fin);
+  }
 }
 
 
@@ -1058,17 +1016,8 @@ typedef enum {
 }
 
 
-- (void) _end: (ISpdyRequest*) request {
-  if (request.closed_by_us || request.pending_closed_by_us)
-    return;
-
-  request.pending_closed_by_us = YES;
-  [self _writeData: nil to: request];
-}
-
-
 - (void) _removeStream: (ISpdyRequest*) request {
-  request.connection = nil;
+  [request _setConnection: nil];
 
   if (!request.closed_by_us) {
     [self _rst: request.stream_id code: kISpdyRstCancel];
@@ -1131,7 +1080,7 @@ typedef enum {
 - (void) _handlePush: (ISpdyPush*) push forRequest: (ISpdyRequest*) req {
   NSAssert(push != nil, @"Received nil as PUSH stream");
 
-  push.connection = self;
+  [push _setConnection: self];
   push.associated = req;
 
   push.initial_window_in = initial_window_;
@@ -1389,7 +1338,7 @@ typedef enum {
       }
       break;
     case kISpdyWindowUpdate:
-      [req _updateWindow: [body integerValue]];
+      [req _updateWindow: [body integerValue] withBlock: nil];
       break;
     case kISpdySettings:
       {
@@ -1404,7 +1353,7 @@ typedef enum {
             if ([stream_id integerValue] % 2 == 0)
               continue;
             ISpdyRequest* req = [streams_ objectForKey: stream_id];
-            [req _updateWindow: delta];
+            [req _updateWindow: delta withBlock: nil];
           }
         }
       }
@@ -1439,11 +1388,8 @@ typedef enum {
 
   if (is_fin) {
     req.closed_by_them = YES;
-    [req _tryClose];
+    [req _maybeClose];
   }
-
-  // Try end request, if its pending
-  [req _tryPendingClose];
 }
 
 

@@ -37,13 +37,12 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 @implementation ISpdyRequest {
   id <ISpdyRequestDelegate> delegate_;
-  NSMutableArray* input_queue_;
   NSMutableArray* output_queue_;
   NSUInteger output_queue_size_;
-  NSMutableDictionary* headers_queue_;
-  NSMutableDictionary* in_headers_queue_;
   dispatch_source_t response_timeout_;
   NSTimeInterval response_timeout_interval_;
+  NSMutableArray* connection_queue_;
+  NSMutableArray* window_out_queue_;
 }
 
 - (id) init: (NSString*) method url: (NSString*) url {
@@ -56,11 +55,15 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 
 - (void) writeData: (NSData*) data {
-  if (self.connection == nil)
-    return [self _queueOutput: data];
-
-  [self.connection _connectionDispatch: ^{
-    [self.connection _writeData: data to: self];
+  [self _connectionDispatch: ^{
+    [self _resetTimeout];
+    [self.connection _splitOutput: data
+                          withFin: NO
+                         andBlock: ^(NSData* data, BOOL fin) {
+      [self _updateWindow: -(NSInteger) [data length] withBlock: ^() {
+        [self.connection _writeData: data withFin: fin to: self];
+      }];
+    }];
   }];
 }
 
@@ -71,29 +74,24 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 
 - (void) end {
-  NSAssert(self.pending_closed_by_us == NO || self.closed_by_us,
-           @"Stream already ended");
+  NSAssert(!self.closed_by_us, @"Stream already ended");
 
-  // Request was either closed, or not opened yet, queue end.
-  if (self.connection == nil) {
-    self.pending_closed_by_us = YES;
-    return;
-  }
-  [self.connection _connectionDispatch: ^{
-    [self.connection _end: self];
+  [self _connectionDispatch: ^{
+    [self _resetTimeout];
+    [self.connection _writeData: nil withFin: YES to: self];
   }];
 }
 
 - (void) endWithData: (NSData*) data {
-  if (self.connection == nil) {
-    [self _queueOutput: data];
-    [self end];
-    return;
-  }
-
-  [self.connection _connectionDispatch: ^{
-    self.pending_closed_by_us = YES;
-    [self.connection _writeData: data to: self];
+  [self _connectionDispatch: ^{
+    [self _resetTimeout];
+    [self.connection _splitOutput: data
+                          withFin: YES
+                         andBlock: ^(NSData* data, BOOL fin) {
+      [self _updateWindow: -(NSInteger) [data length] withBlock: ^() {
+        [self.connection _writeData: data withFin: fin to: self];
+      }];
+    }];
   }];
 }
 
@@ -103,17 +101,14 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 
 - (void) addHeaders: (NSDictionary*) headers {
-  if (self.connection == nil)
-    return [self _queueHeaders: headers];
-
-  [self.connection _connectionDispatch: ^{
+  [self _connectionDispatch: ^{
     [self.connection _addHeaders: headers to: self];
   }];
 }
 
 
 - (void) close {
-  [self.connection _connectionDispatch: ^{
+  [self _connectionDispatch: ^{
      [self _close: nil sync: NO];
   }];
 }
@@ -122,7 +117,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 - (void) setTimeout: (NSTimeInterval) timeout {
   response_timeout_interval_ = timeout;
 
-  [self.connection _connectionDispatch: ^() {
+  [self _connectionDispatch: ^() {
     if (response_timeout_ != NULL) {
       dispatch_source_cancel(response_timeout_);
       response_timeout_ = NULL;
@@ -145,6 +140,35 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 @end
 
 @implementation ISpdyRequest (ISpdyRequestPrivate)
+
+- (void) _setConnection: (ISpdy*) connection {
+  self.connection = connection;
+  if (connection == nil)
+    return;
+
+  NSArray* queue = connection_queue_;
+  connection_queue_ = nil;
+  if (queue == nil)
+    return;
+
+  // Invoke pending callbacks
+  for (void (^block)(void) in queue)
+    [self.connection _connectionDispatch: block];
+}
+
+
+- (void) _connectionDispatch: (void (^)()) block {
+  if (self.connection == nil) {
+    if (connection_queue_ == nil)
+      connection_queue_ = [NSMutableArray arrayWithCapacity: 2];
+
+    [connection_queue_ addObject: block];
+    return;
+  }
+
+  [self.connection _connectionDispatch: block];
+}
+
 
 - (void) _handleResponseHeaders: (NSDictionary*) headers {
   NSString* encoding = [headers valueForKey: @"content-encoding"];
@@ -183,7 +207,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 }
 
 
-- (void) _tryClose {
+- (void) _maybeClose {
   if (self.connection == nil)
     return;
   if (self.closed_by_us && self.closed_by_them)
@@ -205,19 +229,10 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
   [self setTimeout: 0.0];
 
-  self.pending_closed_by_us = NO;
   [self.connection _removeStream: self];
 
   self.closed_by_us = YES;
   self.closed_by_them = YES;
-}
-
-
-- (void) _tryPendingClose {
-  if (self.pending_closed_by_us) {
-    self.pending_closed_by_us = NO;
-    [self end];
-  }
 }
 
 
@@ -226,72 +241,41 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 }
 
 
-- (void) _updateWindow: (NSInteger) delta {
+- (void) _updateWindow: (NSInteger) delta withBlock: (void (^)()) block {
+  if (delta < 0 && self.window_out <= 0) {
+    if (block == nil)
+      return;
+
+    if (window_out_queue_ == nil)
+      window_out_queue_ = [NSMutableArray arrayWithCapacity: 16];
+
+    // Retry on positive window_out
+    [window_out_queue_ addObject: ^() {
+      [self _updateWindow: delta withBlock: block];
+    }];
+    return;
+  }
+
   if (self.window_out <= 0 && self.window_out + delta > 0)
     LOG(kISpdyLogInfo, @"Window filled %d", self.window_out);
   self.window_out += delta;
 
-  // Try writing queued data
-  if (self.window_out > 0)
-    [self _unqueueOutput];
-}
+  if (block != nil)
+    block();
 
-
-- (void) _queueOutput: (NSData*) data {
-  if (output_queue_ == nil)
-    output_queue_ = [NSMutableArray arrayWithCapacity: 16];
-
-  [output_queue_ addObject: data];
-  output_queue_size_ += [data length];
-}
-
-
-- (void) _queueHeaders: (NSDictionary*) headers {
-  if (headers_queue_ == nil) {
-    headers_queue_ = [NSMutableDictionary dictionaryWithDictionary: headers];
+  // Frames no more
+  if (self.window_out <= 0)
     return;
+
+  // Invoke pending callbacks
+  NSArray* queue = window_out_queue_;
+  window_out_queue_ = nil;
+  if (queue == nil)
+    return;
+
+  for (void (^block)() in queue) {
+    block();
   }
-
-  // Insert key/values into existing dictionary
-  [headers enumerateKeysAndObjectsUsingBlock: ^(NSString* key,
-                                                NSString* val,
-                                                BOOL* stop) {
-    [headers_queue_ setValue: val forKey: key];
-  }];
-}
-
-
-- (BOOL) _hasQueuedData {
-  return [output_queue_ count] > 0;
-}
-
-
-- (NSUInteger) _queuedDataSize {
-  return output_queue_size_;
-}
-
-
-- (void) _unqueueOutput {
-  if (output_queue_ == nil)
-    return;
-
-  NSUInteger count = [output_queue_ count];
-  for (NSUInteger i = 0; i < count; i++) {
-    NSData* data = [output_queue_ objectAtIndex: i];
-    output_queue_size_ -= [data length];
-    [self.connection _writeData: data to: self];
-  }
-
-  [output_queue_ removeObjectsInRange: NSMakeRange(0, count)];
-}
-
-
-- (void) _unqueueHeaders {
-  if (self.connection == nil || headers_queue_ == nil)
-    return;
-
-  [self addHeaders: headers_queue_];
-  headers_queue_ = nil;
 }
 
 @end

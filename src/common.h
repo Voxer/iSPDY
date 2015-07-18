@@ -162,9 +162,10 @@ typedef enum {
 - (void) _destroyPings: (ISpdyError*) err;
 
 // See ISpdyRequest for description
-- (void) _end: (ISpdyRequest*) request;
 - (void) _removeStream: (ISpdyRequest*) request;
-- (void) _writeData: (NSData*) data to: (ISpdyRequest*) request;
+- (void) _writeData: (NSData*) data
+            withFin: (BOOL) fin
+                 to: (ISpdyRequest*) request;
 - (void) _addHeaders: (NSDictionary*) headers to: (ISpdyRequest*) request;
 - (void) _rst: (uint32_t) stream_id code: (uint8_t) code;
 - (void) _error: (ISpdyRequest*) request code: (ISpdyErrorCode) code;
@@ -172,6 +173,9 @@ typedef enum {
 - (void) _handleDrain;
 - (void) _handleGoaway: (ISpdyGoaway*) goaway;
 - (void) _handlePush: (ISpdyPush*) push forRequest: (ISpdyRequest*) req;
+- (void) _splitOutput: (NSData*) output
+              withFin: (BOOL) fin
+             andBlock: (void (^)(NSData* data, BOOL fin)) block;
 
 // Socket routines
 - (void) _scheduleSocketWrite;
@@ -194,7 +198,6 @@ typedef enum {
 @property (nonatomic) ISpdyCompressor* decompressor;
 
 // Indicates queued end
-@property BOOL pending_closed_by_us;
 @property BOOL closed_by_us;
 @property BOOL closed_by_them;
 @property (nonatomic) BOOL seen_response;
@@ -207,36 +210,28 @@ typedef enum {
 
 @interface ISpdyRequest (ISpdyRequestPrivate)
 
+- (void) _setConnection: (ISpdy*) connection;
+- (void) _connectionDispatch: (void (^)()) block;
+
 // Invoked on SYN_REPLY and PUSH streams
 - (void) _handleResponseHeaders: (NSDictionary*) headers;
 
 // Calls `[req close]` if the stream is closed by both
 // us and them.
-- (void) _tryClose;
+- (void) _maybeClose;
 
 // Invokes delegate's handleEnd: and remove stream from the connection's
 // dictionary
 - (void) _close: (ISpdyError*) err sync: (BOOL) sync;
 
-// Sends `end` selector if the close is pending
-- (void) _tryPendingClose;
-
 // Set queued timeout, or reset existing one
 - (void) _resetTimeout;
 
 // Update outgoing window size
-- (void) _updateWindow: (NSInteger) delta;
+- (void) _updateWindow: (NSInteger) delta withBlock: (void (^)()) block;
 
 // Decompress data or return input if there're no compression
 - (NSError*) _decompress: (NSData*) data withBlock: (void (^)(NSData*)) block;
-
-// Bufferize frame data and fetch it
-- (void) _queueOutput: (NSData*) data;
-- (void) _queueHeaders: (NSDictionary*) headers;
-- (BOOL) _hasQueuedData;
-- (NSUInteger) _queuedDataSize;
-- (void) _unqueueOutput;
-- (void) _unqueueHeaders;
 
 @end
 
