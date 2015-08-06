@@ -258,11 +258,8 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
 @interface ISpdyPush : ISpdyRequest
 
 @property (nonatomic) ISpdyRequest* associated;
-@property (nonatomic) NSString* method;
-@property (nonatomic) NSString* url;
 @property (nonatomic) NSString* scheme;
 @property (nonatomic) NSString* version;
-@property (nonatomic) NSDictionary* headers;
 
 @end
 
@@ -424,7 +421,7 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
 /**
  * Set max chunk size for socket write
  */
-- (void) setMaxWriteSize: (BOOL) enable;
+- (void) setMaxWriteSize: (NSInteger) size;
 
 /**
  * Enable/disable TCP keepalive and set its timeout

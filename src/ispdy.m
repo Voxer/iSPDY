@@ -887,7 +887,7 @@ typedef enum {
     return;
   }
 
-  NSAssert(buffer_size_ >= r, @"Socket buffer overflow");
+  NSAssert(buffer_size_ >= (NSUInteger) r, @"Socket buffer overflow");
   buffer_size_ -= r;
 
   // Incomplete write
@@ -977,7 +977,7 @@ typedef enum {
              andBlock: (void (^)(NSData* data, BOOL fin)) block {
   for (NSUInteger off = 0; off < [output length]; off += max_write_size_) {
     NSUInteger avail = [output length] - off;
-    BOOL is_last = avail <= max_write_size_;
+    BOOL is_last = avail <= (NSUInteger) max_write_size_;
 
     if (!is_last)
       avail = max_write_size_;
