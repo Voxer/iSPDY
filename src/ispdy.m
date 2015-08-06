@@ -578,6 +578,12 @@ typedef enum {
   if (self.delegate == nil)
     return;
 
+#ifndef NDEBUG
+  // No debug logging in release builds
+  if (level == kISpdyLogDebug)
+    return;
+#endif
+
   NSObject* d = (NSObject*) self.delegate;
   if (![d respondsToSelector: @selector(logSpdyEvents:level:message:)])
     return;
