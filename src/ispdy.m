@@ -578,7 +578,7 @@ typedef enum {
   if (self.delegate == nil)
     return;
 
-#ifndef NDEBUG
+#ifdef NDEBUG
   // No debug logging in release builds
   if (level == kISpdyLogDebug)
     return;
