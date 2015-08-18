@@ -14,7 +14,7 @@ Pod::Spec.new do |s|
   s.ios.deployment_target = '5.0'
   s.osx.deployment_target = '10.7'
 
-  s.source       = { :git => "https://github.com/Voxer/ispdy.git", :tag => "v0.1.0" }
+  s.source       = { :git => "https://github.com/Voxer/ispdy.git", :tag => "v#{s.version.to_s}" }
 
   s.source_files  = 'src', 'src/*.{h,m}', 'include/*.h'
 
@@ -22,9 +22,9 @@ Pod::Spec.new do |s|
 
 
 
-  s.frameworks = 'CoreServices', 'Security'
+  s.frameworks = 'Security'
 
-  s.library   = 'libz'
+  s.library   = 'z'
 
   s.requires_arc = true
 
