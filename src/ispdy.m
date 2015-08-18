@@ -44,8 +44,8 @@ static const NSInteger kInitialWindowSizeOut = 65536;
 static const NSUInteger kMaxPriority = 7;
 static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
 // Make sure DATA chunks fit into single TLS frame
-static const NSInteger kSocketMaxWriteSize = 8 * 1024;
-static const NSUInteger kSocketMaxBufferSize = 32 * 1024;
+static const NSInteger kSocketMaxWriteSize = 32 * 1024;
+static const NSUInteger kSocketMaxBufferSize = 256 * 1024;
 
 typedef enum {
   kISpdySSLPinningNone,
