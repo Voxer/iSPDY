@@ -491,11 +491,14 @@ typedef enum {
                andStream: 0
             withCallback: nil];
 
-    // Will unqueue data and headers
-    [request _setConnection: self];
-
     // Start timer, if needed
     [request _resetTimeout];
+
+
+    [self _delegateDispatch: ^{
+      // Will unqueue data and headers
+      [request _setConnection: self];
+    }];
   }];
 }
 
@@ -948,7 +951,8 @@ typedef enum {
   NSAssert(request.connection != nil, @"Request was closed");
 
   LOG(kISpdyLogDebug,
-      @"Request sending DATA size=%d fin=%d",
+      @"request=\"%@\" sending DATA size=%d fin=%d",
+      request.url,
       [data length],
       fin);
 
@@ -960,7 +964,10 @@ typedef enum {
            forPriority: request.priority
              andStream: request.stream_id
           withCallback: ^() {
-    LOG(kISpdyLogDebug, @"Request DATA sent size=%d", [data length]);
+    LOG(kISpdyLogDebug,
+        @"request=\"%@\" DATA sent size=%d",
+        request.url,
+        [data length]);
 
     if (!fin)
       return;
@@ -1087,7 +1094,6 @@ typedef enum {
 - (void) _handlePush: (ISpdyPush*) push forRequest: (ISpdyRequest*) req {
   NSAssert(push != nil, @"Received nil as PUSH stream");
 
-  [push _setConnection: self];
   push.associated = req;
 
   push.initial_window_in = initial_window_;
@@ -1109,6 +1115,8 @@ typedef enum {
   [push _handleResponseHeaders: push.headers];
 
   [self _delegateDispatchSync: ^{
+    [push _setConnection: self];
+
     [self.delegate connection: self handlePush: push];
   }];
 }
