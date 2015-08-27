@@ -7,17 +7,19 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		107654847CACFD93749122DD /* ispdy.m in Sources */ = {isa = PBXBuildFile; fileRef = F2BECCAFB7B2933C633E2491 /* ispdy.m */; };
-		50A2E07AE4853D83D8181805 /* request.m in Sources */ = {isa = PBXBuildFile; fileRef = B87CA2A3A16180D1988E1BB7 /* request.m */; };
-		5657A0F79100DECD764AECDD /* loop.m in Sources */ = {isa = PBXBuildFile; fileRef = 4E0EC184FCD7551AB66886F7 /* loop.m */; };
-		8A36D4904B1505CE8B7E3F8E /* compressor.m in Sources */ = {isa = PBXBuildFile; fileRef = BC14B2F2F4788C9FFF53EBF6 /* compressor.m */; };
-		A511EA557BBC3B696AE45B5D /* scheduler.m in Sources */ = {isa = PBXBuildFile; fileRef = DF304A7B3433254DE3D5DA14 /* scheduler.m */; };
-		C8F58AEDCBBFAB2222FEDA2E /* framer.m in Sources */ = {isa = PBXBuildFile; fileRef = 6EBA2C150746BFDC0206E2BE /* framer.m */; };
-		D433F7DDB945F1185A037CF0 /* parser.m in Sources */ = {isa = PBXBuildFile; fileRef = 33DFEE9ACE47E7C730EA8CD2 /* parser.m */; };
+		417924404BC5B8BF60F4B5DE /* loop.m in Sources */ = {isa = PBXBuildFile; fileRef = 4E0EC184FCD7551AB66886F7 /* loop.m */; };
+		421C6A7E7016771BF018CCDD /* scheduler.m in Sources */ = {isa = PBXBuildFile; fileRef = DF304A7B3433254DE3D5DA14 /* scheduler.m */; };
+		4DC5983DE2A94B1543B27939 /* framer.m in Sources */ = {isa = PBXBuildFile; fileRef = 6EBA2C150746BFDC0206E2BE /* framer.m */; };
+		5BBF19FE55407CB1D2C35368 /* ispdy.m in Sources */ = {isa = PBXBuildFile; fileRef = F2BECCAFB7B2933C633E2491 /* ispdy.m */; };
+		61AEFB0495F635D662107B98 /* compressor.m in Sources */ = {isa = PBXBuildFile; fileRef = BC14B2F2F4788C9FFF53EBF6 /* compressor.m */; };
+		8EE4966CD70524A3C19FEED0 /* common.m in Sources */ = {isa = PBXBuildFile; fileRef = 45E89AE67B8AE6EF4718D7C3 /* common.m */; };
+		B57A6648164EBCF04E2346B0 /* parser.m in Sources */ = {isa = PBXBuildFile; fileRef = 33DFEE9ACE47E7C730EA8CD2 /* parser.m */; };
+		E7AF1831347DA8C5E629932B /* request.m in Sources */ = {isa = PBXBuildFile; fileRef = B87CA2A3A16180D1988E1BB7 /* request.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		33DFEE9ACE47E7C730EA8CD2 /* parser.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = parser.m; sourceTree = "<group>"; };
+		45E89AE67B8AE6EF4718D7C3 /* common.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = common.m; sourceTree = "<group>"; };
 		4E0EC184FCD7551AB66886F7 /* loop.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = loop.m; sourceTree = "<group>"; };
 		6AF6F9E82A1073215C9B4291 /* libispdy.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libispdy.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		6EBA2C150746BFDC0206E2BE /* framer.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = framer.m; sourceTree = "<group>"; };
@@ -43,15 +45,16 @@
 		09D72A3446683184C3DA8B19 = {
 			isa = PBXGroup;
 			children = (
-				0D14550328A2D74E9754C797 /* Source */,
+				76A0499926D35BC73B27804E /* Source */,
 				89F1B268A8AE1DB046DF10EA /* Products */,
 				DC9A387065BBBB1DAFC5D681 /* Build */,
 			);
 			sourceTree = "<group>";
 		};
-		0D14550328A2D74E9754C797 /* Source */ = {
+		76A0499926D35BC73B27804E /* Source */ = {
 			isa = PBXGroup;
 			children = (
+				45E89AE67B8AE6EF4718D7C3 /* common.m */,
 				BC14B2F2F4788C9FFF53EBF6 /* compressor.m */,
 				6EBA2C150746BFDC0206E2BE /* framer.m */,
 				F2BECCAFB7B2933C633E2491 /* ispdy.m */,
@@ -125,13 +128,14 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				107654847CACFD93749122DD /* ispdy.m in Sources */,
-				8A36D4904B1505CE8B7E3F8E /* compressor.m in Sources */,
-				C8F58AEDCBBFAB2222FEDA2E /* framer.m in Sources */,
-				5657A0F79100DECD764AECDD /* loop.m in Sources */,
-				D433F7DDB945F1185A037CF0 /* parser.m in Sources */,
-				50A2E07AE4853D83D8181805 /* request.m in Sources */,
-				A511EA557BBC3B696AE45B5D /* scheduler.m in Sources */,
+				5BBF19FE55407CB1D2C35368 /* ispdy.m in Sources */,
+				8EE4966CD70524A3C19FEED0 /* common.m in Sources */,
+				61AEFB0495F635D662107B98 /* compressor.m in Sources */,
+				4DC5983DE2A94B1543B27939 /* framer.m in Sources */,
+				417924404BC5B8BF60F4B5DE /* loop.m in Sources */,
+				B57A6648164EBCF04E2346B0 /* parser.m in Sources */,
+				E7AF1831347DA8C5E629932B /* request.m in Sources */,
+				421C6A7E7016771BF018CCDD /* scheduler.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

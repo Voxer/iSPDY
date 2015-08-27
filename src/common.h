@@ -262,3 +262,11 @@ typedef enum {
 + (ISpdyError*) errorWithCode: (ISpdyErrorCode) code andDetails: (id) details;
 
 @end
+
+@interface ISpdyCommon : NSObject
+
++ (dispatch_source_t) timerWithTimeInterval: (NSTimeInterval) interval
+                                      queue: (dispatch_queue_t) queue
+                                   andBlock: (void (^)()) block;
+
+@end

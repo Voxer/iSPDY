@@ -30,6 +30,7 @@ static const NSInteger kSchedulerItemCapacity = 10;
   NSUInteger pending_;
   dispatch_queue_t dispatch_;
   BOOL pending_dispatch_;
+  NSInteger corked_;
 }
 
 + (ISpdyScheduler*) schedulerWithMaxPriority: (NSUInteger) maxPriority
@@ -44,6 +45,7 @@ static const NSInteger kSchedulerItemCapacity = 10;
   scheduler->dispatch_ = dispatch;
   scheduler->sync_ = [ISpdySchedulerQueue queueWithScheduler: scheduler];
   scheduler->pending_dispatch_ = NO;
+  scheduler->corked_ = 0;
 
   return scheduler;
 }
@@ -84,8 +86,10 @@ static const NSInteger kSchedulerItemCapacity = 10;
 
 
 - (void) unschedule {
-  pending_dispatch_ = NO;
+  if (corked_ != 0)
+    return;
 
+  corked_++;
   ISpdySchedulerUnscheduleCallback cb = ^BOOL (NSData* data,
                                                ISpdySchedulerCallback done) {
     if ([self.delegate scheduledWrite: data withCallback: done]) {
@@ -102,6 +106,34 @@ static const NSInteger kSchedulerItemCapacity = 10;
   for (ISpdySchedulerQueue* queue in queues_)
     if (![queue unschedule: cb])
       break;
+
+  // Let the parent know that we are done
+  [self.delegate scheduledEnd];
+
+  pending_dispatch_ = NO;
+
+  // Prevent recursion
+  corked_--;
+}
+
+
+- (void) cork {
+  corked_++;
+}
+
+
+- (void) uncork {
+  corked_--;
+  if (corked_ != 0)
+    return;
+
+  pending_dispatch_ = YES;
+  dispatch_async(dispatch_, ^() {
+    // Someone has already unscheduled everything
+    if (!pending_dispatch_)
+      return;
+    [self unschedule];
+  });
 }
 
 @end

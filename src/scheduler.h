@@ -31,6 +31,7 @@ typedef BOOL (^ISpdySchedulerUnscheduleCallback)(NSData* data,
 
 - (BOOL) scheduledWrite: (NSData*) data
            withCallback: (ISpdySchedulerCallback) cb;
+- (void) scheduledEnd;
 
 @end
 
@@ -46,6 +47,8 @@ typedef BOOL (^ISpdySchedulerUnscheduleCallback)(NSData* data,
         andStream: (uint32_t) stream_id
      withCallback: (ISpdySchedulerCallback) cb;
 - (void) unschedule;
+- (void) cork;
+- (void) uncork;
 
 @end
 

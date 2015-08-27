@@ -111,9 +111,10 @@ typedef enum {
   NSMutableDictionary* pings_;
 
   // Connection write buffer
-  NSMutableArray* buffer_data_;
+  NSMutableData* buffer_data_;
+  NSMutableArray* buffer_size_;
   NSMutableArray* buffer_callback_;
-  NSUInteger buffer_size_;
+  NSUInteger buffer_offset_;
 
   // Dispatch queue for invoking methods on delegates
   dispatch_queue_t delegate_queue_;
@@ -174,10 +175,11 @@ typedef enum {
   streams_ = [[NSMutableDictionary alloc] initWithCapacity: 100];
   pings_ = [[NSMutableDictionary alloc] initWithCapacity: 10];
 
-  // Create buffer
-  buffer_data_ = [NSMutableArray arrayWithCapacity: 100];
+  // Create buffer (NOTE: might be resized if needed)
+  buffer_data_ = [NSMutableData dataWithCapacity: kSocketMaxBufferSize * 2];
+  buffer_size_ = [NSMutableArray arrayWithCapacity: 100];
   buffer_callback_ = [NSMutableArray arrayWithCapacity: 100];
-  buffer_size_ = 0;
+  buffer_offset_ = 0;
 
   // Initialize pinned certs
   if (pinned_certs_ == nil)
@@ -480,6 +482,10 @@ typedef enum {
     [streams_ setObject: request forKey: request_key];
     active_streams_++;
 
+    // Try to fit accumulated data and request frame into a single socket buffer
+    LOG(kISpdyLogDebug, @"cork");
+    [scheduler_ cork];
+
     [framer_ clear];
     [framer_ synStream: request.stream_id
               priority: request.priority
@@ -494,6 +500,10 @@ typedef enum {
     // Start timer, if needed
     [request _resetTimeout];
 
+    [request _connectionDispatch: ^{
+      LOG(kISpdyLogDebug, @"uncork");
+      [scheduler_ uncork];
+    }];
 
     [self _delegateDispatch: ^{
       // Will unqueue data and headers
@@ -632,23 +642,9 @@ typedef enum {
 
 - (dispatch_source_t) _timerWithTimeInterval: (NSTimeInterval) interval
                                     andBlock: (void (^)()) block {
-  dispatch_source_t timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER,
-                                                   0,
-                                                   0,
-                                                   connection_queue_);
-  NSAssert(timer, @"Failed to create dispatch timer source");
-
-  uint64_t intervalNS = (uint64_t) (interval * 1e9);
-  uint64_t leeway = (intervalNS >> 2) < 100000ULL ?
-      (intervalNS >> 2) : 100000ULL;
-  dispatch_source_set_timer(timer,
-                            dispatch_walltime(NULL, intervalNS),
-                            intervalNS,
-                            leeway);
-  dispatch_source_set_event_handler(timer, block);
-  dispatch_resume(timer);
-
-  return timer;
+  return [ISpdyCommon timerWithTimeInterval: interval
+                                      queue: connection_queue_
+                                   andBlock: block];
 }
 
 
@@ -827,23 +823,33 @@ typedef enum {
 
 - (BOOL) scheduledWrite: (NSData*) data
            withCallback: (ISpdySchedulerCallback) cb {
-  if (buffer_size_ > kSocketMaxBufferSize) {
+  if (buffer_offset_ > kSocketMaxBufferSize) {
     LOG(kISpdyLogDebug, @"Can\'t schedule write, buffer is full");
     return NO;
   }
 
-  [buffer_data_ addObject: data];
+  if (buffer_offset_ + [data length] > [buffer_data_ length])
+    [buffer_data_ increaseLengthBy: kSocketMaxBufferSize];
+
+  void* bytes = [buffer_data_ mutableBytes];
+  memcpy(bytes + buffer_offset_, [data bytes], [data length]);
+  buffer_offset_ += [data length];
+
+  [buffer_size_ addObject: [NSNumber numberWithUnsignedInteger: [data length]]];
   [buffer_callback_ addObject: cb];
-  buffer_size_ += [data length];
 
   LOG(kISpdyLogDebug,
       @"Scheduled write size=%d total buffered=%d",
       [data length],
-      buffer_size_);
-
-  [self _scheduleSocketWrite];
+      buffer_offset_);
 
   return YES;
+}
+
+
+- (void) scheduledEnd {
+  LOG(kISpdyLogDebug, @"End of scheduled data");
+  [self _scheduleSocketWrite];
 }
 
 
@@ -870,18 +876,13 @@ typedef enum {
   }
 
   // Release more frames!
-  if (buffer_size_ == 0)
+  if (buffer_offset_ == 0)
     return [scheduler_ unschedule];
 
-  NSData* data = [buffer_data_ objectAtIndex: 0];
-  ISpdySchedulerCallback cb = [buffer_callback_ objectAtIndex: 0];
-
   // Socket available for write
-  LOG(kISpdyLogDebug,
-      @"Socket send size=%d out of buffer=%d",
-      [data length],
-      buffer_size_);
-  NSInteger r = [out_stream_ write: [data bytes] maxLength: [data length]];
+  LOG(kISpdyLogDebug, @"Socket send buffer=%d", buffer_offset_);
+  NSInteger r = [out_stream_ write: [buffer_data_ bytes]
+                         maxLength: buffer_offset_];
   LOG(kISpdyLogDebug, @"Socket sent size=%d", r);
   if (r == -1) {
     ISpdyError* err = [ISpdyError errorWithCode: kISpdyErrSocketError
@@ -890,26 +891,35 @@ typedef enum {
     return;
   }
 
-  NSAssert(buffer_size_ >= (NSUInteger) r, @"Socket buffer overflow");
-  buffer_size_ -= r;
+  NSAssert(buffer_offset_ >= (NSUInteger) r, @"Socket buffer overflow");
+  buffer_offset_ -= r;
 
   // Incomplete write
-  if (r < (NSInteger) [data length]) {
-    NSData* subdata = [data
-        subdataWithRange: NSMakeRange(r, [data length] - r)];
-
-    [buffer_data_ replaceObjectAtIndex: 0 withObject: subdata];
-    return;
+  if (buffer_offset_ > 0) {
+    void* bytes = [buffer_data_ mutableBytes];
+    memmove(bytes, bytes + r, buffer_offset_);
   }
 
-  // Shift
-  [buffer_data_ removeObjectAtIndex: 0];
-  [buffer_callback_ removeObjectAtIndex: 0];
+  // Notify callers
+  while (r > 0) {
+    NSUInteger size = [[buffer_size_ objectAtIndex: 0] unsignedIntegerValue];
 
-  // Notify caller
-  cb();
+    // Partial write
+    if (size > r) {
+      [buffer_size_ replaceObjectAtIndex: 0
+                 withObject: [NSNumber numberWithUnsignedInt: size - r]];
+      r = 0;
+      break;
+    }
 
-  if (buffer_size_ == 0)
+    r -= size;
+    [buffer_size_ removeObjectAtIndex: 0];
+    ISpdySchedulerCallback cb = [buffer_callback_ objectAtIndex: 0];
+    [buffer_callback_ removeObjectAtIndex: 0];
+    cb();
+  }
+
+  if (buffer_offset_ == 0)
     [self _handleDrain];
 }
 

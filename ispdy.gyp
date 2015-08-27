@@ -11,6 +11,7 @@
     ],
     "sources": [
       "src/ispdy.m",
+      "src/common.m",
       "src/compressor.m",
       "src/framer.m",
       "src/loop.m",
