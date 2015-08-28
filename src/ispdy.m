@@ -667,9 +667,7 @@ typedef enum {
 static void ispdy_source_cb(void* arg) {
   ISpdy* ispdy = (__bridge ISpdy*) arg;
 
-  [ispdy _connectionDispatchSync: ^{
-    [ispdy _doSocketWrite];
-  }];
+  [ispdy _doSocketWrite];
 }
 
 
@@ -923,7 +921,9 @@ static void ispdy_remove_source_cb(void* arg) {
 
   if (status == NSStreamStatusNotOpen) {
     ISpdyError* err = [ISpdyError errorWithCode: kISpdyErrConnectionEnd];
-    [self _close: err];
+    [self _connectionDispatch: ^{
+      [self _close: err];
+    }];
     return;
   }
 
@@ -934,54 +934,58 @@ static void ispdy_remove_source_cb(void* arg) {
     return;
   }
 
-  // Release more frames!
-  if (buffer_offset_ == 0) {
-    [scheduler_ resume];
-    return;
-  }
-
   // Socket available for write
-  LOG(kISpdyLogDebug, @"Socket send buffer=%d", buffer_offset_);
-  NSInteger r = [out_stream_ write: [buffer_data_ bytes]
-                         maxLength: buffer_offset_];
+  __block NSInteger r;
+  [self _connectionDispatchSync: ^{
+    LOG(kISpdyLogDebug, @"Socket send buffer=%d", buffer_offset_);
+    if (buffer_offset_ == 0)
+      r = 0;
+    else
+      r = [out_stream_ write: [buffer_data_ bytes] maxLength: buffer_offset_];
+  }];
+
   LOG(kISpdyLogDebug, @"Socket sent size=%d", r);
   if (r == -1) {
     ISpdyError* err = [ISpdyError errorWithCode: kISpdyErrSocketError
                                      andDetails: [out_stream_ streamError]];
-    [self _close: err];
+    [self _connectionDispatch: ^{
+      [self _close: err];
+    }];
     return;
   }
 
-  NSAssert(buffer_offset_ >= (NSUInteger) r, @"Socket buffer overflow");
-  buffer_offset_ -= r;
+  [self _connectionDispatch: ^{
+    NSAssert(buffer_offset_ >= (NSUInteger) r, @"Socket buffer overflow");
+    buffer_offset_ -= r;
 
-  // Incomplete write
-  if (buffer_offset_ > 0) {
-    void* bytes = [buffer_data_ mutableBytes];
-    memmove(bytes, bytes + r, buffer_offset_);
-  }
-
-  // Notify callers
-  while (r > 0) {
-    NSUInteger size = [[buffer_size_ objectAtIndex: 0] unsignedIntegerValue];
-
-    // Partial write
-    if (size > r) {
-      [buffer_size_ replaceObjectAtIndex: 0
-                 withObject: [NSNumber numberWithUnsignedInt: size - r]];
-      r = 0;
-      break;
+    // Incomplete write
+    if (r != 0 && buffer_offset_ > 0) {
+      void* bytes = [buffer_data_ mutableBytes];
+      memmove(bytes, bytes + r, buffer_offset_);
     }
 
-    r -= size;
-    [buffer_size_ removeObjectAtIndex: 0];
-    ISpdySchedulerCallback cb = [buffer_callback_ objectAtIndex: 0];
-    [buffer_callback_ removeObjectAtIndex: 0];
-    [self _connectionDispatch: cb];
-  }
+    // Notify callers
+    while (r > 0) {
+      NSUInteger size = [[buffer_size_ objectAtIndex: 0] unsignedIntegerValue];
 
-  if (buffer_offset_ == 0)
-    [self _handleDrain];
+      // Partial write
+      if (size > r) {
+        [buffer_size_ replaceObjectAtIndex: 0
+                   withObject: [NSNumber numberWithUnsignedInt: size - r]];
+        r = 0;
+        break;
+      }
+
+      r -= size;
+      [buffer_size_ removeObjectAtIndex: 0];
+      ISpdySchedulerCallback cb = [buffer_callback_ objectAtIndex: 0];
+      [buffer_callback_ removeObjectAtIndex: 0];
+      [self _connectionDispatch: cb];
+    }
+
+    if (buffer_offset_ == 0)
+      [self _handleDrain];
+  }];
 }
 
 
@@ -1139,6 +1143,8 @@ static void ispdy_remove_source_cb(void* arg) {
 - (void) _handleDrain {
   if (goaway_ && active_streams_ == 0 && buffer_size_ == 0)
     [self _close: nil];
+  else
+    [scheduler_ resume];
 }
 
 
@@ -1304,9 +1310,7 @@ static void ispdy_remove_source_cb(void* arg) {
   if (event == NSStreamEventHasSpaceAvailable) {
     NSAssert(out_stream_ == stream, @"Write event on input stream?!");
 
-    [self _connectionDispatchSync: ^{
-      [self _doSocketWrite];
-    }];
+    [self _doSocketWrite];
   } else if (event == NSStreamEventHasBytesAvailable) {
     NSAssert(in_stream_ == stream, @"Read event on output stream?!");
 
