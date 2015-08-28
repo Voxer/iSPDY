@@ -79,6 +79,7 @@ typedef enum {
     NSInteger interval;
     NSInteger count;
   } keep_alive_;
+  uint8_t read_buf_[kSocketInBufSize];
 
   // SSL pinned certs
   NSMutableSet* pinned_certs_;
@@ -1310,20 +1311,24 @@ static void ispdy_remove_source_cb(void* arg) {
     NSAssert(in_stream_ == stream, @"Read event on output stream?!");
 
     // Socket available for read
+    __block NSInteger r;
     [self _connectionDispatchSync: ^{
-      uint8_t buf[kSocketInBufSize];
-      NSAssert(buf != NULL, @"Failed to allocate read buffer");
-      NSInteger r = [in_stream_ read: buf maxLength: kSocketInBufSize];
-      if (r == 0)
-        return;
-      if (r < 0) {
-        ISpdyError* err = [ISpdyError errorWithCode: kISpdyErrSocketError
-                                         andDetails: [stream streamError]];
-        [self _close: err];
-        return;
-      }
+      r = [in_stream_ read: read_buf_ maxLength: sizeof(read_buf_)];
+    }];
 
-      [parser_ execute: buf length: (NSUInteger) r];
+    if (r == 0)
+      return;
+    if (r < 0) {
+      ISpdyError* err = [ISpdyError errorWithCode: kISpdyErrSocketError
+                                       andDetails: [stream streamError]];
+      [self _connectionDispatch: ^{
+        [self _close: err];
+      }];
+      return;
+    }
+
+    [self _connectionDispatch: ^{
+      [parser_ execute: read_buf_ length: (NSUInteger) r];
     }];
   }
 }
