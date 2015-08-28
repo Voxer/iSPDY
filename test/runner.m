@@ -22,9 +22,9 @@
 
 #import <Foundation/Foundation.h>
 #import "Kiwi.h"
-#import <SenTestingKit/SenTestingKit.h>
 #import <ispdy.h>
 #import "compressor.h"
+
 
 SPEC_BEGIN(ISpdySpec)
 
@@ -350,7 +350,12 @@ SPEC_END
 
 int main() {
   @autoreleasepool {
-    SenSelfTestMain();
+    XCTestSuite* suite = [XCTestSuite testSuiteWithName: @"ISpdy"];
+
+    for (NSInvocation* invocation in [ISpdySpec testInvocations]) {
+      [suite addTest: [ISpdySpec testCaseWithInvocation: invocation]];
+    }
+    [suite run];
   }
   return 0;
 }

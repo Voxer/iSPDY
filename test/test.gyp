@@ -14,6 +14,7 @@
         "libz.dylib",
         "Foundation.framework",
         "CoreFoundation.framework",
+        "XCTest.framework",
       ],
     },
     "sources": [

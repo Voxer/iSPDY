@@ -21,6 +21,7 @@ xcodeproj:
 	./gyp_ispdy -f xcode -Dsdk=$(IOS_SDK) --suffix=-iphoneos
 	./gyp_ispdy -f xcode -Dsdk=$(SIMULATOR_SDK) --suffix=-iphonesimulator
 	./gyp_ispdy -f xcode -Dsdk=$(MACOSX_SDK) --suffix=-macosx
+	./gyp_ispdy -f xcode -Dsdk=$(MACOSX_SDK) --suffix=-macosx test
 
 lipo: xcodeproj
 	mkdir -p out/$(CONFIGURATION)
@@ -55,7 +56,7 @@ framework: lipo
 		fi \
 	done
 
-test:
+test: xcodeproj
 	cd test && npm update && \
 		(node server.js & \
 		 (xcodebuild && ./build/Debug/test-runner || true) && \

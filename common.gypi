@@ -12,9 +12,6 @@
 
   'target_defaults': {
     'default_configuration': 'Debug',
-    'defines': [
-      'SENTEST_IGNORE_DEPRECATION_WARNING',
-    ],
     'configurations': {
       'Debug': {
         'defines': [ 'DEBUG', '_DEBUG' ],

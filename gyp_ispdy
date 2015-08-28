@@ -78,7 +78,10 @@ if __name__ == '__main__':
     sdk = [arg for arg in args if arg.startswith('-Dsdk=')][0]
     sdk = sdk.replace('-Dsdk=', '', 1)
   sdk_path = run_cmd(['xcodebuild', '-version', '-sdk', sdk, 'Path'])
+  sdk_platform_path = run_cmd([
+      'xcodebuild', '-version', '-sdk', sdk, 'PlatformPath'])
   args.extend(['-Dsdk_path=' + sdk_path])
+  args.extend(['-Dsdk_platform_path=' + sdk_platform_path])
 
   sdk_dev_path = run_cmd(['xcode-select', '-print-path'])
   args.extend(['-Dsdk_dev_path=' + sdk_dev_path])
