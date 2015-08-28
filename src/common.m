@@ -50,3 +50,110 @@
 }
 
 @end
+
+@implementation ISpdyPing
+
+- (void) _invoke: (ISpdyPingStatus) status rtt: (NSTimeInterval) rtt {
+  if (self.block == NULL)
+    return;
+  self.block(status, rtt);
+  self.block = NULL;
+}
+
+@end
+
+@implementation ISpdyLoopWrap
+
++ (ISpdyLoopWrap*) stateForLoop: (NSRunLoop*) loop andMode: (NSString*) mode {
+  ISpdyLoopWrap* wrap = [ISpdyLoopWrap alloc];
+  wrap.loop = loop;
+  wrap.mode = mode;
+
+  return wrap;
+}
+
+- (BOOL) isEqual: (id) anObject {
+  if (![anObject isMemberOfClass: [ISpdyLoopWrap class]])
+    return NO;
+
+  ISpdyLoopWrap* wrap = (ISpdyLoopWrap*) anObject;
+  return [wrap.loop isEqual: self.loop] &&
+         [wrap.mode isEqualToString: self.mode];
+}
+
+
+- (NSUInteger) hash {
+  return [self.loop hash] + [self.mode hash];
+}
+
+@end
+
+@implementation ISpdyError
+
+- (ISpdyErrorCode) code {
+  return (ISpdyErrorCode) super.code;
+}
+
+- (NSString*) description {
+  id details = [self.userInfo objectForKey: @"details"];
+  switch (self.code) {
+    case kISpdyErrConnectionTimeout:
+      return @"ISpdy error: connection timed out";
+    case kISpdyErrConnectionEnd:
+      return @"ISpdy error: connection's socket end";
+    case kISpdyErrRequestTimeout:
+      return @"ISpdy error: request timed out";
+    case kISpdyErrClose:
+      return @"ISpdy error: connection was closed on client side";
+    case kISpdyErrRst:
+      return [NSString stringWithFormat: @"ISpdy error: connection was RSTed "
+                                         @"by other side - %@",
+          details];
+    case kISpdyErrParseError:
+      return [NSString stringWithFormat: @"ISpdy error: parser error - %@",
+          details];
+    case kISpdyErrDoubleResponse:
+      return @"ISpdy error: got double SYN_REPLY for a single stream";
+    case kISpdyErrSocketError:
+      return [NSString stringWithFormat: @"ISpdy error: socket error - %@",
+          details];
+    case kISpdyErrCheckSocketError:
+      return [NSString
+          stringWithFormat: @"ISpdy error: check socket error - %@",
+          details];
+    case kISpdyErrDecompressionError:
+      return @"ISpdy error: failed to decompress incoming data";
+    case kISpdyErrSSLPinningError:
+      return @"ISpdy error: failed to verify certificate against pinned one";
+    case kISpdyErrGoawayError:
+      return @"ISpdy error: server asked to go away";
+    case kISpdyErrSendAfterGoawayError:
+      return @"ISpdy error: request sent after go away";
+    case kISpdyErrSendAfterClose:
+      return @"ISpdy error: request sent after close";
+    default:
+      return [NSString stringWithFormat: @"Unexpected spdy error %d",
+          self.code];
+  }
+}
+
+@end
+
+@implementation ISpdyError (ISpdyErrorPrivate)
+
++ (ISpdyError*) errorWithCode: (ISpdyErrorCode) code {
+  ISpdyError* r = [ISpdyError alloc];
+
+  return [r initWithDomain: @"ispdy" code: (NSInteger) code userInfo: nil];
+}
+
++ (ISpdyError*) errorWithCode: (ISpdyErrorCode) code andDetails: (id) details {
+  ISpdyError* r = [ISpdyError alloc];
+  NSDictionary* dict;
+
+  if (details != nil)
+    dict = [NSDictionary dictionaryWithObject: details forKey: @"details"];
+  return [r initWithDomain: @"ispdy" code: (NSInteger) code userInfo: dict];
+}
+
+@end
