@@ -239,9 +239,12 @@ typedef enum {
 
 @property NSRunLoop* loop;
 @property NSString* mode;
+@property CFRunLoopSourceRef source;
+@property CFRunLoopSourceRef remove_source;
 
 + (ISpdyLoopWrap*) stateForLoop: (NSRunLoop*) loop andMode: (NSString*) mode;
 - (BOOL) isEqual: (id) anObject;
+- (NSUInteger) hash;
 
 @end
 

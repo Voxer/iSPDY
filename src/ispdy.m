@@ -663,8 +663,57 @@ typedef enum {
 }
 
 
+static void ispdy_source_cb(void* arg) {
+  ISpdy* ispdy = (__bridge ISpdy*) arg;
+
+  [ispdy _doSocketWrite];
+}
+
+
+static void ispdy_remove_source_cb(void* arg) {
+  ISpdyLoopWrap* wrap = (__bridge ISpdyLoopWrap*) arg;
+
+  CFRunLoopRemoveSource(CFRunLoopGetCurrent(),
+                        wrap.source,
+                        kCFRunLoopDefaultMode);
+  CFRunLoopRemoveSource(CFRunLoopGetCurrent(),
+                        wrap.remove_source,
+                        kCFRunLoopDefaultMode);
+
+  CFRunLoopSourceContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  CFRunLoopSourceGetContext(wrap.source, &ctx);
+  CFRelease(ctx.info);
+  ctx.info = NULL;
+
+  CFRunLoopSourceGetContext(wrap.remove_source, &ctx);
+  CFRelease(ctx.info);
+  ctx.info = NULL;
+
+  CFRelease(wrap.source);
+  CFRelease(wrap.remove_source);
+  wrap.source = NULL;
+  wrap.remove_source = NULL;
+}
+
+
 - (void) _scheduleInRunLoop: (NSRunLoop*) loop forMode: (NSString*) mode {
   ISpdyLoopWrap* wrap = [ISpdyLoopWrap stateForLoop: loop andMode: mode];
+
+  CFRunLoopSourceContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.info = (void*) CFBridgingRetain(self);
+  ctx.perform = ispdy_source_cb;
+  wrap.source = CFRunLoopSourceCreate(NULL, 0, &ctx);
+
+  ctx.info = (void*) CFBridgingRetain(wrap);
+  ctx.perform = ispdy_remove_source_cb;
+  wrap.remove_source = CFRunLoopSourceCreate(NULL, 0, &ctx);
+
+  CFRunLoopAddSource([loop getCFRunLoop], wrap.source, kCFRunLoopDefaultMode);
+  CFRunLoopAddSource([loop getCFRunLoop],
+                     wrap.remove_source,
+                     kCFRunLoopDefaultMode);
 
   [scheduled_loops_ addObject: wrap];
 
@@ -674,8 +723,12 @@ typedef enum {
 
 
 - (void) _removeFromRunLoop: (NSRunLoop*) loop forMode: (NSString*) mode {
-  ISpdyLoopWrap* wrap = [ISpdyLoopWrap stateForLoop: loop andMode: mode];
-  [scheduled_loops_ removeObject: wrap];
+  ISpdyLoopWrap* needle = [ISpdyLoopWrap stateForLoop: loop andMode: mode];
+  ISpdyLoopWrap* wrap = [scheduled_loops_ member: needle];
+  [scheduled_loops_ removeObject: needle];
+
+  CFRunLoopSourceSignal(wrap.remove_source);
+  CFRunLoopWakeUp([wrap.loop getCFRunLoop]);
 
   [in_stream_ removeFromRunLoop: wrap.loop forMode: wrap.mode];
   [out_stream_ removeFromRunLoop: wrap.loop forMode: wrap.mode];
@@ -854,8 +907,10 @@ typedef enum {
 
 
 - (void) _scheduleSocketWrite {
-  // TODO(indutny): do it on event loop's thread
-  [self _doSocketWrite];
+  for (ISpdyLoopWrap* wrap in scheduled_loops_) {
+    CFRunLoopSourceSignal(wrap.source);
+    CFRunLoopWakeUp([wrap.loop getCFRunLoop]);
+  }
 }
 
 
@@ -877,7 +932,7 @@ typedef enum {
 
   // Release more frames!
   if (buffer_offset_ == 0)
-    return [scheduler_ unschedule];
+    return [scheduler_ resume];
 
   // Socket available for write
   LOG(kISpdyLogDebug, @"Socket send buffer=%d", buffer_offset_);
@@ -1454,6 +1509,7 @@ typedef enum {
   ISpdyLoopWrap* wrap = [ISpdyLoopWrap alloc];
   wrap.loop = loop;
   wrap.mode = mode;
+
   return wrap;
 }
 
@@ -1464,6 +1520,11 @@ typedef enum {
   ISpdyLoopWrap* wrap = (ISpdyLoopWrap*) anObject;
   return [wrap.loop isEqual: self.loop] &&
          [wrap.mode isEqualToString: self.mode];
+}
+
+
+- (NSUInteger) hash {
+  return [self.loop hash] + [self.mode hash];
 }
 
 @end

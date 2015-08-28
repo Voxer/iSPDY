@@ -49,6 +49,7 @@ typedef BOOL (^ISpdySchedulerUnscheduleCallback)(NSData* data,
 - (void) unschedule;
 - (void) cork;
 - (void) uncork;
+- (void) resume;
 
 @end
 

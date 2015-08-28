@@ -1,3 +1,4 @@
+
 // The MIT License (MIT)
 //
 // Copyright (c) 2013 Voxer
@@ -31,6 +32,7 @@ static const NSInteger kSchedulerItemCapacity = 10;
   dispatch_queue_t dispatch_;
   BOOL pending_dispatch_;
   NSInteger corked_;
+  BOOL paused_;
 }
 
 + (ISpdyScheduler*) schedulerWithMaxPriority: (NSUInteger) maxPriority
@@ -46,6 +48,7 @@ static const NSInteger kSchedulerItemCapacity = 10;
   scheduler->sync_ = [ISpdySchedulerQueue queueWithScheduler: scheduler];
   scheduler->pending_dispatch_ = NO;
   scheduler->corked_ = 0;
+  scheduler->paused_ = NO;
 
   return scheduler;
 }
@@ -100,12 +103,16 @@ static const NSInteger kSchedulerItemCapacity = 10;
   };
 
   // Write all sync data first
-  if (![sync_ unschedule: cb])
-    return;
-
-  for (ISpdySchedulerQueue* queue in queues_)
-    if (![queue unschedule: cb])
-      break;
+  if (![sync_ unschedule: cb]) {
+    paused_ = YES;
+  } else {
+    for (ISpdySchedulerQueue* queue in queues_) {
+      if (![queue unschedule: cb]) {
+        paused_ = YES;
+        break;
+      }
+    }
+  }
 
   // Let the parent know that we are done
   [self.delegate scheduledEnd];
@@ -134,6 +141,14 @@ static const NSInteger kSchedulerItemCapacity = 10;
       return;
     [self unschedule];
   });
+}
+
+
+- (void) resume {
+  if (!paused_)
+    return;
+  paused_ = NO;
+  [self unschedule];
 }
 
 @end
