@@ -666,7 +666,9 @@ typedef enum {
 static void ispdy_source_cb(void* arg) {
   ISpdy* ispdy = (__bridge ISpdy*) arg;
 
-  [ispdy _doSocketWrite];
+  [ispdy _connectionDispatchSync: ^{
+    [ispdy _doSocketWrite];
+  }];
 }
 
 
@@ -888,7 +890,8 @@ static void ispdy_remove_source_cb(void* arg) {
   memcpy(bytes + buffer_offset_, [data bytes], [data length]);
   buffer_offset_ += [data length];
 
-  [buffer_size_ addObject: [NSNumber numberWithUnsignedInteger: [data length]]];
+  NSNumber* size = [NSNumber numberWithUnsignedInteger: [data length]];
+  [buffer_size_ addObject: size];
   [buffer_callback_ addObject: cb];
 
   LOG(kISpdyLogDebug,
@@ -931,8 +934,10 @@ static void ispdy_remove_source_cb(void* arg) {
   }
 
   // Release more frames!
-  if (buffer_offset_ == 0)
-    return [scheduler_ resume];
+  if (buffer_offset_ == 0) {
+    [scheduler_ resume];
+    return;
+  }
 
   // Socket available for write
   LOG(kISpdyLogDebug, @"Socket send buffer=%d", buffer_offset_);
@@ -971,7 +976,7 @@ static void ispdy_remove_source_cb(void* arg) {
     [buffer_size_ removeObjectAtIndex: 0];
     ISpdySchedulerCallback cb = [buffer_callback_ objectAtIndex: 0];
     [buffer_callback_ removeObjectAtIndex: 0];
-    cb();
+    [self _connectionDispatch: cb];
   }
 
   if (buffer_offset_ == 0)
@@ -1235,13 +1240,16 @@ static void ispdy_remove_source_cb(void* arg) {
   } else if (event == NSStreamEventErrorOccurred) {
     LOG(kISpdyLogInfo, @"NSStream<%@> error", stream_kind);
   }
-  [self _connectionDispatchSync: ^{
-    // Already closed, just return
-    if (in_stream_ == nil || out_stream_ == nil)
-      return;
 
-    // Notify delegate about connection establishment
-    if (event == NSStreamEventOpenCompleted && stream == out_stream_) {
+  // Already closed, just return
+  if (in_stream_ == nil || out_stream_ == nil)
+    return;
+
+  ISpdyError* err = nil;
+
+  // Notify delegate about connection establishment
+  if (event == NSStreamEventOpenCompleted && stream == out_stream_) {
+    [self _connectionDispatch: ^{
       // Set queued option
       if (no_delay_)
         [self _setNoDelay: no_delay_];
@@ -1253,51 +1261,59 @@ static void ispdy_remove_source_cb(void* arg) {
                         andCount: keep_alive_.count];
       }
 
-       _state = kISpdyStateConnected;
-      // Notify delegate
-      [self _delegateDispatch: ^{
-        [self.delegate handleConnect: self];
-      }];
-    } else if (event == NSStreamEventHasBytesAvailable ||
-               event == NSStreamEventHasSpaceAvailable) {
-      // Check pinned certificates
-      if (secure_ && ![self _checkPinnedCertificates: stream]) {
-        // Failure
-        ISpdyError* err = [ISpdyError errorWithCode: kISpdyErrSSLPinningError];
-        [self _close: err];
-        return;
-      }
-    }
+      _state = kISpdyStateConnected;
+    }];
 
-    if (event == NSStreamEventOpenCompleted ||
-        event == NSStreamEventErrorOccurred ||
-        event == NSStreamEventEndEncountered) {
+    // Notify delegate
+    [self _delegateDispatch: ^{
+      [self.delegate handleConnect: self];
+    }];
+  } else if (event == NSStreamEventHasBytesAvailable ||
+             event == NSStreamEventHasSpaceAvailable) {
+    // Check pinned certificates
+    if (secure_ && ![self _checkPinnedCertificates: stream]) {
+      // Failure
+      err = [ISpdyError errorWithCode: kISpdyErrSSLPinningError];
+    }
+  }
+
+  if (event == NSStreamEventOpenCompleted ||
+      event == NSStreamEventErrorOccurred ||
+      event == NSStreamEventEndEncountered) {
+    [self _connectionDispatch: ^{
       [self _setTimeout: 0];
-    }
+    }];
+  }
 
-    if (event == NSStreamEventErrorOccurred) {
-      ISpdyError* err = [ISpdyError errorWithCode: kISpdyErrSocketError
-                                       andDetails: [stream streamError]];
+  if (event == NSStreamEventErrorOccurred) {
+    err = [ISpdyError errorWithCode: kISpdyErrSocketError
+                         andDetails: [stream streamError]];
+  }
+
+  if (event == NSStreamEventEndEncountered)
+    err = [ISpdyError errorWithCode: kISpdyErrConnectionEnd];
+
+  if (err != nil) {
+    [self _connectionDispatch: ^{
       [self _close: err];
-      return;
-    }
+    }];
+    return;
+  }
 
-    if (event == NSStreamEventEndEncountered) {
-      ISpdyError* err = [ISpdyError errorWithCode: kISpdyErrConnectionEnd];
-      [self _close: err];
-      return;
-    }
+  if (event == NSStreamEventHasSpaceAvailable) {
+    NSAssert(out_stream_ == stream, @"Write event on input stream?!");
 
-    if (event == NSStreamEventHasSpaceAvailable) {
-      NSAssert(out_stream_ == stream, @"Write event on input stream?!");
-
+    [self _connectionDispatchSync: ^{
       [self _doSocketWrite];
-    } else if (event == NSStreamEventHasBytesAvailable) {
-      NSAssert(in_stream_ == stream, @"Read event on output stream?!");
+    }];
+  } else if (event == NSStreamEventHasBytesAvailable) {
+    NSAssert(in_stream_ == stream, @"Read event on output stream?!");
 
-      // Socket available for read
+    // Socket available for read
+    [self _connectionDispatchSync: ^{
       uint8_t buf[kSocketInBufSize];
-      NSInteger r = [in_stream_ read: buf maxLength: sizeof(buf)];
+      NSAssert(buf != NULL, @"Failed to allocate read buffer");
+      NSInteger r = [in_stream_ read: buf maxLength: kSocketInBufSize];
       if (r == 0)
         return;
       if (r < 0) {
@@ -1308,8 +1324,8 @@ static void ispdy_remove_source_cb(void* arg) {
       }
 
       [parser_ execute: buf length: (NSUInteger) r];
-    }
-  }];
+    }];
+  }
 }
 
 // Parser delegate methods
