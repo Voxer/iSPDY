@@ -117,6 +117,8 @@ typedef enum {
   NSMutableArray* buffer_callback_;
   NSUInteger buffer_offset_;
 
+  struct timeval jitter_start_;
+
   // Dispatch queue for invoking methods on delegates
   dispatch_queue_t delegate_queue_;
 
@@ -667,6 +669,9 @@ typedef enum {
 static void ispdy_source_cb(void* arg) {
   ISpdy* ispdy = (__bridge ISpdy*) arg;
 
+#ifndef NDEBUG
+  [ispdy _measureJitterEnd];
+#endif
   [ispdy _doSocketWrite];
 }
 
@@ -909,6 +914,9 @@ static void ispdy_remove_source_cb(void* arg) {
 
 
 - (void) _scheduleSocketWrite {
+#ifndef NDEBUG
+  [self _measureJitter];
+#endif
   for (ISpdyLoopWrap* wrap in scheduled_loops_) {
     CFRunLoopSourceSignal(wrap.source);
     CFRunLoopWakeUp([wrap.loop getCFRunLoop]);
@@ -986,6 +994,26 @@ static void ispdy_remove_source_cb(void* arg) {
     if (buffer_offset_ == 0)
       [self _handleDrain];
   }];
+}
+
+
+- (void) _measureJitter {
+  if (jitter_start_.tv_sec != 0)
+    return;
+  gettimeofday(&jitter_start_, NULL);
+}
+
+
+- (void) _measureJitterEnd {
+  struct timeval jitter_start;
+  struct timeval jitter_end;
+  gettimeofday(&jitter_end, NULL);
+  jitter_start = jitter_start_;
+  memset(&jitter_start_, 0, sizeof(jitter_start_));
+
+  float delta = (float) (jitter_end.tv_sec - jitter_start.tv_sec) * 1e3 +
+                (float) (jitter_end.tv_usec - jitter_start.tv_usec) * 1e-3;
+  LOG(kISpdyLogDebug, @"socket write schedule jitter=%fms", delta);
 }
 
 

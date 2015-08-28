@@ -181,6 +181,10 @@ typedef enum {
 - (void) _scheduleSocketWrite;
 - (void) _doSocketWrite;
 
+// Jitter
+- (void) _measureJitter;
+- (void) _measureJitterEnd;
+
 // dispatch delegate callback
 - (void) _delegateDispatch: (void (^)()) block;
 - (void) _delegateDispatchSync: (void (^)()) block;
