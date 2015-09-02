@@ -463,6 +463,10 @@ typedef enum {
       return;
     }
 
+    // Try to fit accumulated data and request frame into a single socket buffer
+    LOG(kISpdyLogDebug, @"cork");
+    [scheduler_ cork];
+
     // Send initial window
     if (version_ != kISpdyV2 && !settings_sent_) {
       settings_sent_ = YES;
@@ -484,10 +488,6 @@ typedef enum {
     NSNumber* request_key = [NSNumber numberWithUnsignedInt: request.stream_id];
     [streams_ setObject: request forKey: request_key];
     active_streams_++;
-
-    // Try to fit accumulated data and request frame into a single socket buffer
-    LOG(kISpdyLogDebug, @"cork");
-    [scheduler_ cork];
 
     [framer_ clear];
     [framer_ synStream: request.stream_id
