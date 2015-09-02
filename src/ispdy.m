@@ -71,6 +71,7 @@ typedef enum {
   ISpdyFramer* framer_;
   ISpdyParser* parser_;
   ISpdyScheduler* scheduler_;
+  BOOL settings_sent_;
   BOOL no_delay_;
   int snd_buf_size_;
   NSInteger max_write_size_;
@@ -385,18 +386,6 @@ typedef enum {
   [in_stream_ open];
   [out_stream_ open];
 
-  // Send initial window
-  if (version_ != kISpdyV2) {
-    [self _connectionDispatchSync: ^{
-      [framer_ clear];
-      [framer_ initialWindow: kInitialWindowSizeIn];
-      [scheduler_ schedule: [framer_ output]
-               forPriority: 0
-                 andStream: 0
-              withCallback: nil];
-    }];
-  }
-
   // Start timer
   [self setTimeout: kConnectTimeout];
 
@@ -472,6 +461,17 @@ typedef enum {
     if (goaway_) {
       [self _error: request code: kISpdyErrSendAfterGoawayError];
       return;
+    }
+
+    // Send initial window
+    if (version_ != kISpdyV2 && !settings_sent_) {
+      settings_sent_ = YES;
+      [framer_ clear];
+      [framer_ initialWindow: kInitialWindowSizeIn];
+      [scheduler_ schedule: [framer_ output]
+               forPriority: 0
+                 andStream: 0
+              withCallback: nil];
     }
 
     request.initial_window_in = kInitialWindowSizeIn;
