@@ -27,11 +27,38 @@
 #import "common.h"
 #import "compressor.h"  // ISpdyCompressor
 
-#define LOG(level, ...)                                                       \
-  [self.connection _log: (level)                                              \
-                   file: @__FILE__                                            \
-                   line: __LINE__                                             \
-                 format: __VA_ARGS__]
+
+#if APPSTORE
+#define ISPDYDEBUGLOG(...)
+#define ISPDYINFOLOG(...)
+#define ISPDYWARNLOG(...)
+#define ISPDYERRORLOG(...)
+
+#elif DEBUG
+
+#define ISPDYDEBUGLOG(...)  [self.connection _log: (kISpdyLogDebug) file: @__FILE__ line: __LINE__ format: __VA_ARGS__]
+
+#define ISPDYINFOLOG(...)  [self.connection _log: (kISpdyLogInfo) file: @__FILE__ line: __LINE__ format: __VA_ARGS__]
+
+#define ISPDYWARNLOG(...)  [self.connection _log: (kISpdyLogWarning) file: @__FILE__ line: __LINE__ format: __VA_ARGS__]
+
+#define ISPDYERRORLOG(...)  [self.connection _log: (kISpdyLogError) file: @__FILE__ line: __LINE__ format: __VA_ARGS__]
+
+
+#else
+
+#define ISPDYDEBUGLOG(...)
+
+#define ISPDYINFOLOG(...)  [self.connection _log: (kISpdyLogInfo) file: @__FILE__ line: __LINE__ format: __VA_ARGS__]
+
+#define ISPDYWARNLOG(...)  [self.connection _log: (kISpdyLogWarning) file: @__FILE__ line: __LINE__ format: __VA_ARGS__]
+
+#define ISPDYERRORLOG(...)  [self.connection _log: (kISpdyLogError) file: @__FILE__ line: __LINE__ format: __VA_ARGS__]
+
+#endif
+
+
+
 
 static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
@@ -220,7 +247,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   if (self.connection == nil)
     return;
 
-  LOG(kISpdyLogDebug, @"request=\"%@\" end", self.url);
+  ISPDYDEBUGLOG(@"request=\"%@\" end", self.url);
 
   void (^delegateBlock)(void) = ^{
     [self.delegate request: self handleEnd: err];
@@ -261,7 +288,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   }
 
   if (self.window_out <= 0 && self.window_out + delta > 0)
-    LOG(kISpdyLogInfo, @"Window filled %d", self.window_out);
+    ISPDYINFOLOG(@"Window filled %d", self.window_out);
   self.window_out += delta;
 
   if (block != nil)

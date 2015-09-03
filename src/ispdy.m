@@ -38,6 +38,42 @@
 #import "parser.h"  // ISpdyParser
 #import "scheduler.h"  // ISpdyScheduler
 
+
+
+
+#if APPSTORE
+#define ISPDYDEBUGLOG(...)
+#define ISPDYINFOLOG(...)
+#define ISPDYWARNLOG(...)
+#define ISPDYERRORLOG(...)
+
+#elif DEBUG
+
+#define ISPDYDEBUGLOG(...)  [self _log: (kISpdyLogDebug) file: @__FILE__ line: __LINE__ format: __VA_ARGS__]
+
+#define ISPDYINFOLOG(...)  [self _log: (kISpdyLogInfo) file: @__FILE__ line: __LINE__ format: __VA_ARGS__]
+
+#define ISPDYWARNLOG(...)  [self _log: (kISpdyLogWarning) file: @__FILE__ line: __LINE__ format: __VA_ARGS__]
+
+#define ISPDYERRORLOG(...)  [self _log: (kISpdyLogError) file: @__FILE__ line: __LINE__ format: __VA_ARGS__]
+
+
+
+#else
+
+#define ISPDYDEBUGLOG(...)
+
+#define ISPDYINFOLOG(...)  [self _log: (kISpdyLogInfo) file: @__FILE__ line: __LINE__ format: __VA_ARGS__]
+
+#define ISPDYWARNLOG(...)  [self _log: (kISpdyLogWarning) file: @__FILE__ line: __LINE__ format: __VA_ARGS__]
+
+#define ISPDYERRORLOG(...)  [self _log: (kISpdyLogError) file: @__FILE__ line: __LINE__ format: __VA_ARGS__]
+
+#endif
+
+
+
+
 static const NSInteger kSocketInBufSize = 65536;
 static const NSInteger kInitialWindowSizeIn = 1048576;
 static const NSInteger kInitialWindowSizeOut = 65536;
@@ -53,8 +89,6 @@ typedef enum {
   kISpdySSLPinningApproved
 } ISpdySSLPinningResult;
 
-#define LOG(level, ...)                                                       \
-  [self _log: (level) file: @__FILE__ line: __LINE__ format: __VA_ARGS__]
 
 // Implementations
 
@@ -444,17 +478,17 @@ typedef enum {
 
 - (void) send: (ISpdyRequest*) request {
   if (request == nil) {
-    LOG(kISpdyLogWarning, @"Trying to send request nil request", request);
+    ISPDYWARNLOG(@"Trying to send request nil request", request);
     return;
   }
   if (request.connection != nil) {
-    LOG(kISpdyLogWarning, @"Trying to send request %p twice", request);
+    ISPDYWARNLOG(@"Trying to send request %p twice", request);
     return;
   }
 
   [self _connectionDispatch: ^{
     if (_state == kISpdyStateClosed) {
-      LOG(kISpdyLogWarning, @"Trying to send request after close", request);
+      ISPDYWARNLOG(@"Trying to send request after close", request);
       [self _error: request code: kISpdyErrSendAfterClose];
       return;
     }
@@ -464,7 +498,7 @@ typedef enum {
     }
 
     // Try to fit accumulated data and request frame into a single socket buffer
-    LOG(kISpdyLogDebug, @"cork");
+    ISPDYDEBUGLOG(@"cork");
     [scheduler_ cork];
 
     // Send initial window
@@ -504,7 +538,7 @@ typedef enum {
     [request _resetTimeout];
 
     [request _connectionDispatch: ^{
-      LOG(kISpdyLogDebug, @"uncork");
+      ISPDYDEBUGLOG(@"uncork");
       [scheduler_ uncork];
     }];
 
@@ -593,12 +627,6 @@ typedef enum {
        format: (NSString*) format, ... {
   if (self.delegate == nil)
     return;
-
-#ifdef NDEBUG
-  // No debug logging in release builds
-  if (level == kISpdyLogDebug)
-    return;
-#endif
 
   NSObject* d = (NSObject*) self.delegate;
   if (![d respondsToSelector: @selector(logSpdyEvents:level:message:)])
@@ -883,7 +911,7 @@ static void ispdy_remove_source_cb(void* arg) {
 - (BOOL) scheduledWrite: (NSData*) data
            withCallback: (ISpdySchedulerCallback) cb {
   if (buffer_offset_ > kSocketMaxBufferSize) {
-    LOG(kISpdyLogDebug, @"Can\'t schedule write, buffer is full");
+    ISPDYDEBUGLOG(@"Can\'t schedule write, buffer is full");
     return NO;
   }
 
@@ -898,7 +926,7 @@ static void ispdy_remove_source_cb(void* arg) {
   [buffer_size_ addObject: size];
   [buffer_callback_ addObject: cb];
 
-  LOG(kISpdyLogDebug,
+  ISPDYDEBUGLOG(
       @"Scheduled write size=%d total buffered=%d",
       [data length],
       buffer_offset_);
@@ -908,7 +936,7 @@ static void ispdy_remove_source_cb(void* arg) {
 
 
 - (void) scheduledEnd {
-  LOG(kISpdyLogDebug, @"End of scheduled data");
+  ISPDYDEBUGLOG(@"End of scheduled data");
   [self _scheduleSocketWrite];
 }
 
@@ -945,14 +973,14 @@ static void ispdy_remove_source_cb(void* arg) {
   // Socket available for write
   __block NSInteger r;
   [self _connectionDispatchSync: ^{
-    LOG(kISpdyLogDebug, @"Socket send buffer=%d", buffer_offset_);
+    ISPDYDEBUGLOG(@"Socket send buffer=%d", buffer_offset_);
     if (buffer_offset_ == 0)
       r = 0;
     else
       r = [out_stream_ write: [buffer_data_ bytes] maxLength: buffer_offset_];
   }];
 
-  LOG(kISpdyLogDebug, @"Socket sent size=%d", r);
+  ISPDYDEBUGLOG(@"Socket sent size=%d", r);
   if (r == -1) {
     ISpdyError* err = [ISpdyError errorWithCode: kISpdyErrSocketError
                                      andDetails: [out_stream_ streamError]];
@@ -1013,7 +1041,7 @@ static void ispdy_remove_source_cb(void* arg) {
 
   float delta = (float) (jitter_end.tv_sec - jitter_start.tv_sec) * 1e3 +
                 (float) (jitter_end.tv_usec - jitter_start.tv_usec) * 1e-3;
-  LOG(kISpdyLogDebug, @"socket write schedule jitter=%fms", delta);
+  ISPDYDEBUGLOG(@"socket write schedule jitter=%fms", delta);
 }
 
 
@@ -1053,8 +1081,7 @@ static void ispdy_remove_source_cb(void* arg) {
 
   NSAssert(request.connection != nil, @"Request was closed");
 
-  LOG(kISpdyLogDebug,
-      @"request=\"%@\" sending DATA size=%d fin=%d",
+  ISPDYDEBUGLOG(@"request=\"%@\" sending DATA size=%d fin=%d",
       request.url,
       [data length],
       fin);
@@ -1067,8 +1094,7 @@ static void ispdy_remove_source_cb(void* arg) {
            forPriority: request.priority
              andStream: request.stream_id
           withCallback: ^() {
-    LOG(kISpdyLogDebug,
-        @"request=\"%@\" DATA sent size=%d",
+    ISPDYDEBUGLOG(@"request=\"%@\" DATA sent size=%d",
         request.url,
         [data length]);
 
@@ -1269,11 +1295,11 @@ static void ispdy_remove_source_cb(void* arg) {
 - (void) stream: (NSStream*) stream handleEvent: (NSStreamEvent) event {
   NSString* stream_kind = stream == in_stream_ ? @"in" : @"out";
   if (event == NSStreamEventOpenCompleted) {
-    LOG(kISpdyLogInfo, @"NSStream<%@> open", stream_kind);
+    ISPDYINFOLOG( @"NSStream<%@> open", stream_kind);
   } else if (event == NSStreamEventEndEncountered) {
-    LOG(kISpdyLogInfo, @"NSStream<%@> end", stream_kind);
+    ISPDYINFOLOG( @"NSStream<%@> end", stream_kind);
   } else if (event == NSStreamEventErrorOccurred) {
-    LOG(kISpdyLogInfo, @"NSStream<%@> error", stream_kind);
+    ISPDYINFOLOG( @"NSStream<%@> error", stream_kind);
   }
 
   // Already closed, just return
