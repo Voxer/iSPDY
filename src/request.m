@@ -27,11 +27,25 @@
 #import "common.h"
 #import "compressor.h"  // ISpdyCompressor
 
-#define LOG(level, ...)                                                       \
+#ifdef APPSTORE
+# define LOG(level, ...) ((void) 0)
+#elif DEBUG
+# define LOG(level, ...)                                                      \
   [self.connection _log: (level)                                              \
                    file: @__FILE__                                            \
                    line: __LINE__                                             \
                  format: __VA_ARGS__]
+#else
+# define LOG(level, ...)                                                      \
+  do {                                                                        \
+    if ((level) > kISpdyLogDebug) {                                           \
+      [self.connection _log: (level)                                          \
+                       file: @__FILE__                                        \
+                       line: __LINE__                                         \
+                     format: __VA_ARGS__];                                    \
+    }                                                                         \
+  } while (0)
+#endif
 
 static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 

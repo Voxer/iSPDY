@@ -53,8 +53,18 @@ typedef enum {
   kISpdySSLPinningApproved
 } ISpdySSLPinningResult;
 
-#define LOG(level, ...)                                                       \
+#ifdef APPSTORE
+# define LOG(level, ...) ((void) 0)
+#elif DEBUG
+# define LOG(level, ...)                                                      \
   [self _log: (level) file: @__FILE__ line: __LINE__ format: __VA_ARGS__]
+#else
+# define LOG(level, ...)                                                      \
+  do {                                                                        \
+    if ((level) > kISpdyLogDebug)                                             \
+      [self _log: (level) file: @__FILE__ line: __LINE__ format: __VA_ARGS__];\
+  } while (0)
+#endif
 
 // Implementations
 
