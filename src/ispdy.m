@@ -142,16 +142,23 @@ typedef enum {
        host: (NSString*) host
    hostname: (NSString*) hostname
        port: (UInt16) port
-     secure: (BOOL) secure {
+     secure: (BOOL) secure
+      queue: (dispatch_queue_t) queue {
   self = [super init];
   if (!self)
     return self;
 
-  if (delegate_queue_ == nil) {
+  if (queue != nil) {
+    // Use user-supplied dispatch queue
+    delegate_queue_ = queue;
+  } else if (delegate_queue_ == nil) {
     // Initialize dispatch queue
     delegate_queue_ = dispatch_queue_create("com.voxer.ispdy.delegate",
                                             NULL);
     NSAssert(delegate_queue_ != NULL, @"Failed to get main queue");
+  }
+
+  if (connection_queue_ == nil) {
     connection_queue_ = dispatch_queue_create("com.voxer.ispdy.connection",
                                               NULL);
     NSAssert(connection_queue_ != NULL, @"Failed to get main queue");
@@ -252,7 +259,8 @@ typedef enum {
                host: host
            hostname: host
                port: port
-             secure: secure];
+             secure: secure
+              queue: nil];
 }
 
 
@@ -385,7 +393,8 @@ typedef enum {
                  host: _host
              hostname: _hostname
                  port: port_
-               secure: secure_];
+               secure: secure_
+                queue: nil];
   }
 
   [self _connectionDispatchSync: ^{

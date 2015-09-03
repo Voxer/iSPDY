@@ -380,7 +380,8 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
        host: (NSString*) host
    hostname: (NSString*) hostname
        port: (UInt16) port
-     secure: (BOOL) secure;
+     secure: (BOOL) secure
+      queue: (dispatch_queue_t) queue;
 
 /**
  * Schedule connection in a run loop.
