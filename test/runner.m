@@ -204,7 +204,9 @@ describe(@"ISpdy server", ^{
       [conn setNoDelay: YES];
 
       // Perform POST request to echo server
-      ISpdyRequest* req = [[ISpdyRequest alloc] init: @"POST" url: @"/"];
+      ISpdyRequest* req = [[ISpdyRequest alloc] init: @"POST"
+                                                 url: @"/"
+                                      withConnection: conn];
       NSString* contentLength =
           [NSString stringWithFormat: @"%u", (unsigned int) [data length]];
 
@@ -262,7 +264,9 @@ describe(@"ISpdy server", ^{
       [[theValue(r) should] equal:theValue(YES)];
 
       // Perform POST request to echo server
-      ISpdyRequest* req = [[ISpdyRequest alloc] init: @"POST" url: @"/"];
+      ISpdyRequest* req = [[ISpdyRequest alloc] init: @"POST"
+                                                 url: @"/"
+                                      withConnection: conn];
 
       // Create delegate with mocked handlers
       id mock = [KWMock mockForProtocol: @protocol(ISpdyRequestDelegate)];
@@ -296,7 +300,9 @@ describe(@"ISpdy server", ^{
       [[theValue(r) should] equal:theValue(YES)];
 
       // Perform POST request to echo server
-      ISpdyRequest* req = [[ISpdyRequest alloc] init: @"GET" url: @"/fail"];
+      ISpdyRequest* req = [[ISpdyRequest alloc] init: @"GET"
+                                                 url: @"/fail"
+                                      withConnection: conn];
 
       // Create delegate with mocked handlers
       id mock = [KWMock mockForProtocol: @protocol(ISpdyRequestDelegate)];

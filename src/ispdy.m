@@ -466,10 +466,6 @@ typedef enum {
     LOG(kISpdyLogWarning, @"Trying to send request nil request", request);
     return;
   }
-  if (request.connection != nil) {
-    LOG(kISpdyLogWarning, @"Trying to send request %p twice", request);
-    return;
-  }
 
   [self _connectionDispatch: ^{
     if (_state == kISpdyStateClosed) {
@@ -527,10 +523,7 @@ typedef enum {
       [scheduler_ uncork];
     }];
 
-    [self _delegateDispatch: ^{
-      // Will unqueue data and headers
-      [request _setConnection: self];
-    }];
+    [request _uncork];
   }];
 }
 
@@ -1227,6 +1220,8 @@ static void ispdy_remove_source_cb(void* arg) {
 
   // Unidirectional
   push.closed_by_us = YES;
+  [push _setConnection: self];
+  [push _uncork];
 
   NSNumber* request_key = [NSNumber numberWithUnsignedInt: push.stream_id];
   [streams_ setObject: push forKey: request_key];
@@ -1239,8 +1234,6 @@ static void ispdy_remove_source_cb(void* arg) {
   [push _handleResponseHeaders: push.headers];
 
   [self _delegateDispatchSync: ^{
-    [push _setConnection: self];
-
     [self.delegate connection: self handlePush: push];
   }];
 }

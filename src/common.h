@@ -216,6 +216,7 @@ typedef enum {
 
 - (void) _setConnection: (ISpdy*) connection;
 - (void) _connectionDispatch: (void (^)()) block;
+- (void) _uncork;
 
 // Invoked on SYN_REPLY and PUSH streams
 - (void) _handleResponseHeaders: (NSDictionary*) headers;

@@ -57,13 +57,18 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   NSTimeInterval response_timeout_interval_;
   NSMutableArray* connection_queue_;
   NSMutableArray* window_out_queue_;
+  BOOL corked_;
 }
 
-- (id) init: (NSString*) method url: (NSString*) url {
+- (id) init: (NSString*) method
+        url: (NSString*) url
+   withConnection: (ISpdy*) connection {
   self = [super init];
   self.method = method;
   self.url = url;
+  corked_ = YES;
   response_timeout_interval_ = kResponseTimeout;
+  [self _setConnection: connection];
   return self;
 }
 
@@ -157,9 +162,31 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 - (void) _setConnection: (ISpdy*) connection {
   self.connection = connection;
+}
 
-  if (connection == nil)
+
+// Invoked from user-land threads
+- (void) _connectionDispatch: (void (^)()) block {
+  [self.connection _connectionDispatch: ^{
+    if (corked_) {
+      if (connection_queue_ == nil)
+        connection_queue_ = [NSMutableArray arrayWithCapacity: 2];
+
+      [connection_queue_ addObject: block];
+      return;
+    }
+
+    [self.connection _connectionDispatch: block];
+  }];
+}
+
+
+// Invoked from connection queue
+- (void) _uncork {
+  if (!corked_)
     return;
+
+  corked_ = NO;
 
   NSArray* queue = connection_queue_;
   connection_queue_ = nil;
@@ -168,20 +195,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
   // Invoke pending callbacks
   for (void (^block)(void) in queue)
-    [self.connection _connectionDispatch: block];
-}
-
-
-- (void) _connectionDispatch: (void (^)()) block {
-  if (self.connection == nil) {
-    if (connection_queue_ == nil)
-      connection_queue_ = [NSMutableArray arrayWithCapacity: 2];
-
-    [connection_queue_ addObject: block];
-    return;
-  }
-
-  [self.connection _connectionDispatch: block];
+    block();
 }
 
 

@@ -185,7 +185,9 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
  * @return Initialized instance of ISpdyRequest
  */
 
-- (id) init: (NSString*) method url: (NSString*) url;
+- (id) init: (NSString*) method
+        url: (NSString*) url
+    withConnection: (ISpdy*) connection;
 
 /**
  * Write raw data to the underlying stream.
