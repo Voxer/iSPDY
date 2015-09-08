@@ -37,7 +37,7 @@ typedef BOOL (^ISpdySchedulerUnscheduleCallback)(NSData* data,
 
 @interface ISpdyScheduler : NSObject
 
-@property id <ISpdySchedulerDelegate> delegate;
+@property (weak) id <ISpdySchedulerDelegate> delegate;
 
 + (ISpdyScheduler*) schedulerWithMaxPriority: (NSUInteger) maxPriority
                                  andDispatch: (dispatch_queue_t) dispatch;
