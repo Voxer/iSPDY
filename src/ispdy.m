@@ -432,10 +432,11 @@ typedef enum {
     NSAssert(!goaway_, @"closeSoon called twice");
 
     if (timeout != 0.0) {
-      goaway_timeout_ = [self _timerWithTimeInterval: timeout andBlock: ^{
+      __weak ISpdy* weakSelf = self;
+      goaway_timeout_ = [self _timerWithTimeInterval: timeout block: ^{
         // Force close connection
-        [self _close: nil];
-      }];
+        [weakSelf _close: nil];
+      } andSource: goaway_timeout_];
     }
     goaway_ = YES;
 
@@ -526,13 +527,14 @@ typedef enum {
     ping.ping_id = [NSNumber numberWithUnsignedInt: ping_id_];
     ping_id_ += 2;
     ping.block = block;
-    ping.timeout = [self _timerWithTimeInterval: wait andBlock: ^{
+    __weak ISpdy* weakSelf = self;
+    ping.timeout = [self _timerWithTimeInterval: wait block: ^{
       [pings_ removeObjectForKey: ping.ping_id];
 
-      [self _delegateDispatch: ^{
+      [weakSelf _delegateDispatch: ^{
         [ping _invoke: kISpdyPingTimedOut rtt: -1.0];
       }];
-    }];
+    } andSource: ping.timeout];
     ping.start_date = [NSDate date];
 
     // Connection closed - invoke ping's block
@@ -647,25 +649,26 @@ typedef enum {
 
 
 - (dispatch_source_t) _timerWithTimeInterval: (NSTimeInterval) interval
-                                    andBlock: (void (^)()) block {
+                                       block: (void (^)()) block
+                                   andSource: (dispatch_source_t) source {
   return [ISpdyCommon timerWithTimeInterval: interval
                                       queue: connection_queue_
-                                   andBlock: block];
+                                      block: block
+                                  andSource: source];
 }
 
 
 - (void) _setTimeout: (NSTimeInterval) timeout {
-  if (connection_timeout_ != NULL) {
+  if (connection_timeout_ != NULL)
     dispatch_source_cancel(connection_timeout_);
-    connection_timeout_ = NULL;
-  }
   if (timeout == 0.0)
     return;
 
-  connection_timeout_ = [self _timerWithTimeInterval: timeout andBlock: ^{
-    [self _close:
+  __weak ISpdy* weakSelf = self;
+  connection_timeout_ = [self _timerWithTimeInterval: timeout block: ^{
+    [weakSelf _close:
         [ISpdyError errorWithCode: kISpdyErrConnectionTimeout]];
-  }];
+  } andSource: connection_timeout_];
 }
 
 

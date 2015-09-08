@@ -141,7 +141,8 @@ typedef enum {
 
 // Create and schedule timer
 - (dispatch_source_t) _timerWithTimeInterval: (NSTimeInterval) interval
-                                    andBlock: (void (^)()) block;
+                                       block: (void (^)()) block
+                                   andSource: (dispatch_source_t) source;
 
 // Private version of setTimeout and friends
 - (void) _setTimeout: (NSTimeInterval) timeout;
@@ -275,6 +276,7 @@ typedef enum {
 
 + (dispatch_source_t) timerWithTimeInterval: (NSTimeInterval) interval
                                       queue: (dispatch_queue_t) queue
-                                   andBlock: (void (^)()) block;
+                                      block: (void (^)()) block
+                                  andSource: (dispatch_source_t) source;
 
 @end

@@ -29,24 +29,26 @@
 
 + (dispatch_source_t) timerWithTimeInterval: (NSTimeInterval) interval
                                       queue: (dispatch_queue_t) queue
-                                   andBlock: (void (^)()) block {
-  dispatch_source_t timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER,
-                                                   0,
-                                                   0,
-                                                   queue);
-  NSAssert(timer, @"Failed to create dispatch timer source");
+                                      block: (void (^)()) block
+                                  andSource: (dispatch_source_t) source {
+  dispatch_source_t res = source;
+  if (res == NULL)
+    res = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, queue);
+  else
+    dispatch_suspend(res);
+  NSAssert(res != NULL, @"Failed to create dispatch timer source");
 
   uint64_t intervalNS = (uint64_t) (interval * 1e9);
   uint64_t leeway = (intervalNS >> 2) < 100000ULL ?
     (intervalNS >> 2) : 100000ULL;
-  dispatch_source_set_timer(timer,
+  dispatch_source_set_timer(res,
       dispatch_walltime(NULL, intervalNS),
       intervalNS,
       leeway);
-  dispatch_source_set_event_handler(timer, block);
-  dispatch_resume(timer);
+  dispatch_source_set_event_handler(res, block);
+  dispatch_resume(res);
 
-  return timer;
+  return res;
 }
 
 @end
