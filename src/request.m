@@ -147,10 +147,11 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
     if (self.connection == nil)
       return;
 
+    __weak ISpdyRequest* weakSelf = self;
     response_timeout_ =
         [self.connection _timerWithTimeInterval: response_timeout_interval_
                                           block: ^{
-          [self.connection _error: self code: kISpdyErrRequestTimeout];
+          [weakSelf.connection _error: weakSelf code: kISpdyErrRequestTimeout];
         } andSource: response_timeout_];
   }];
 }
@@ -263,6 +264,8 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
   self.closed_by_us = YES;
   self.closed_by_them = YES;
+
+  response_timeout_ = NULL;
 }
 
 

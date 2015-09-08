@@ -527,12 +527,19 @@ typedef enum {
     ping.ping_id = [NSNumber numberWithUnsignedInt: ping_id_];
     ping_id_ += 2;
     ping.block = block;
-    __weak ISpdy* weakSelf = self;
-    ping.timeout = [self _timerWithTimeInterval: wait block: ^{
-      [pings_ removeObjectForKey: ping.ping_id];
 
-      [weakSelf _delegateDispatch: ^{
-        [ping _invoke: kISpdyPingTimedOut rtt: -1.0];
+    __weak ISpdy* weakSelf = self;
+    __weak ISpdyPing* weakPing = ping;
+    ping.timeout = [self _timerWithTimeInterval: wait block: ^{
+      // Weak to strong
+      ISpdy* ispdy = weakSelf;
+      if (ispdy == nil)
+        return;
+
+      [ispdy->pings_ removeObjectForKey: weakPing.ping_id];
+
+      [ispdy _delegateDispatch: ^{
+        [weakPing _invoke: kISpdyPingTimedOut rtt: -1.0];
       }];
     } andSource: ping.timeout];
     ping.start_date = [NSDate date];
@@ -983,7 +990,7 @@ static void ispdy_remove_source_cb(void* arg) {
       NSUInteger size = [[buffer_size_ objectAtIndex: 0] unsignedIntegerValue];
 
       // Partial write
-      if (size > r) {
+      if (size > (NSUInteger) r) {
         [buffer_size_ replaceObjectAtIndex: 0
                    withObject: [NSNumber numberWithUnsignedInt: size - r]];
         r = 0;
