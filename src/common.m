@@ -45,10 +45,18 @@
       dispatch_walltime(NULL, intervalNS),
       intervalNS,
       leeway);
-  dispatch_source_set_event_handler(res, block);
+  dispatch_source_set_event_handler(res, ^{
+    [ISpdyCommon clearTimer: res];
+    block();
+  });
   dispatch_resume(res);
 
   return res;
+}
+
++ (void) clearTimer: (dispatch_source_t) source {
+  dispatch_source_set_event_handler(source, NULL);
+  dispatch_source_cancel(source);
 }
 
 @end

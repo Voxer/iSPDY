@@ -278,5 +278,6 @@ typedef enum {
                                       queue: (dispatch_queue_t) queue
                                       block: (void (^)()) block
                                   andSource: (dispatch_source_t) source;
++ (void) clearTimer: (dispatch_source_t) source;
 
 @end

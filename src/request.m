@@ -138,7 +138,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
   [self _connectionDispatch: ^() {
     if (response_timeout_ != NULL) {
-      dispatch_source_cancel(response_timeout_);
+      [ISpdyCommon clearTimer: response_timeout_];
     }
     if (timeout == 0.0)
       return;
@@ -147,11 +147,10 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
     if (self.connection == nil)
       return;
 
-    __weak ISpdyRequest* weakSelf = self;
     response_timeout_ =
         [self.connection _timerWithTimeInterval: response_timeout_interval_
                                           block: ^{
-          [weakSelf.connection _error: weakSelf code: kISpdyErrRequestTimeout];
+          [self.connection _error: self code: kISpdyErrRequestTimeout];
         } andSource: response_timeout_];
   }];
 }
@@ -162,6 +161,13 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 - (void) _setConnection: (ISpdy*) connection {
   self.connection = connection;
+
+  if (self.connection != nil)
+    return;
+
+  if (response_timeout_ != NULL)
+    [ISpdyCommon clearTimer: response_timeout_];
+  response_timeout_ = NULL;
 }
 
 
@@ -264,8 +270,6 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
   self.closed_by_us = YES;
   self.closed_by_them = YES;
-
-  response_timeout_ = NULL;
 }
 
 

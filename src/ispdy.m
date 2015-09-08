@@ -431,10 +431,9 @@ typedef enum {
     NSAssert(!goaway_, @"closeSoon called twice");
 
     if (timeout != 0.0) {
-      __weak ISpdy* weakSelf = self;
       goaway_timeout_ = [self _timerWithTimeInterval: timeout block: ^{
         // Force close connection
-        [weakSelf _close: nil];
+        [self _close: nil];
       } andSource: goaway_timeout_];
     }
     goaway_ = YES;
@@ -527,18 +526,11 @@ typedef enum {
     ping_id_ += 2;
     ping.block = block;
 
-    __weak ISpdy* weakSelf = self;
-    __weak ISpdyPing* weakPing = ping;
     ping.timeout = [self _timerWithTimeInterval: wait block: ^{
-      // Weak to strong
-      ISpdy* ispdy = weakSelf;
-      if (ispdy == nil)
-        return;
+      [self->pings_ removeObjectForKey: ping.ping_id];
 
-      [ispdy->pings_ removeObjectForKey: weakPing.ping_id];
-
-      [ispdy _delegateDispatch: ^{
-        [weakPing _invoke: kISpdyPingTimedOut rtt: -1.0];
+      [self _delegateDispatch: ^{
+        [ping _invoke: kISpdyPingTimedOut rtt: -1.0];
       }];
     } andSource: ping.timeout];
     ping.start_date = [NSDate date];
@@ -666,14 +658,12 @@ typedef enum {
 
 - (void) _setTimeout: (NSTimeInterval) timeout {
   if (connection_timeout_ != NULL)
-    dispatch_source_cancel(connection_timeout_);
+    [ISpdyCommon clearTimer: connection_timeout_];
   if (timeout == 0.0)
     return;
 
-  __weak ISpdy* weakSelf = self;
   connection_timeout_ = [self _timerWithTimeInterval: timeout block: ^{
-    [weakSelf _close:
-        [ISpdyError errorWithCode: kISpdyErrConnectionTimeout]];
+    [self _close: [ISpdyError errorWithCode: kISpdyErrConnectionTimeout]];
   } andSource: connection_timeout_];
 }
 
@@ -856,9 +846,9 @@ static void ispdy_remove_source_cb(void* arg) {
     return NO;
 
   if (goaway_timeout_ != NULL)
-    dispatch_source_cancel(goaway_timeout_);
+    [ISpdyCommon clearTimer: goaway_timeout_];
   if (connection_timeout_ != NULL)
-    dispatch_source_cancel(connection_timeout_);
+    [ISpdyCommon clearTimer: connection_timeout_];
   goaway_timeout_ = NULL;
   connection_timeout_ = NULL;
   self.goaway_retain_ = nil;
@@ -1048,7 +1038,7 @@ static void ispdy_remove_source_cb(void* arg) {
   for (NSNumber* ping_id in pings) {
     ISpdyPing* ping = [pings objectForKey: ping_id];
     [self _delegateDispatch: ^{
-      dispatch_source_cancel(ping.timeout);
+      [ISpdyCommon clearTimer: ping.timeout];
       ping.timeout = NULL;
       [ping _invoke: kISpdyPingConnectionEnd rtt: -1.0];
     }];
@@ -1170,7 +1160,7 @@ static void ispdy_remove_source_cb(void* arg) {
     return;
 
   [pings_ removeObjectForKey: ping_id];
-  dispatch_source_cancel(ping.timeout);
+  [ISpdyCommon clearTimer: ping.timeout];
   ping.timeout = NULL;
 
   [self _delegateDispatch: ^{
