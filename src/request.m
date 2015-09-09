@@ -168,6 +168,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   if (response_timeout_ != NULL)
     [ISpdyCommon clearTimer: response_timeout_];
   response_timeout_ = NULL;
+  connection_queue_ = nil;
 }
 
 
