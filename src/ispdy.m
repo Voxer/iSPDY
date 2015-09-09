@@ -97,8 +97,8 @@ typedef enum {
   // Run loop
   BOOL on_ispdy_loop_;
   NSMutableSet* scheduled_loops_;
-  dispatch_source_t connection_timeout_;
-  dispatch_source_t goaway_timeout_;
+  __weak dispatch_source_t connection_timeout_;
+  __weak dispatch_source_t goaway_timeout_;
   struct timeval last_frame_;
 
   // Next stream's id

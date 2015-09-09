@@ -53,7 +53,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   id <ISpdyRequestDelegate> delegate_;
   NSMutableArray* output_queue_;
   NSUInteger output_queue_size_;
-  dispatch_source_t response_timeout_;
+  __weak dispatch_source_t response_timeout_;
   NSTimeInterval response_timeout_interval_;
   NSMutableArray* connection_queue_;
   NSMutableArray* window_out_queue_;

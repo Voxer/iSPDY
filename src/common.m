@@ -47,7 +47,9 @@
       leeway);
   dispatch_source_set_event_handler(res, ^{
     [ISpdyCommon clearTimer: res];
-    block();
+
+    if (block != nil)
+      block();
   });
   dispatch_resume(res);
 
