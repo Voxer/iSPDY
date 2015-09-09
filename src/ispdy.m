@@ -97,8 +97,8 @@ typedef enum {
   // Run loop
   BOOL on_ispdy_loop_;
   NSMutableSet* scheduled_loops_;
-  __weak dispatch_source_t connection_timeout_;
-  __weak dispatch_source_t goaway_timeout_;
+  ISpdyTimer* connection_timeout_;
+  ISpdyTimer* goaway_timeout_;
   struct timeval last_frame_;
 
   // Next stream's id
@@ -201,9 +201,12 @@ typedef enum {
   if (scheduled_loops_ == nil)
     scheduled_loops_ = [NSMutableSet setWithCapacity: 1];
 
+  connection_timeout_ = [self allocTimer];
+  goaway_timeout_ = [self allocTimer];
+
   CFReadStreamRef cf_in_stream;
   CFWriteStreamRef cf_out_stream;
-  
+
   CFStreamCreatePairWithSocketToHost(
       NULL,
       (__bridge CFStringRef) host,
@@ -431,10 +434,10 @@ typedef enum {
     NSAssert(!goaway_, @"closeSoon called twice");
 
     if (timeout != 0.0) {
-      goaway_timeout_ = [self _timerWithTimeInterval: timeout block: ^{
+      [goaway_timeout_ armWithTimeInterval: timeout andBlock: ^{
         // Force close connection
         [self _close: nil];
-      } andSource: goaway_timeout_];
+      }];
     }
     goaway_ = YES;
 
@@ -526,13 +529,14 @@ typedef enum {
     ping_id_ += 2;
     ping.block = block;
 
-    ping.timeout = [self _timerWithTimeInterval: wait block: ^{
+    ping.timeout = [self allocTimer];
+    [ping.timeout armWithTimeInterval: wait andBlock: ^{
       [self->pings_ removeObjectForKey: ping.ping_id];
 
       [self _delegateDispatch: ^{
         [ping _invoke: kISpdyPingTimedOut rtt: -1.0];
       }];
-    } andSource: ping.timeout];
+    }];
     ping.start_date = [NSDate date];
 
     // Connection closed - invoke ping's block
@@ -646,25 +650,20 @@ typedef enum {
 }
 
 
-- (dispatch_source_t) _timerWithTimeInterval: (NSTimeInterval) interval
-                                       block: (void (^)()) block
-                                   andSource: (dispatch_source_t) source {
-  return [ISpdyCommon timerWithTimeInterval: interval
-                                      queue: connection_queue_
-                                      block: block
-                                  andSource: source];
+- (ISpdyTimer*) allocTimer {
+  return [ISpdyTimer timerWithQueue: connection_queue_];
 }
 
 
 - (void) _setTimeout: (NSTimeInterval) timeout {
   if (connection_timeout_ != NULL)
-    [ISpdyCommon clearTimer: connection_timeout_];
+    [connection_timeout_ clear];
   if (timeout == 0.0)
     return;
 
-  connection_timeout_ = [self _timerWithTimeInterval: timeout block: ^{
+  [connection_timeout_ armWithTimeInterval: timeout andBlock: ^{
     [self _close: [ISpdyError errorWithCode: kISpdyErrConnectionTimeout]];
-  } andSource: connection_timeout_];
+  }];
 }
 
 
@@ -846,9 +845,9 @@ static void ispdy_remove_source_cb(void* arg) {
     return NO;
 
   if (goaway_timeout_ != NULL)
-    [ISpdyCommon clearTimer: goaway_timeout_];
+    [goaway_timeout_ clear];
   if (connection_timeout_ != NULL)
-    [ISpdyCommon clearTimer: connection_timeout_];
+    [connection_timeout_ clear];
   goaway_timeout_ = NULL;
   connection_timeout_ = NULL;
   self.goaway_retain_ = nil;
@@ -1038,7 +1037,7 @@ static void ispdy_remove_source_cb(void* arg) {
   for (NSNumber* ping_id in pings) {
     ISpdyPing* ping = [pings objectForKey: ping_id];
     [self _delegateDispatch: ^{
-      [ISpdyCommon clearTimer: ping.timeout];
+      [ping.timeout clear];
       ping.timeout = NULL;
       [ping _invoke: kISpdyPingConnectionEnd rtt: -1.0];
     }];
@@ -1160,7 +1159,7 @@ static void ispdy_remove_source_cb(void* arg) {
     return;
 
   [pings_ removeObjectForKey: ping_id];
-  [ISpdyCommon clearTimer: ping.timeout];
+  [ping.timeout clear];
   ping.timeout = NULL;
 
   [self _delegateDispatch: ^{

@@ -53,7 +53,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   id <ISpdyRequestDelegate> delegate_;
   NSMutableArray* output_queue_;
   NSUInteger output_queue_size_;
-  __weak dispatch_source_t response_timeout_;
+  ISpdyTimer* response_timeout_;
   NSTimeInterval response_timeout_interval_;
   NSMutableArray* connection_queue_;
   NSMutableArray* window_out_queue_;
@@ -69,6 +69,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   corked_ = YES;
   response_timeout_interval_ = kResponseTimeout;
   [self _setConnection: connection];
+  response_timeout_ = [connection allocTimer];
   return self;
 }
 
@@ -138,7 +139,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
   [self _connectionDispatch: ^() {
     if (response_timeout_ != NULL) {
-      [ISpdyCommon clearTimer: response_timeout_];
+      [response_timeout_ clear];
     }
     if (timeout == 0.0)
       return;
@@ -147,11 +148,10 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
     if (self.connection == nil)
       return;
 
-    response_timeout_ =
-        [self.connection _timerWithTimeInterval: response_timeout_interval_
-                                          block: ^{
-          [self.connection _error: self code: kISpdyErrRequestTimeout];
-        } andSource: response_timeout_];
+    [response_timeout_ armWithTimeInterval: response_timeout_interval_
+                                  andBlock: ^{
+      [self.connection _error: self code: kISpdyErrRequestTimeout];
+    }];
   }];
 }
 
@@ -166,7 +166,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
     return;
 
   if (response_timeout_ != NULL)
-    [ISpdyCommon clearTimer: response_timeout_];
+    [response_timeout_ clear];
   response_timeout_ = NULL;
   connection_queue_ = nil;
 }

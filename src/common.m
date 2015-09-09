@@ -25,40 +25,54 @@
 #include "ispdy.h"
 #include "common.h"
 
-@implementation ISpdyCommon
+@implementation ISpdyTimer {
+  dispatch_source_t source;
+  BOOL suspended;
+}
 
-+ (dispatch_source_t) timerWithTimeInterval: (NSTimeInterval) interval
-                                      queue: (dispatch_queue_t) queue
-                                      block: (void (^)()) block
-                                  andSource: (dispatch_source_t) source {
-  dispatch_source_t res = source;
-  if (res == NULL)
-    res = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, queue);
-  else
-    dispatch_suspend(res);
-  NSAssert(res != NULL, @"Failed to create dispatch timer source");
++ (ISpdyTimer*) timerWithQueue: (dispatch_queue_t) queue {
+  ISpdyTimer* timer = [ISpdyTimer alloc];
 
+  timer->source = dispatch_source_create(
+      DISPATCH_SOURCE_TYPE_TIMER, 0, 0, queue);
+  NSAssert(timer->source != NULL, @"Failed to create dispatch timer source");
+
+  timer->suspended = YES;
+
+  return timer;
+}
+
+
+- (void) armWithTimeInterval: (NSTimeInterval) interval
+                    andBlock: (void (^)()) block {
   uint64_t intervalNS = (uint64_t) (interval * 1e9);
   uint64_t leeway = (intervalNS >> 2) < 100000ULL ?
     (intervalNS >> 2) : 100000ULL;
-  dispatch_source_set_timer(res,
+  dispatch_source_set_timer(source,
       dispatch_walltime(NULL, intervalNS),
       intervalNS,
       leeway);
-  dispatch_source_set_event_handler(res, ^{
-    [ISpdyCommon clearTimer: res];
+  dispatch_source_set_event_handler(source, ^{
+    [self clear];
 
     if (block != nil)
       block();
   });
-  dispatch_resume(res);
-
-  return res;
+  if (suspended)
+    dispatch_resume(source);
+  suspended = NO;
 }
 
-+ (void) clearTimer: (dispatch_source_t) source {
-  dispatch_source_set_event_handler(source, NULL);
+- (void) clear {
   dispatch_source_cancel(source);
+  dispatch_source_set_event_handler(source, NULL);
+}
+
+
+- (void) dealloc {
+  [self clear];
+  if (suspended)
+    dispatch_resume(source);
 }
 
 @end

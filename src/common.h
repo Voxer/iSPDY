@@ -21,13 +21,13 @@
 // SOFTWARE.
 
 #import <Foundation/Foundation.h>
-#import <dispatch/dispatch.h>  // dispatch_source_t
 
 #import "scheduler.h"
 
 // Forward-declarations
 @class ISpdyPing;
 @class ISpdyCompressor;
+@class ISpdyTimer;
 
 // Possible SPDY Protocol RST codes
 typedef enum {
@@ -139,10 +139,7 @@ typedef enum {
 // Use default (off-thread) NS loop, if no was provided by user
 - (void) _lazySchedule;
 
-// Create and schedule timer
-- (dispatch_source_t) _timerWithTimeInterval: (NSTimeInterval) interval
-                                       block: (void (^)()) block
-                                   andSource: (dispatch_source_t) source;
+- (ISpdyTimer*) allocTimer;
 
 // Private version of setTimeout and friends
 - (void) _setTimeout: (NSTimeInterval) timeout;
@@ -258,7 +255,7 @@ typedef enum {
 
 @property NSNumber* ping_id;
 @property (strong) ISpdyPingCallback block;
-@property dispatch_source_t timeout;
+@property (weak) ISpdyTimer* timeout;
 @property NSDate* start_date;
 
 - (void) _invoke: (ISpdyPingStatus) status rtt: (NSTimeInterval) rtt;
@@ -272,12 +269,12 @@ typedef enum {
 
 @end
 
-@interface ISpdyCommon : NSObject
+@interface ISpdyTimer : NSObject
 
-+ (dispatch_source_t) timerWithTimeInterval: (NSTimeInterval) interval
-                                      queue: (dispatch_queue_t) queue
-                                      block: (void (^)()) block
-                                  andSource: (dispatch_source_t) source;
-+ (void) clearTimer: (dispatch_source_t) source;
++ (ISpdyTimer*) timerWithQueue: (dispatch_queue_t) queue;
+- (void) armWithTimeInterval: (NSTimeInterval) interval
+                    andBlock: (void (^)()) block;
+- (void) clear;
+- (void) dealloc;
 
 @end
