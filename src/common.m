@@ -64,8 +64,8 @@
 }
 
 - (void) clear {
-    dispatch_source_set_event_handler_f(source, NULL);
-    dispatch_source_cancel(source);
+  dispatch_source_set_event_handler_f(source, NULL);
+  dispatch_source_cancel(source);
 }
 
 

@@ -255,7 +255,7 @@ typedef enum {
 
 @property NSNumber* ping_id;
 @property (strong) ISpdyPingCallback block;
-@property (weak) ISpdyTimer* timeout;
+@property ISpdyTimer* timeout;
 @property NSDate* start_date;
 
 - (void) _invoke: (ISpdyPingStatus) status rtt: (NSTimeInterval) rtt;
