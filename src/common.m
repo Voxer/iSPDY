@@ -21,58 +21,154 @@
 // SOFTWARE.
 
 #import <dispatch/dispatch.h>  // dispatch_queue_t
+#import <sys/time.h>  // gettimeofday
 
 #include "ispdy.h"
 #include "common.h"
 
-@implementation ISpdyTimer {
+static const NSUInteger kInitialTimerDictCapacity = 16;
+static const NSUInteger kInitialTimerPoolCapacity = 16;
+
+@implementation ISpdyTimerPool {
   dispatch_source_t source;
+  NSMutableDictionary* timers;
   BOOL suspended;
 }
 
-+ (ISpdyTimer*) timerWithQueue: (dispatch_queue_t) queue {
-  ISpdyTimer* timer = [ISpdyTimer new];
++ (ISpdyTimerPool*) poolWithQueue: (dispatch_queue_t) queue {
+  ISpdyTimerPool* pool = [ISpdyTimerPool new];
 
-  timer->source = dispatch_source_create(
+  pool->source = dispatch_source_create(
       DISPATCH_SOURCE_TYPE_TIMER, 0, 0, queue);
-  NSAssert(timer->source != NULL, @"Failed to create dispatch timer source");
+  NSAssert(pool->source != NULL, @"Failed to create dispatch timer source");
 
-  timer->suspended = YES;
+  dispatch_source_set_event_handler(pool->source, ^{
+    [pool run];
+  });
+
+  pool->suspended = YES;
+  pool->timers =
+      [NSMutableDictionary dictionaryWithCapacity: kInitialTimerDictCapacity];
+
+  return pool;
+}
+
+
+- (ISpdyTimer*) armWithTimeInterval: (NSTimeInterval) interval
+                           andBlock: (ISpdyTimerCallback) block {
+  ISpdyTimer* timer = [ISpdyTimer new];
+  timer.pool = self;
+
+  timer.start = [ISpdyTimerPool now];
+  timer.start += interval;
+
+  NSNumber* key = [NSNumber numberWithDouble: interval];
+  timer.key = key;
+
+  NSMutableArray* subpool = [timers objectForKey: key];
+  if (subpool == nil) {
+    subpool = [NSMutableArray arrayWithCapacity: kInitialTimerPoolCapacity];
+    [timers setObject: subpool forKey: key];
+  }
+
+  // Splitting into subpools ensures the order of timers
+  [subpool addObject: timer];
+
+  [self schedule];
 
   return timer;
 }
 
 
-- (void) armWithTimeInterval: (NSTimeInterval) interval
-                    andBlock: (void (^)()) block {
-  uint64_t intervalNS = (uint64_t) (interval * 1e9);
-  uint64_t leeway = (intervalNS >> 2) < 100000ULL ?
-    (intervalNS >> 2) : 100000ULL;
-  dispatch_source_set_timer(source,
-      dispatch_walltime(NULL, intervalNS),
-      intervalNS,
-      leeway);
-  dispatch_source_set_event_handler(source, ^{
-    [self clear];
+- (void) schedule {
+  if ([timers count] == 0)
+    return;
 
-    if (block != nil)
-      block();
-  });
-  if (suspended)
-    dispatch_resume(source);
+  if (!suspended)
+    return;
+
+  double start = 0.0;
+  for (NSNumber* key in timers) {
+    NSArray* subpool = [timers objectForKey: key];
+    ISpdyTimer* timer = [subpool objectAtIndex: 0];
+    if (timer.start > start)
+      start = timer.start;
+  }
+  if (start == 0.0)
+    return;
+
+  dispatch_resume(source);
   suspended = NO;
+
+  dispatch_time_t start_d = dispatch_time(DISPATCH_TIME_NOW, start);
+  dispatch_source_set_timer(source, start_d, 1000000000ULL, 100000ULL);
 }
 
-- (void) clear {
-  dispatch_source_set_event_handler_f(source, NULL);
+
+- (void) run {
+  if (suspended)
+    return;
+
+  suspended = YES;
   dispatch_source_cancel(source);
+  dispatch_suspend(source);
+
+  double now = [ISpdyTimerPool now];
+  for (NSNumber* key in timers) {
+    NSMutableArray* subpool = [timers objectForKey: key];
+    while ([subpool count] != 0) {
+      ISpdyTimer* timer = [subpool objectAtIndex: 0];
+      if (timer.start > now)
+        break;
+
+      timer.block();
+      timer.block = nil;
+      [subpool removeObjectAtIndex: 0];
+    }
+    if ([subpool count] == 0)
+      [timers removeObjectForKey: key];
+  }
+
+  if ([timers count] == 0)
+    return;
+
+  // Reschedule timer
+  [self schedule];
+}
+
+
++ (double) now {
+  struct timeval t;
+  int r = gettimeofday(&t, NULL);
+  NSAssert(r == 0, @"Failed to get time of day");
+
+  return (double) t.tv_sec + (double) t.tv_usec / 1e6;
+}
+
+
+- (void) clear: (ISpdyTimer*) timer {
+  NSMutableArray* subpool = [timers objectForKey: timer.key];
+  [subpool removeObject: timer];
+  if ([subpool count] == 0)
+    [timers removeObjectForKey: timer.key];
 }
 
 
 - (void) dealloc {
-  [self clear];
+  dispatch_source_set_event_handler_f(source, NULL);
+  dispatch_source_cancel(source);
   if (suspended)
     dispatch_resume(source);
+  source = NULL;
+}
+
+@end
+
+@implementation ISpdyTimer
+
+- (void) clear {
+  [self.pool clear: self];
+  self.pool = NULL;
 }
 
 @end

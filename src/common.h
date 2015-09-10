@@ -27,6 +27,7 @@
 // Forward-declarations
 @class ISpdyPing;
 @class ISpdyCompressor;
+@class ISpdyTimerPool;
 @class ISpdyTimer;
 
 // Possible SPDY Protocol RST codes
@@ -83,6 +84,8 @@ typedef enum {
   kISpdyData = 0xffff
 } ISpdyFrameType;
 
+typedef void (^ISpdyTimerCallback)(void);
+
 @protocol ISpdyParserDelegate
 - (void) handleFrame: (ISpdyFrameType) type
                 body: (id) body
@@ -118,6 +121,8 @@ typedef enum {
 
 @interface ISpdy ()
 
+@property ISpdyTimerPool* timer_pool;
+
 // Self-retaining reference for closeSoon
 @property (nonatomic, strong) ISpdy* goaway_retain_;
 
@@ -138,8 +143,6 @@ typedef enum {
 
 // Use default (off-thread) NS loop, if no was provided by user
 - (void) _lazySchedule;
-
-- (ISpdyTimer*) allocTimer;
 
 // Private version of setTimeout and friends
 - (void) _setTimeout: (NSTimeInterval) timeout;
@@ -271,10 +274,26 @@ typedef enum {
 
 @interface ISpdyTimer : NSObject
 
-+ (ISpdyTimer*) timerWithQueue: (dispatch_queue_t) queue;
-- (void) armWithTimeInterval: (NSTimeInterval) interval
-                    andBlock: (void (^)()) block;
+@property (weak) ISpdyTimerPool* pool;
+@property (strong) ISpdyTimerCallback block;
+@property NSNumber* key;
+@property double start;
+
 - (void) clear;
+
+@end
+
+@interface ISpdyTimerPool : NSObject
+
++ (ISpdyTimerPool*) poolWithQueue: (dispatch_queue_t) queue;
+- (ISpdyTimer*) armWithTimeInterval: (NSTimeInterval) interval
+                           andBlock: (ISpdyTimerCallback) block;
+- (void) clear: (ISpdyTimer*) timer;
 - (void) dealloc;
+
+- (void) schedule;
+- (void) run;
+
++ (double) now;
 
 @end

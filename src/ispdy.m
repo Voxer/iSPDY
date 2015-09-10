@@ -201,9 +201,6 @@ typedef enum {
   if (scheduled_loops_ == nil)
     scheduled_loops_ = [NSMutableSet setWithCapacity: 1];
 
-  connection_timeout_ = [self allocTimer];
-  goaway_timeout_ = [self allocTimer];
-
   CFReadStreamRef cf_in_stream;
   CFWriteStreamRef cf_out_stream;
 
@@ -434,7 +431,8 @@ typedef enum {
     NSAssert(!goaway_, @"closeSoon called twice");
 
     if (timeout != 0.0) {
-      [goaway_timeout_ armWithTimeInterval: timeout andBlock: ^{
+      goaway_timeout_ = [self.timer_pool armWithTimeInterval: timeout
+                                                    andBlock: ^{
         // Force close connection
         [self _close: nil];
       }];
@@ -529,8 +527,8 @@ typedef enum {
     ping_id_ += 2;
     ping.block = block;
 
-    ping.timeout = [self allocTimer];
-    [ping.timeout armWithTimeInterval: wait andBlock: ^{
+    ping.timeout = [self.timer_pool armWithTimeInterval: wait
+                                               andBlock: ^{
       [self->pings_ removeObjectForKey: ping.ping_id];
 
       [self _delegateDispatch: ^{
@@ -650,18 +648,16 @@ typedef enum {
 }
 
 
-- (ISpdyTimer*) allocTimer {
-  return [ISpdyTimer timerWithQueue: connection_queue_];
-}
-
-
 - (void) _setTimeout: (NSTimeInterval) timeout {
-  if (connection_timeout_ != NULL)
+  if (connection_timeout_ != NULL) {
     [connection_timeout_ clear];
+    connection_timeout_ = NULL;
+  }
   if (timeout == 0.0)
     return;
 
-  [connection_timeout_ armWithTimeInterval: timeout andBlock: ^{
+  connection_timeout_ = [self.timer_pool armWithTimeInterval: timeout
+                                                    andBlock: ^{
     [self _close: [ISpdyError errorWithCode: kISpdyErrConnectionTimeout]];
   }];
 }
