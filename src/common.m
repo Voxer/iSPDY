@@ -31,7 +31,7 @@
 }
 
 + (ISpdyTimer*) timerWithQueue: (dispatch_queue_t) queue {
-  ISpdyTimer* timer = [ISpdyTimer alloc];
+  ISpdyTimer* timer = [ISpdyTimer new];
 
   timer->source = dispatch_source_create(
       DISPATCH_SOURCE_TYPE_TIMER, 0, 0, queue);
@@ -64,8 +64,8 @@
 }
 
 - (void) clear {
-  dispatch_source_cancel(source);
-  dispatch_source_set_event_handler(source, NULL);
+    dispatch_source_set_event_handler_f(source, NULL);
+    dispatch_source_cancel(source);
 }
 
 
