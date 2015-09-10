@@ -290,7 +290,7 @@
 				);
 				OTHER_CFLAGS = (
 					"-fstrict-aliasing",
-					"-F/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.10.sdk/Developer/Library/Frameworks",
+					"-F/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.11.sdk/Developer/Library/Frameworks",
 					"-F/Applications/Xcode.app/Contents/Developer/Library/Frameworks",
 					"-flto",
 				);
@@ -353,7 +353,7 @@
 				);
 				OTHER_CFLAGS = (
 					"-fstrict-aliasing",
-					"-F/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.10.sdk/Developer/Library/Frameworks",
+					"-F/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.11.sdk/Developer/Library/Frameworks",
 					"-F/Applications/Xcode.app/Contents/Developer/Library/Frameworks",
 				);
 				OTHER_LDFLAGS = (
