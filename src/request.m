@@ -51,8 +51,6 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 @implementation ISpdyRequest {
   id <ISpdyRequestDelegate> delegate_;
-  NSMutableArray* output_queue_;
-  NSUInteger output_queue_size_;
   ISpdyTimer* response_timeout_;
   NSTimeInterval response_timeout_interval_;
   NSMutableArray* connection_queue_;
@@ -169,6 +167,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
     [response_timeout_ clear];
   response_timeout_ = NULL;
   connection_queue_ = nil;
+  window_out_queue_ = nil;
 }
 
 
@@ -288,9 +287,8 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
       window_out_queue_ = [NSMutableArray arrayWithCapacity: 16];
 
     // Retry on positive window_out
-    __weak typeof(self) weakSelf = self;
     [window_out_queue_ addObject: ^() {
-      [weakSelf _updateWindow: delta withBlock: block];
+      [self _updateWindow: delta withBlock: block];
     }];
     return;
   }
