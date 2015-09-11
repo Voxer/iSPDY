@@ -21,9 +21,11 @@
 // SOFTWARE.
 
 #import <Foundation/Foundation.h>
+#import <dispatch/dispatch.h>  // dispatch_queue_t
 #import "Kiwi.h"
 #import <ispdy.h>
 #import "compressor.h"
+#import "common.h"
 
 
 SPEC_BEGIN(ISpdySpec)
@@ -54,6 +56,60 @@ describe(@"ISpdy server", ^{
       b((ISpdyTestConf) { kISpdyV3, "gzip" });
     });
   };
+
+  context(@"using timers pool", ^{
+    dispatch_queue_t queue = dispatch_queue_create("ispdy-test", NULL);
+
+    it(@"should call single timer callback", ^{
+      __block BOOL called = NO;
+
+      dispatch_async(queue, ^{
+        ISpdyTimerPool* pool = [ISpdyTimerPool poolWithQueue: queue];
+
+        [pool armWithTimeInterval: 1.0 andBlock: ^{
+          called = YES;
+        }];
+      });
+
+      [[expectFutureValue(theValue(called)) shouldEventually]
+          equal: theValue(YES)];
+    });
+
+    it(@"should call recursive timer callback", ^{
+      __block BOOL called = NO;
+
+      ISpdyTimerPool* pool = [ISpdyTimerPool poolWithQueue: queue];
+
+      [pool armWithTimeInterval: 0.5 andBlock: ^{
+        [pool armWithTimeInterval: 0.5 andBlock: ^{
+          called = YES;
+        }];
+      }];
+
+      [[expectFutureValue(theValue(called)) shouldEventually]
+          equal: theValue(YES)];
+    });
+
+    it(@"should call two timers in a row", ^{
+      __block BOOL called_first = NO;
+      __block BOOL called_second = NO;
+
+      ISpdyTimerPool* pool = [ISpdyTimerPool poolWithQueue: queue];
+
+      [pool armWithTimeInterval: 1.0 andBlock: ^{
+        called_first = YES;
+      }];
+      [pool armWithTimeInterval: 1.0 andBlock: ^{
+        called_second = YES;
+      }];
+
+      [[expectFutureValue(theValue(called_first)) shouldEventually]
+          equal: theValue(YES)];
+      [[expectFutureValue(theValue(called_second)) shouldEventually]
+          equal: theValue(YES)];
+    });
+  });
+  return;
 
   context(@"sending requests to echo server", ^{
     void (^pipe_req)(ISpdyRequest*,

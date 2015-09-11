@@ -42,8 +42,10 @@ static const NSUInteger kInitialTimerPoolCapacity = 16;
       DISPATCH_SOURCE_TYPE_TIMER, 0, 0, queue);
   NSAssert(pool->source != NULL, @"Failed to create dispatch timer source");
 
+  __weak ISpdyTimerPool* weakSelf = pool;
   dispatch_source_set_event_handler(pool->source, ^{
-    [pool run];
+    NSLog(@"handler\n");
+    [weakSelf run];
   });
 
   pool->suspended = YES;
@@ -58,6 +60,7 @@ static const NSUInteger kInitialTimerPoolCapacity = 16;
                            andBlock: (ISpdyTimerCallback) block {
   ISpdyTimer* timer = [ISpdyTimer new];
   timer.pool = self;
+  timer.block = block;
 
   timer.start = [ISpdyTimerPool now];
   timer.start += interval;
@@ -81,10 +84,10 @@ static const NSUInteger kInitialTimerPoolCapacity = 16;
 
 
 - (void) schedule {
-  if ([timers count] == 0)
+  if (!suspended)
     return;
 
-  if (!suspended)
+  if ([timers count] == 0)
     return;
 
   double start = 0.0;
@@ -97,11 +100,17 @@ static const NSUInteger kInitialTimerPoolCapacity = 16;
   if (start == 0.0)
     return;
 
+  double off = start - [ISpdyTimerPool now];
+
+  // Minimum one 1ns
+  if (off < 1e-9)
+    off = 1e-9;
+  dispatch_time_t start_d = dispatch_walltime(NULL, (uint64_t) (off * 1e9));
+  dispatch_source_set_timer(source, start_d, 1000000000ULL, 100000ULL);
+  NSLog(@"set timer %f\n", off);
+
   dispatch_resume(source);
   suspended = NO;
-
-  dispatch_time_t start_d = dispatch_time(DISPATCH_TIME_NOW, start);
-  dispatch_source_set_timer(source, start_d, 1000000000ULL, 100000ULL);
 }
 
 
@@ -109,9 +118,8 @@ static const NSUInteger kInitialTimerPoolCapacity = 16;
   if (suspended)
     return;
 
-  suspended = YES;
+  NSLog(@"run\n");
   dispatch_source_cancel(source);
-  dispatch_suspend(source);
 
   double now = [ISpdyTimerPool now];
   for (NSNumber* key in timers) {
@@ -128,6 +136,10 @@ static const NSUInteger kInitialTimerPoolCapacity = 16;
     if ([subpool count] == 0)
       [timers removeObjectForKey: key];
   }
+
+  // Do it right after the executing blocks to prevent recursion
+  suspended = YES;
+  dispatch_suspend(source);
 
   if ([timers count] == 0)
     return;
@@ -155,6 +167,7 @@ static const NSUInteger kInitialTimerPoolCapacity = 16;
 
 
 - (void) dealloc {
+  NSLog(@"dealloc\n");
   dispatch_source_set_event_handler_f(source, NULL);
   dispatch_source_cancel(source);
   if (suspended)
