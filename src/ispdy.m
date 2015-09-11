@@ -1051,14 +1051,13 @@ static void ispdy_remove_source_cb(void* arg) {
 - (void) _destroyPings: (ISpdyError*) err {
   NSDictionary* pings = pings_;
   pings_ = nil;
-  for (NSNumber* ping_id in pings) {
-    ISpdyPing* ping = [pings objectForKey: ping_id];
-    [self _delegateDispatch: ^{
+  [self _delegateDispatch: ^{
+    [pings enumerateKeysAndObjectsUsingBlock:^(id  _Nonnull key, ISpdyPing*  _Nonnull ping, BOOL * _Nonnull stop) {
       [ping.timeout clear];
       ping.timeout = NULL;
       [ping _invoke: kISpdyPingConnectionEnd rtt: -1.0];
     }];
-  }
+  }];
 }
 
 
