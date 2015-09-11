@@ -66,6 +66,9 @@ typedef enum {
   } while (0)
 #endif
 
+#define likely(x) __builtin_expect((x),1)
+#define unlikely(x) __builtin_expect((x),0)
+
 // Implementations
 
 @implementation ISpdy {
@@ -145,16 +148,22 @@ typedef enum {
   if (!self)
     return self;
 
-  if (delegate_queue_ == nil) {
     // Initialize dispatch queue
-    delegate_queue_ = dispatch_queue_create("com.voxer.ispdy.delegate",
+  delegate_queue_ = dispatch_queue_create("com.voxer.ispdy.delegate",
                                             NULL);
-    NSAssert(delegate_queue_ != NULL, @"Failed to get main queue");
-    connection_queue_ = dispatch_queue_create("com.voxer.ispdy.connection",
+  NSAssert(delegate_queue_ != NULL, @"Failed to get main queue");
+  
+  dispatch_queue_set_specific(delegate_queue_, &delegate_queue_,
+                              (void *)&delegate_queue_, NULL);
+    
+  connection_queue_ = dispatch_queue_create("com.voxer.ispdy.connection",
                                               NULL);
-    NSAssert(connection_queue_ != NULL, @"Failed to get main queue");
-  }
+  NSAssert(connection_queue_ != NULL, @"Failed to get main queue");
 
+
+  dispatch_queue_set_specific(connection_queue_, &connection_queue_,
+                                (void *)&connection_queue_, NULL);
+    
   version_ = version;
   port_ = port;
   secure_ = secure;
@@ -260,7 +269,9 @@ typedef enum {
 - (void) dealloc {
   // Ensure that socket will be removed from the loop and we won't
   // get any further events on it
-  [self close];
+    [self _connectionDispatchSync: ^{
+      [self _close: nil];
+    }];
 
   delegate_queue_ = NULL;
   connection_queue_ = NULL;
@@ -578,7 +589,11 @@ typedef enum {
 
 
 - (void) _delegateDispatchSync: (void (^)()) block {
-  dispatch_sync(delegate_queue_, block);
+   if (likely(dispatch_get_specific(&delegate_queue_)== NULL)) {
+      dispatch_sync(delegate_queue_, block);
+     } else {
+       block();
+     }
 }
 
 
@@ -588,7 +603,11 @@ typedef enum {
 
 
 - (void) _connectionDispatchSync: (void (^)()) block {
-  dispatch_sync(connection_queue_, block);
+    if (likely(dispatch_get_specific(&connection_queue_)== NULL)) {
+        dispatch_sync(connection_queue_, block);
+    } else {
+        block();
+    }
 }
 
 
