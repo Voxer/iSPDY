@@ -168,6 +168,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   response_timeout_ = NULL;
   connection_queue_ = nil;
   window_out_queue_ = nil;
+  corked_ = NO;
 }
 
 
