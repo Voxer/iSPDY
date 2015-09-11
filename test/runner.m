@@ -58,18 +58,16 @@ describe(@"ISpdy server", ^{
   };
 
   context(@"using timers pool", ^{
-    dispatch_queue_t queue = dispatch_queue_create("ispdy-test", NULL);
+    dispatch_queue_t queue = dispatch_get_main_queue();
 
     it(@"should call single timer callback", ^{
       __block BOOL called = NO;
 
-      dispatch_async(queue, ^{
-        ISpdyTimerPool* pool = [ISpdyTimerPool poolWithQueue: queue];
+      ISpdyTimerPool* pool = [ISpdyTimerPool poolWithQueue: queue];
 
-        [pool armWithTimeInterval: 1.0 andBlock: ^{
-          called = YES;
-        }];
-      });
+      [pool armWithTimeInterval: 1.0 andBlock: ^{
+        called = YES;
+      }];
 
       [[expectFutureValue(theValue(called)) shouldEventually]
           equal: theValue(YES)];
@@ -81,12 +79,16 @@ describe(@"ISpdy server", ^{
       ISpdyTimerPool* pool = [ISpdyTimerPool poolWithQueue: queue];
 
       [pool armWithTimeInterval: 0.5 andBlock: ^{
-        [pool armWithTimeInterval: 0.5 andBlock: ^{
+        [pool armWithTimeInterval: 1.75 andBlock: ^{
           called = YES;
+
+          // Just a reference
+          NSString* name = [pool className];
         }];
       }];
 
-      [[expectFutureValue(theValue(called)) shouldEventually]
+      [[expectFutureValue(theValue(called))
+          shouldEventuallyBeforeTimingOutAfter(5.0)]
           equal: theValue(YES)];
     });
 
@@ -109,7 +111,6 @@ describe(@"ISpdy server", ^{
           equal: theValue(YES)];
     });
   });
-  return;
 
   context(@"sending requests to echo server", ^{
     void (^pipe_req)(ISpdyRequest*,

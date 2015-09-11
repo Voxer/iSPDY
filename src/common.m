@@ -33,6 +33,7 @@ static const NSUInteger kInitialTimerPoolCapacity = 16;
   dispatch_source_t source;
   NSMutableDictionary* timers;
   BOOL suspended;
+  BOOL recursive;
 }
 
 + (ISpdyTimerPool*) poolWithQueue: (dispatch_queue_t) queue {
@@ -44,7 +45,6 @@ static const NSUInteger kInitialTimerPoolCapacity = 16;
 
   __weak ISpdyTimerPool* weakSelf = pool;
   dispatch_source_set_event_handler(pool->source, ^{
-    NSLog(@"handler\n");
     [weakSelf run];
   });
 
@@ -84,7 +84,7 @@ static const NSUInteger kInitialTimerPoolCapacity = 16;
 
 
 - (void) schedule {
-  if (!suspended)
+  if (recursive || !suspended)
     return;
 
   if ([timers count] == 0)
@@ -107,7 +107,6 @@ static const NSUInteger kInitialTimerPoolCapacity = 16;
     off = 1e-9;
   dispatch_time_t start_d = dispatch_walltime(NULL, (uint64_t) (off * 1e9));
   dispatch_source_set_timer(source, start_d, 1000000000ULL, 100000ULL);
-  NSLog(@"set timer %f\n", off);
 
   dispatch_resume(source);
   suspended = NO;
@@ -115,11 +114,13 @@ static const NSUInteger kInitialTimerPoolCapacity = 16;
 
 
 - (void) run {
-  if (suspended)
+  if (recursive || suspended)
     return;
 
-  NSLog(@"run\n");
-  dispatch_source_cancel(source);
+  dispatch_suspend(source);
+  suspended = YES;
+
+  recursive = YES;
 
   double now = [ISpdyTimerPool now];
   for (NSNumber* key in timers) {
@@ -138,8 +139,7 @@ static const NSUInteger kInitialTimerPoolCapacity = 16;
   }
 
   // Do it right after the executing blocks to prevent recursion
-  suspended = YES;
-  dispatch_suspend(source);
+  recursive = NO;
 
   if ([timers count] == 0)
     return;
@@ -167,7 +167,6 @@ static const NSUInteger kInitialTimerPoolCapacity = 16;
 
 
 - (void) dealloc {
-  NSLog(@"dealloc\n");
   dispatch_source_set_event_handler_f(source, NULL);
   dispatch_source_cancel(source);
   if (suspended)
