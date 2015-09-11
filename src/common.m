@@ -104,11 +104,13 @@ static CFComparisonResult compare_timers_cb(const void* a,
     return;
 
   // Skip removed timers
-  while (CFBinaryHeapGetCount(timers) != 0) {
-    ISpdyTimer* timer = (__bridge ISpdyTimer*) CFBinaryHeapGetMinimum(timers);
+  void *value;
+  while (CFBinaryHeapGetMinimumIfPresent(timers, &value)) {
+    ISpdyTimer* timer = (__bridge ISpdyTimer*) value;
     if (!timer.removed)
       break;
     CFBinaryHeapRemoveMinimumValue(timers);
+    CFRelease((__bridge CFTypeRef) timer);
   }
 
   if (CFBinaryHeapGetCount(timers) == 0)
@@ -138,14 +140,16 @@ static CFComparisonResult compare_timers_cb(const void* a,
   recursive = YES;
 
   double now = [ISpdyTimerPool now];
-  while (CFBinaryHeapGetCount(timers) != 0) {
-    ISpdyTimer* timer = (__bridge ISpdyTimer*) CFBinaryHeapGetMinimum(timers);
-    if (timer.start > now)
+  void* value;
+  while (CFBinaryHeapGetMinimumIfPresent(timers, &value)) {
+    ISpdyTimer* timer = (__bridge ISpdyTimer*) value;
+    if (!timer || timer.start > now)
       break;
 
     CFBinaryHeapRemoveMinimumValue(timers);
     timer.block();
     timer.block = nil;
+    CFRelease((__bridge CFTypeRef) timer);
   }
 
   // Do it right after the executing blocks to prevent recursion
