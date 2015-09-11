@@ -617,7 +617,9 @@ typedef enum {
        format: (NSString*) format, ... {
   if (self.delegate == nil)
     return;
-
+ 
+  // Disable logging as it causes leaks till we figure it out
+  return;
 #ifdef NDEBUG
   // No debug logging in release builds
   if (level == kISpdyLogDebug)
