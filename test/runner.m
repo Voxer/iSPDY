@@ -58,7 +58,7 @@ describe(@"ISpdy server", ^{
   };
 
   context(@"using timers pool", ^{
-    dispatch_queue_t queue = dispatch_get_main_queue();
+    dispatch_queue_t queue = dispatch_queue_create("ispdy-test", NULL);
 
     it(@"should call single timer callback", ^{
       __block BOOL called = NO;

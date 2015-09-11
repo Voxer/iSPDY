@@ -30,15 +30,33 @@ static const NSUInteger kInitialTimerDictCapacity = 16;
 static const NSUInteger kInitialTimerPoolCapacity = 16;
 
 @implementation ISpdyTimerPool {
+  dispatch_queue_t queue;
   dispatch_source_t source;
-  NSMutableDictionary* timers;
+  CFBinaryHeapRef timers;
   BOOL suspended;
   BOOL recursive;
 }
 
+
+static CFComparisonResult compare_timers_cb(const void* a,
+                                            const void* b,
+                                            void* info) {
+  ISpdyTimer* timer_a = (__bridge ISpdyTimer*) a;
+  ISpdyTimer* timer_b = (__bridge ISpdyTimer*) b;
+
+  if (timer_a.start < timer_b.start)
+    return kCFCompareLessThan;
+  else if (timer_a.start > timer_b.start)
+    return kCFCompareGreaterThan;
+  else
+    return kCFCompareEqualTo;
+}
+
+
 + (ISpdyTimerPool*) poolWithQueue: (dispatch_queue_t) queue {
   ISpdyTimerPool* pool = [ISpdyTimerPool new];
 
+  pool->queue = queue;
   pool->source = dispatch_source_create(
       DISPATCH_SOURCE_TYPE_TIMER, 0, 0, queue);
   NSAssert(pool->source != NULL, @"Failed to create dispatch timer source");
@@ -49,8 +67,11 @@ static const NSUInteger kInitialTimerPoolCapacity = 16;
   });
 
   pool->suspended = YES;
-  pool->timers =
-      [NSMutableDictionary dictionaryWithCapacity: kInitialTimerDictCapacity];
+  CFBinaryHeapCallBacks heap_callbacks;
+  memset(&heap_callbacks, 0, sizeof(heap_callbacks));
+  heap_callbacks.compare = compare_timers_cb;
+  pool->timers = CFBinaryHeapCreate(NULL, 0, &heap_callbacks, NULL);
+  NSAssert(pool->timers != NULL, @"Failed to allocate binary heap");
 
   return pool;
 }
@@ -68,16 +89,11 @@ static const NSUInteger kInitialTimerPoolCapacity = 16;
   NSNumber* key = [NSNumber numberWithDouble: interval];
   timer.key = key;
 
-  NSMutableArray* subpool = [timers objectForKey: key];
-  if (subpool == nil) {
-    subpool = [NSMutableArray arrayWithCapacity: kInitialTimerPoolCapacity];
-    [timers setObject: subpool forKey: key];
-  }
-
   // Splitting into subpools ensures the order of timers
-  [subpool addObject: timer];
-
-  [self schedule];
+  dispatch_async(queue, ^{
+    CFBinaryHeapAddValue(timers, (__bridge_retained void*) timer);
+    [self schedule];
+  });
 
   return timer;
 }
@@ -87,20 +103,19 @@ static const NSUInteger kInitialTimerPoolCapacity = 16;
   if (recursive || !suspended)
     return;
 
-  if ([timers count] == 0)
-    return;
-
-  double start = 0.0;
-  for (NSNumber* key in timers) {
-    NSArray* subpool = [timers objectForKey: key];
-    ISpdyTimer* timer = [subpool objectAtIndex: 0];
-    if (timer.start > start)
-      start = timer.start;
+  // Skip removed timers
+  while (CFBinaryHeapGetCount(timers) != 0) {
+    ISpdyTimer* timer = (__bridge ISpdyTimer*) CFBinaryHeapGetMinimum(timers);
+    if (!timer.removed)
+      break;
+    CFBinaryHeapRemoveMinimumValue(timers);
   }
-  if (start == 0.0)
+
+  if (CFBinaryHeapGetCount(timers) == 0)
     return;
 
-  double off = start - [ISpdyTimerPool now];
+  ISpdyTimer* timer = (__bridge ISpdyTimer*) CFBinaryHeapGetMinimum(timers);
+  double off = timer.start - [ISpdyTimerPool now];
 
   // Minimum one 1ns
   if (off < 1e-9)
@@ -123,25 +138,20 @@ static const NSUInteger kInitialTimerPoolCapacity = 16;
   recursive = YES;
 
   double now = [ISpdyTimerPool now];
-  for (NSNumber* key in timers) {
-    NSMutableArray* subpool = [timers objectForKey: key];
-    while ([subpool count] != 0) {
-      ISpdyTimer* timer = [subpool objectAtIndex: 0];
-      if (timer.start > now)
-        break;
+  while (CFBinaryHeapGetCount(timers) != 0) {
+    ISpdyTimer* timer = (__bridge ISpdyTimer*) CFBinaryHeapGetMinimum(timers);
+    if (timer.start > now)
+      break;
 
-      timer.block();
-      timer.block = nil;
-      [subpool removeObjectAtIndex: 0];
-    }
-    if ([subpool count] == 0)
-      [timers removeObjectForKey: key];
+    CFBinaryHeapRemoveMinimumValue(timers);
+    timer.block();
+    timer.block = nil;
   }
 
   // Do it right after the executing blocks to prevent recursion
   recursive = NO;
 
-  if ([timers count] == 0)
+  if (CFBinaryHeapGetCount(timers) == 0)
     return;
 
   // Reschedule timer
@@ -158,14 +168,6 @@ static const NSUInteger kInitialTimerPoolCapacity = 16;
 }
 
 
-- (void) clear: (ISpdyTimer*) timer {
-  NSMutableArray* subpool = [timers objectForKey: timer.key];
-  [subpool removeObject: timer];
-  if ([subpool count] == 0)
-    [timers removeObjectForKey: timer.key];
-}
-
-
 - (void) dealloc {
   dispatch_source_set_event_handler_f(source, NULL);
   dispatch_source_cancel(source);
@@ -179,7 +181,7 @@ static const NSUInteger kInitialTimerPoolCapacity = 16;
 @implementation ISpdyTimer
 
 - (void) clear {
-  [self.pool clear: self];
+  self.removed = YES;
   self.pool = NULL;
 }
 

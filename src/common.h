@@ -278,6 +278,7 @@ typedef void (^ISpdyTimerCallback)(void);
 @property (strong) ISpdyTimerCallback block;
 @property NSNumber* key;
 @property double start;
+@property BOOL removed;
 
 - (void) clear;
 
@@ -288,7 +289,6 @@ typedef void (^ISpdyTimerCallback)(void);
 + (ISpdyTimerPool*) poolWithQueue: (dispatch_queue_t) queue;
 - (ISpdyTimer*) armWithTimeInterval: (NSTimeInterval) interval
                            andBlock: (ISpdyTimerCallback) block;
-- (void) clear: (ISpdyTimer*) timer;
 - (void) dealloc;
 
 - (void) schedule;
