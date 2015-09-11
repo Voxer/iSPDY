@@ -1047,6 +1047,10 @@ static void ispdy_remove_source_cb(void* arg) {
 
 
 - (void) _destroyPings: (ISpdyError*) err {
+  if (pings_.count == 0) {
+      pings_ = nil;
+      return;
+  }
   NSDictionary* pings = pings_;
   pings_ = nil;
   [self _delegateDispatch: ^{
