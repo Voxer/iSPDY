@@ -52,7 +52,7 @@
     (intervalNS >> 2) : 100000ULL;
 
   dispatch_source_set_timer(source,
-      dispatch_walltime(NULL, intervalNS),
+      dispatch_time(DISPATCH_TIME_NOW, intervalNS),
       intervalNS,
       leeway);
   dispatch_source_set_event_handler(source, ^{
