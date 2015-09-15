@@ -26,98 +26,39 @@
 #include "ispdy.h"
 #include "common.h"
 
-@implementation ISpdyTimerPool {
-  dispatch_queue_t queue;
+@implementation ISpdyTimer {
   dispatch_source_t source;
-  CFBinaryHeapRef timers;
   BOOL suspended;
-  BOOL recursive;
 }
 
 
-static CFComparisonResult compare_timers_cb(const void* a,
-                                            const void* b,
-                                            void* info) {
-  ISpdyTimer* timer_a = (__bridge ISpdyTimer*) a;
-  ISpdyTimer* timer_b = (__bridge ISpdyTimer*) b;
-
-  if (timer_a.start < timer_b.start)
-    return kCFCompareLessThan;
-  else if (timer_a.start > timer_b.start)
-    return kCFCompareGreaterThan;
-  else
-    return kCFCompareEqualTo;
-}
-
-
-+ (ISpdyTimerPool*) poolWithQueue: (dispatch_queue_t) queue {
-  ISpdyTimerPool* pool = [ISpdyTimerPool new];
-
-  pool->queue = queue;
-  pool->source = dispatch_source_create(
-      DISPATCH_SOURCE_TYPE_TIMER, 0, 0, queue);
-  NSAssert(pool->source != NULL, @"Failed to create dispatch timer source");
-
-  __weak ISpdyTimerPool* weakSelf = pool;
-  dispatch_source_set_event_handler(pool->source, ^{
-    [weakSelf run];
-  });
-
-  pool->suspended = YES;
-  CFBinaryHeapCallBacks heap_callbacks;
-  memset(&heap_callbacks, 0, sizeof(heap_callbacks));
-  heap_callbacks.compare = compare_timers_cb;
-  pool->timers = CFBinaryHeapCreate(NULL, 0, &heap_callbacks, NULL);
-  NSAssert(pool->timers != NULL, @"Failed to allocate binary heap");
-
-  return pool;
-}
-
-
-- (ISpdyTimer*) armWithTimeInterval: (NSTimeInterval) interval
-                           andBlock: (ISpdyTimerCallback) block {
++ (ISpdyTimer*) timerWithQueue: (dispatch_queue_t) queue {
   ISpdyTimer* timer = [ISpdyTimer new];
-  timer.pool = self;
-  timer.block = block;
 
-  timer.start = [ISpdyTimerPool now];
-  timer.start += interval;
+  timer->source = dispatch_source_create(
+      DISPATCH_SOURCE_TYPE_TIMER, 0, 0, queue);
+  NSAssert(timer->source != NULL, @"Failed to create dispatch timer source");
 
-  NSNumber* key = [NSNumber numberWithDouble: interval];
-  timer.key = key;
-
-  // Splitting into subpools ensures the order of timers
-  dispatch_async(queue, ^{
-    CFBinaryHeapAddValue(timers, (__bridge_retained void*) timer);
-    [self schedule];
-  });
+  timer->suspended = YES;
 
   return timer;
 }
 
 
-- (void) schedule {
-  // Skip removed timers
-  void* value;
-  while (CFBinaryHeapGetMinimumIfPresent(timers, (const void**) &value)) {
-    ISpdyTimer* timer = (__bridge ISpdyTimer*) value;
-    if (!timer.removed)
-      break;
-    CFBinaryHeapRemoveMinimumValue(timers);
-    CFRelease((__bridge CFTypeRef) timer);
-  }
+- (void) armWithTimeInterval: (NSTimeInterval) interval
+                    andBlock: (ISpdyTimerCallback) block {
+  uint64_t intervalNS = (uint64_t) (interval * 1e9);
+  uint64_t leeway = (intervalNS >> 2) < 100000ULL ?
+    (intervalNS >> 2) : 100000ULL;
 
-  if (CFBinaryHeapGetCount(timers) == 0)
-    return;
-
-  ISpdyTimer* timer = (__bridge ISpdyTimer*) CFBinaryHeapGetMinimum(timers);
-  double off = timer.start - [ISpdyTimerPool now];
-
-  // Minimum one 1ns
-  if (off < 1e-9)
-    off = 1e-9;
-  dispatch_time_t start_d = dispatch_walltime(NULL, (uint64_t) (off * 1e9));
-  dispatch_source_set_timer(source, start_d, 1000000000ULL, 100000ULL);
+  dispatch_source_set_timer(source,
+      dispatch_walltime(NULL, intervalNS),
+      intervalNS,
+      leeway);
+  dispatch_source_set_event_handler(source, ^{
+    [self clear];
+    block();
+  });
 
   if (suspended)
     dispatch_resume(source);
@@ -125,73 +66,21 @@ static CFComparisonResult compare_timers_cb(const void* a,
 }
 
 
-- (void) run {
-  if (recursive || suspended)
-    return;
-
-  dispatch_suspend(source);
-  suspended = YES;
-
-  recursive = YES;
-
-  double now = [ISpdyTimerPool now];
-  void* value;
-  while (CFBinaryHeapGetMinimumIfPresent(timers, (const void**) &value)) {
-    ISpdyTimer* timer = (__bridge ISpdyTimer*) value;
-    if (!timer || timer.start > now)
-      break;
-
-    CFBinaryHeapRemoveMinimumValue(timers);
-    timer.block();
-    timer.block = nil;
-    CFRelease((__bridge CFTypeRef) timer);
+- (void) clear {
+  dispatch_source_set_event_handler_f(source, NULL);
+  if (!suspended) {
+    dispatch_suspend(source);
+    suspended = YES;
   }
-
-  // Do it right after the executing blocks to prevent recursion
-  recursive = NO;
-
-  if (CFBinaryHeapGetCount(timers) == 0)
-    return;
-
-  // Reschedule timer
-  [self schedule];
-}
-
-
-+ (double) now {
-  struct timeval t;
-  int r = gettimeofday(&t, NULL);
-  NSAssert(r == 0, @"Failed to get time of day");
-
-  return (double) t.tv_sec + (double) t.tv_usec / 1e6;
 }
 
 
 - (void) dealloc {
-  dispatch_source_set_event_handler_f(source, NULL);
+  [self clear];
   if (suspended)
     dispatch_resume(source);
   dispatch_source_cancel(source);
-  void* value;
-  while (CFBinaryHeapGetMinimumIfPresent(timers, (const void**) &value)) {
-    ISpdyTimer* timer = (__bridge ISpdyTimer*) value;
-    [timer clear];
-    CFBinaryHeapRemoveMinimumValue(timers);
-    CFRelease((__bridge CFTypeRef) timer);
-  }
-  CFRelease(timers);
   source = NULL;
-  timers = NULL;
-}
-
-@end
-
-@implementation ISpdyTimer
-
-- (void) clear {
-  self.removed = YES;
-  self.pool = NULL;
-  self.block = nil;
 }
 
 @end

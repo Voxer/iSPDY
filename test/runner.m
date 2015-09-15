@@ -57,15 +57,15 @@ describe(@"ISpdy server", ^{
     });
   };
 
-  context(@"using timers pool", ^{
+  context(@"using timers", ^{
     dispatch_queue_t queue = dispatch_queue_create("ispdy-test", NULL);
 
     it(@"should call single timer callback", ^{
       __block BOOL called = NO;
 
-      ISpdyTimerPool* pool = [ISpdyTimerPool poolWithQueue: queue];
+      ISpdyTimer* t = [ISpdyTimer timerWithQueue: queue];
 
-      [pool armWithTimeInterval: 1.0 andBlock: ^{
+      [t armWithTimeInterval: 1.0 andBlock: ^{
         called = YES;
       }];
 
@@ -76,14 +76,14 @@ describe(@"ISpdy server", ^{
     it(@"should call recursive timer callback", ^{
       __block BOOL called = NO;
 
-      ISpdyTimerPool* pool = [ISpdyTimerPool poolWithQueue: queue];
+      ISpdyTimer* t = [ISpdyTimer timerWithQueue: queue];
 
-      [pool armWithTimeInterval: 0.5 andBlock: ^{
-        [pool armWithTimeInterval: 1.75 andBlock: ^{
+      [t armWithTimeInterval: 0.5 andBlock: ^{
+        [t armWithTimeInterval: 1.75 andBlock: ^{
           called = YES;
 
           // Just a reference
-          NSString* name = [pool className];
+          NSString* name = [t className];
         }];
       }];
 
@@ -96,36 +96,19 @@ describe(@"ISpdy server", ^{
       __block BOOL called_first = NO;
       __block BOOL called_second = NO;
 
-      ISpdyTimerPool* pool = [ISpdyTimerPool poolWithQueue: queue];
+      ISpdyTimer* first = [ISpdyTimer timerWithQueue: queue];
+      ISpdyTimer* second = [ISpdyTimer timerWithQueue: queue];
 
-      [pool armWithTimeInterval: 1.0 andBlock: ^{
+      [first armWithTimeInterval: 1.0 andBlock: ^{
         called_first = YES;
       }];
-      [pool armWithTimeInterval: 1.0 andBlock: ^{
+      [second armWithTimeInterval: 1.0 andBlock: ^{
         called_second = YES;
       }];
 
       [[expectFutureValue(theValue(called_first)) shouldEventually]
           equal: theValue(YES)];
       [[expectFutureValue(theValue(called_second)) shouldEventually]
-          equal: theValue(YES)];
-    });
-
-    it(@"should reschedule", ^{
-      __block BOOL called = NO;
-
-      ISpdyTimerPool* pool = [ISpdyTimerPool poolWithQueue: queue];
-
-      __block ISpdyTimer* t = [pool armWithTimeInterval: 1000.0 andBlock: ^{
-        // no-op
-      }];
-      [pool armWithTimeInterval: 1.0 andBlock: ^{
-        [t clear];
-        t = nil;
-        called = YES;
-      }];
-
-      [[expectFutureValue(theValue(called)) shouldEventually]
           equal: theValue(YES)];
     });
   });

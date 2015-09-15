@@ -262,7 +262,6 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 - (void) _resetTimeout {
   if (response_timeout_ != NULL) {
     [response_timeout_ clear];
-    response_timeout_ = NULL;
   }
   if (response_timeout_interval_ == 0.0)
     return;
@@ -271,9 +270,10 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   if (self.connection == nil)
     return;
 
-  response_timeout_ = [self.connection.timer_pool
-      armWithTimeInterval: response_timeout_interval_
-                 andBlock: ^{
+  if (response_timeout_ == NULL)
+    response_timeout_ = [self.connection _timer];
+  [response_timeout_ armWithTimeInterval: response_timeout_interval_
+                                andBlock: ^{
     [self.connection _error: self code: kISpdyErrRequestTimeout];
   }];
 }

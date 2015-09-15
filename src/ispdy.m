@@ -174,7 +174,6 @@ typedef enum {
   parser_ = [[ISpdyParser alloc] init: version compressor: in_comp_];
   scheduler_ = [ISpdyScheduler schedulerWithMaxPriority: kMaxPriority
                                             andDispatch: connection_queue_];
-  self.timer_pool = [ISpdyTimerPool poolWithQueue: connection_queue_];
   _last_frame = &last_frame_;
   _state = kISpdyStateInitial;
 
@@ -443,8 +442,10 @@ typedef enum {
     NSAssert(!goaway_, @"closeSoon called twice");
 
     if (timeout != 0.0) {
-      goaway_timeout_ = [self.timer_pool armWithTimeInterval: timeout
-                                                    andBlock: ^{
+      if (goaway_timeout_ == NULL)
+        goaway_timeout_ = [self _timer];
+      [goaway_timeout_ armWithTimeInterval: timeout
+                                  andBlock: ^{
         // Force close connection
         [self _close: nil];
       }];
@@ -539,8 +540,10 @@ typedef enum {
     ping_id_ += 2;
     ping.block = block;
 
-    ping.timeout = [self.timer_pool armWithTimeInterval: wait
-                                               andBlock: ^{
+    ping.timeout = [self _timer];
+    [ping.timeout armWithTimeInterval: wait
+                             andBlock: ^{
+      ping.timeout = NULL;
       [self->pings_ removeObjectForKey: ping.ping_id];
 
       [self _delegateDispatch: ^{
@@ -586,6 +589,11 @@ typedef enum {
 
 - (ISpdyVersion) version {
   return version_;
+}
+
+
+- (ISpdyTimer*) _timer {
+  return [ISpdyTimer timerWithQueue: connection_queue_];
 }
 
 
@@ -676,13 +684,14 @@ typedef enum {
 - (void) _setTimeout: (NSTimeInterval) timeout {
   if (connection_timeout_ != NULL) {
     [connection_timeout_ clear];
-    connection_timeout_ = NULL;
   }
   if (timeout == 0.0)
     return;
 
-  connection_timeout_ = [self.timer_pool armWithTimeInterval: timeout
-                                                    andBlock: ^{
+  if (connection_timeout_ == NULL)
+    connection_timeout_ = [self _timer];
+  [connection_timeout_ armWithTimeInterval: timeout
+                                  andBlock: ^{
     [self _close: [ISpdyError errorWithCode: kISpdyErrConnectionTimeout]];
   }];
 }

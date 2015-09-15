@@ -121,8 +121,6 @@ typedef void (^ISpdyTimerCallback)(void);
 
 @interface ISpdy ()
 
-@property ISpdyTimerPool* timer_pool;
-
 // Self-retaining reference for closeSoon
 @property (nonatomic, strong) ISpdy* goaway_retain_;
 
@@ -145,6 +143,8 @@ typedef void (^ISpdyTimerCallback)(void);
 - (void) _lazySchedule;
 
 - (ISpdyVersion) version;
+
+- (ISpdyTimer*) _timer;
 
 // Private version of setTimeout and friends
 - (void) _setTimeout: (NSTimeInterval) timeout;
@@ -276,26 +276,11 @@ typedef void (^ISpdyTimerCallback)(void);
 
 @interface ISpdyTimer : NSObject
 
-@property (weak) ISpdyTimerPool* pool;
-@property (strong) ISpdyTimerCallback block;
-@property NSNumber* key;
-@property double start;
-@property BOOL removed;
++ (ISpdyTimer*) timerWithQueue: (dispatch_queue_t) queue;
 
+- (void) armWithTimeInterval: (NSTimeInterval) interval
+                    andBlock: (ISpdyTimerCallback) block;
 - (void) clear;
-
-@end
-
-@interface ISpdyTimerPool : NSObject
-
-+ (ISpdyTimerPool*) poolWithQueue: (dispatch_queue_t) queue;
-- (ISpdyTimer*) armWithTimeInterval: (NSTimeInterval) interval
-                           andBlock: (ISpdyTimerCallback) block;
 - (void) dealloc;
-
-- (void) schedule;
-- (void) run;
-
-+ (double) now;
 
 @end
