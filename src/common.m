@@ -47,11 +47,11 @@
 
 - (void) armWithTimeInterval: (NSTimeInterval) interval
                     andBlock: (ISpdyTimerCallback) block {
-    uint64_t leeway = 100000ULL;
-    if (interval >= 5.0) {
-        leeway = 500000ULL;
-    }
-  uint64_t intervalNS = (uint64_t) (interval * 1e9);
+   uint64_t leeway = 100 * NSEC_PER_MSEC;
+   if (interval >= 5.0) {
+     leeway = 500 * NSEC_PER_MSEC;
+   }
+  uint64_t intervalNS = (uint64_t) (interval * NSEC_PER_SEC);
   dispatch_source_set_timer(source,
       dispatch_time(DISPATCH_TIME_NOW, intervalNS),
       intervalNS,
