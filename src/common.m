@@ -76,7 +76,7 @@
 
 
 - (void) dealloc {
-  [self clear];
+  dispatch_source_set_event_handler_f(source, NULL);
   if (suspended)
     dispatch_resume(source);
   dispatch_source_cancel(source);
