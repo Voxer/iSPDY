@@ -98,8 +98,8 @@ static CFComparisonResult compare_timers_cb(const void* a,
 
 - (void) schedule {
   // Skip removed timers
-  void *value;
-  while (CFBinaryHeapGetMinimumIfPresent(timers, &value)) {
+  void* value;
+  while (CFBinaryHeapGetMinimumIfPresent(timers, (const void**) &value)) {
     ISpdyTimer* timer = (__bridge ISpdyTimer*) value;
     if (!timer.removed)
       break;
@@ -136,7 +136,7 @@ static CFComparisonResult compare_timers_cb(const void* a,
 
   double now = [ISpdyTimerPool now];
   void* value;
-  while (CFBinaryHeapGetMinimumIfPresent(timers, &value)) {
+  while (CFBinaryHeapGetMinimumIfPresent(timers, (const void**) &value)) {
     ISpdyTimer* timer = (__bridge ISpdyTimer*) value;
     if (!timer || timer.start > now)
       break;
