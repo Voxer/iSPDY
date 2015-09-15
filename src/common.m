@@ -49,7 +49,7 @@
                     andBlock: (ISpdyTimerCallback) block {
     uint64_t leeway = 100000ULL;
     if (interval >= 5.0) {
-        leeway = 500000ULL
+        leeway = 500000ULL;
     }
   uint64_t intervalNS = (uint64_t) (interval * 1e9);
   dispatch_source_set_timer(source,
