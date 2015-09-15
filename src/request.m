@@ -251,8 +251,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   else
     [self.connection _delegateDispatch: delegateBlock];
 
-  [self setTimeout: 0.0];
-
+  response_timeout_interval_ = 0.0;
   [self.connection _removeStream: self];
 
   self.closed_by_us = YES;
@@ -272,9 +271,12 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   if (self.connection == nil)
     return;
 
-  [self.connection.timer_pool armWithTimeInterval: response_timeout_interval_
-                                         andBlock: ^{
-    [self.connection _error: self code: kISpdyErrRequestTimeout];
+  // TODO(indutny): should not be necessary to weaken this
+  __weak ISpdyRequest* weakSelf = self;
+  response_timeout_ = [self.connection.timer_pool
+      armWithTimeInterval: response_timeout_interval_
+                 andBlock: ^{
+    [weakSelf.connection _error: weakSelf code: kISpdyErrRequestTimeout];
   }];
 }
 

@@ -172,7 +172,9 @@ static CFComparisonResult compare_timers_cb(const void* a,
   if (suspended)
     dispatch_resume(source);
   dispatch_source_cancel(source);
+  CFRelease(timers);
   source = NULL;
+  timers = NULL;
 }
 
 @end
