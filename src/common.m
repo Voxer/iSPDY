@@ -169,9 +169,9 @@ static CFComparisonResult compare_timers_cb(const void* a,
 
 - (void) dealloc {
   dispatch_source_set_event_handler_f(source, NULL);
-  dispatch_source_cancel(source);
   if (suspended)
     dispatch_resume(source);
+  dispatch_source_cancel(source);
   source = NULL;
 }
 
