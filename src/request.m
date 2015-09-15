@@ -271,12 +271,10 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   if (self.connection == nil)
     return;
 
-  // TODO(indutny): should not be necessary to weaken this
-  __weak ISpdyRequest* weakSelf = self;
   response_timeout_ = [self.connection.timer_pool
       armWithTimeInterval: response_timeout_interval_
                  andBlock: ^{
-    [weakSelf.connection _error: weakSelf code: kISpdyErrRequestTimeout];
+    [self.connection _error: self code: kISpdyErrRequestTimeout];
   }];
 }
 

@@ -172,6 +172,13 @@ static CFComparisonResult compare_timers_cb(const void* a,
   if (suspended)
     dispatch_resume(source);
   dispatch_source_cancel(source);
+  void* value;
+  while (CFBinaryHeapGetMinimumIfPresent(timers, (const void**) &value)) {
+    ISpdyTimer* timer = (__bridge ISpdyTimer*) value;
+    [timer clear];
+    CFBinaryHeapRemoveMinimumValue(timers);
+    CFRelease((__bridge CFTypeRef) timer);
+  }
   CFRelease(timers);
   source = NULL;
   timers = NULL;
@@ -184,6 +191,7 @@ static CFComparisonResult compare_timers_cb(const void* a,
 - (void) clear {
   self.removed = YES;
   self.pool = NULL;
+  self.block = nil;
 }
 
 @end
