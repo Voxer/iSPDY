@@ -144,6 +144,8 @@ typedef void (^ISpdyTimerCallback)(void);
 // Use default (off-thread) NS loop, if no was provided by user
 - (void) _lazySchedule;
 
+- (ISpdyVersion) version;
+
 // Private version of setTimeout and friends
 - (void) _setTimeout: (NSTimeInterval) timeout;
 - (void) _scheduleInRunLoop: (NSRunLoop*) loop forMode: (NSString*) mode;

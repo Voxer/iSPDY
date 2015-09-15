@@ -110,6 +110,24 @@ describe(@"ISpdy server", ^{
       [[expectFutureValue(theValue(called_second)) shouldEventually]
           equal: theValue(YES)];
     });
+
+    it(@"should reschedule", ^{
+      __block BOOL called = NO;
+
+      ISpdyTimerPool* pool = [ISpdyTimerPool poolWithQueue: queue];
+
+      __block ISpdyTimer* t = [pool armWithTimeInterval: 1000.0 andBlock: ^{
+        // no-op
+      }];
+      [pool armWithTimeInterval: 1.0 andBlock: ^{
+        [t clear];
+        t = nil;
+        called = YES;
+      }];
+
+      [[expectFutureValue(theValue(called)) shouldEventually]
+          equal: theValue(YES)];
+    });
   });
 
   context(@"sending requests to echo server", ^{
@@ -398,9 +416,9 @@ describe(@"ISpdy server", ^{
         pipe(conf, body);
       });
 
-      it(@"should timeout on slow responses", ^{
-        slow_response(conf);
-      });
+       it(@"should timeout on slow responses", ^{
+         slow_response(conf);
+       });
 
       it(@"should handle failures", ^{
         failure(conf);

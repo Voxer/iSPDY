@@ -26,9 +26,6 @@
 #include "ispdy.h"
 #include "common.h"
 
-static const NSUInteger kInitialTimerDictCapacity = 16;
-static const NSUInteger kInitialTimerPoolCapacity = 16;
-
 @implementation ISpdyTimerPool {
   dispatch_queue_t queue;
   dispatch_source_t source;
@@ -100,9 +97,6 @@ static CFComparisonResult compare_timers_cb(const void* a,
 
 
 - (void) schedule {
-  if (recursive || !suspended)
-    return;
-
   // Skip removed timers
   void *value;
   while (CFBinaryHeapGetMinimumIfPresent(timers, &value)) {
@@ -125,7 +119,8 @@ static CFComparisonResult compare_timers_cb(const void* a,
   dispatch_time_t start_d = dispatch_walltime(NULL, (uint64_t) (off * 1e9));
   dispatch_source_set_timer(source, start_d, 1000000000ULL, 100000ULL);
 
-  dispatch_resume(source);
+  if (suspended)
+    dispatch_resume(source);
   suspended = NO;
 }
 

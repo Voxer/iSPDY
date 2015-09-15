@@ -132,24 +132,10 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 
 - (void) setTimeout: (NSTimeInterval) timeout {
-  response_timeout_interval_ = timeout;
-
   [self _connectionDispatch: ^() {
-    if (response_timeout_ != NULL) {
-      [response_timeout_ clear];
-      response_timeout_ = NULL;
-    }
-    if (timeout == 0.0)
-      return;
+    response_timeout_interval_ = timeout;
 
-    // Queue timeout until sent
-    if (self.connection == nil)
-      return;
-
-    [self.connection.timer_pool armWithTimeInterval: response_timeout_interval_
-                                           andBlock: ^{
-      [self.connection _error: self code: kISpdyErrRequestTimeout];
-    }];
+    [self _resetTimeout];
   }];
 }
 
@@ -275,11 +261,31 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 
 
 - (void) _resetTimeout {
-  [self setTimeout: response_timeout_interval_];
+  if (response_timeout_ != NULL) {
+    [response_timeout_ clear];
+    response_timeout_ = NULL;
+  }
+  if (response_timeout_interval_ == 0.0)
+    return;
+
+  // Queue timeout until sent
+  if (self.connection == nil)
+    return;
+
+  [self.connection.timer_pool armWithTimeInterval: response_timeout_interval_
+                                         andBlock: ^{
+    [self.connection _error: self code: kISpdyErrRequestTimeout];
+  }];
 }
 
 
 - (void) _updateWindow: (NSInteger) delta withBlock: (void (^)()) block {
+  if ([self.connection version] == kISpdyV2) {
+    if (block != nil)
+      block();
+    return;
+  }
+
   if (delta < 0 && self.window_out <= 0) {
     if (block == nil)
       return;

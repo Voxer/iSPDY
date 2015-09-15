@@ -174,6 +174,7 @@ typedef enum {
   parser_ = [[ISpdyParser alloc] init: version compressor: in_comp_];
   scheduler_ = [ISpdyScheduler schedulerWithMaxPriority: kMaxPriority
                                             andDispatch: connection_queue_];
+  self.timer_pool = [ISpdyTimerPool poolWithQueue: connection_queue_];
   _last_frame = &last_frame_;
   _state = kISpdyStateInitial;
 
@@ -582,6 +583,11 @@ typedef enum {
 @end
 
 @implementation ISpdy (ISpdyPrivate)
+
+- (ISpdyVersion) version {
+  return version_;
+}
+
 
 - (void) _delegateDispatch: (void (^)()) block {
   dispatch_async(delegate_queue_, block);
