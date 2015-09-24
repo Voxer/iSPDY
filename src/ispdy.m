@@ -716,6 +716,9 @@ static void ispdy_remove_source_cb(void* arg) {
   CFRunLoopRemoveSource(CFRunLoopGetCurrent(),
                         wrap.remove_source,
                         kCFRunLoopDefaultMode);
+  CFRunLoopRemoveSource(CFRunLoopGetCurrent(),
+                        wrap.close_source,
+                        kCFRunLoopDefaultMode);
 
   CFRunLoopSourceContext ctx;
   memset(&ctx, 0, sizeof(ctx));
@@ -729,8 +732,25 @@ static void ispdy_remove_source_cb(void* arg) {
 
   CFRelease(wrap.source);
   CFRelease(wrap.remove_source);
+  CFRelease(wrap.close_source);
   wrap.source = NULL;
   wrap.remove_source = NULL;
+  wrap.close_source = NULL;
+}
+
+
+static void ispdy_close_source_cb(void* arg) {
+  ISpdy* ispdy = (__bridge ISpdy*) arg;
+
+  [ispdy _closeSocket];
+}
+
+
+- (void) _closeSocket {
+  [in_stream_ close];
+  [out_stream_ close];
+  in_stream_ = nil;
+  out_stream_ = nil;
 }
 
 
@@ -747,9 +767,16 @@ static void ispdy_remove_source_cb(void* arg) {
   ctx.perform = ispdy_remove_source_cb;
   wrap.remove_source = CFRunLoopSourceCreate(NULL, 0, &ctx);
 
+  ctx.info = (void*) CFBridgingRetain(self);
+  ctx.perform = ispdy_close_source_cb;
+  wrap.close_source = CFRunLoopSourceCreate(NULL, 0, &ctx);
+
   CFRunLoopAddSource([loop getCFRunLoop], wrap.source, kCFRunLoopDefaultMode);
   CFRunLoopAddSource([loop getCFRunLoop],
                      wrap.remove_source,
+                     kCFRunLoopDefaultMode);
+  CFRunLoopAddSource([loop getCFRunLoop],
+                     wrap.close_source,
                      kCFRunLoopDefaultMode);
 
   [scheduled_loops_ addObject: wrap];
@@ -884,16 +911,20 @@ static void ispdy_remove_source_cb(void* arg) {
 
   _state = kISpdyStateClosed;
 
+  BOOL on_loop = NO;
+  for (ISpdyLoopWrap* wrap in scheduled_loops_) {
+    on_loop = YES;
+    CFRunLoopSourceSignal(wrap.close_source);
+    CFRunLoopWakeUp([wrap.loop getCFRunLoop]);
+  }
+  if (!on_loop)
+    [self _closeSocket];
+
   if (on_ispdy_loop_) {
     on_ispdy_loop_ = NO;
     [self _removeFromRunLoop: [ISpdyLoop defaultLoop]
                      forMode: NSDefaultRunLoopMode];
   }
-
-  [in_stream_ close];
-  [out_stream_ close];
-  in_stream_ = nil;
-  out_stream_ = nil;
 
   if (err == nil) {
     err = [ISpdyError errorWithCode: kISpdyErrClose];
