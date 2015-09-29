@@ -58,10 +58,11 @@
       leeway);
   __weak typeof(self) weakSelf = self;
   dispatch_source_set_event_handler(source, ^{
-    if(!weakSelf) {
+    __strong typeof(weakSelf) strongSelf = weakSelf;
+    if(!strongSelf) {
         return;
     }
-    [weakSelf clear];
+    [strongSelf clear];
     block();
   });
 
