@@ -283,6 +283,12 @@ typedef void (^ISpdyTimerCallback)(void);
 - (void) armWithTimeInterval: (NSTimeInterval) interval
                     andBlock: (ISpdyTimerCallback) block;
 - (void) clear;
+
+/**
+ *  Invalidate the Timer. It is recommended to invalidate the timer, before
+ *  nilifying the reference to it.
+ */
+- (void) invalidate;
 - (void) dealloc;
 
 @end

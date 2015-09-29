@@ -56,8 +56,12 @@
       dispatch_time(DISPATCH_TIME_NOW, intervalNS),
       intervalNS,
       leeway);
+  __weak typeof(self) weakSelf = self;
   dispatch_source_set_event_handler(source, ^{
-    [self clear];
+    if(!weakSelf) {
+        return;
+    }
+    [weakSelf clear];
     block();
   });
 
@@ -68,20 +72,29 @@
 
 
 - (void) clear {
-  dispatch_source_set_event_handler_f(source, NULL);
-  if (!suspended) {
-    dispatch_suspend(source);
-    suspended = YES;
+    if (source != NULL) {
+        dispatch_source_set_event_handler_f(source, NULL);
+        if (!suspended) {
+            dispatch_suspend(source);
+            suspended = YES;
+        }
+    }
+}
+
+- (void) invalidate {
+  if (source) {
+    dispatch_source_set_event_handler_f(source, NULL);
+    dispatch_source_cancel(source);
+
+    if (suspended)
+      dispatch_resume(source);
+
+    source = NULL;
   }
 }
 
-
 - (void) dealloc {
-  dispatch_source_set_event_handler_f(source, NULL);
-  if (suspended)
-    dispatch_resume(source);
-  dispatch_source_cancel(source);
-  source = NULL;
+  [self invalidate];
 }
 
 @end

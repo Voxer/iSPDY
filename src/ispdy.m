@@ -901,12 +901,14 @@ static void ispdy_close_source_cb(void* arg) {
   if (in_stream_ == nil || out_stream_ == nil)
     return NO;
 
-  if (goaway_timeout_ != NULL)
-    [goaway_timeout_ clear];
-  if (connection_timeout_ != NULL)
-    [connection_timeout_ clear];
-  goaway_timeout_ = NULL;
-  connection_timeout_ = NULL;
+  if (goaway_timeout_ != NULL) {
+    [goaway_timeout_ invalidate];
+    goaway_timeout_ = NULL;
+  }
+  if (connection_timeout_ != NULL) {
+    [connection_timeout_ invalidate];
+    connection_timeout_ = NULL;
+  }
   self.goaway_retain_ = nil;
 
   _state = kISpdyStateClosed;
@@ -1101,7 +1103,7 @@ static void ispdy_close_source_cb(void* arg) {
   pings_ = nil;
   [self _delegateDispatch: ^{
     [pings enumerateKeysAndObjectsUsingBlock:^(id  _Nonnull key, ISpdyPing*  _Nonnull ping, BOOL * _Nonnull stop) {
-      [ping.timeout clear];
+      [ping.timeout invalidate];
       ping.timeout = NULL;
       [ping _invoke: kISpdyPingConnectionEnd rtt: -1.0];
     }];
@@ -1223,7 +1225,7 @@ static void ispdy_close_source_cb(void* arg) {
     return;
 
   [pings_ removeObjectForKey: ping_id];
-  [ping.timeout clear];
+  [ping.timeout invalidate];
   ping.timeout = NULL;
 
   [self _delegateDispatch: ^{
