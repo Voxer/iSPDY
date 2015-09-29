@@ -56,8 +56,10 @@
       dispatch_time(DISPATCH_TIME_NOW, intervalNS),
       intervalNS,
       leeway);
+  __weak typeof(self) weakSelf = self;
   dispatch_source_set_event_handler(source, ^{
-    [self clear];
+    if(!weakSelf) return;
+    [weakSelf clear];
     block();
   });
 
