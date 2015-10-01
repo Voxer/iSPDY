@@ -41,7 +41,7 @@ typedef enum {
 /**
  * Possible error codes in NSError with domain @"spdy"
  */
-typedef enum {
+typedef NS_ENUM(NSInteger, ISpdyErrorCode) {
   kISpdyErrConnectionTimeout,
   kISpdyErrConnectionEnd,
   kISpdyErrRequestTimeout,
@@ -56,7 +56,7 @@ typedef enum {
   kISpdyErrGoawayError,
   kISpdyErrSendAfterGoawayError,
   kISpdyErrSendAfterClose
-} ISpdyErrorCode;
+};
 
 /**
  * Possible connection states
@@ -103,7 +103,7 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
 
 @interface ISpdyError : NSError
 
-- (ISpdyErrorCode) code;
+@property(readonly) ISpdyErrorCode code;
 - (NSString*) description;
 
 /**

@@ -181,8 +181,8 @@
     case kISpdyErrSendAfterClose:
       return @"ISpdy error: request sent after close";
     default:
-      return [NSString stringWithFormat: @"Unexpected spdy error %d",
-          self.code];
+      return [NSString stringWithFormat: @"Unexpected spdy error %ld",
+          (long)self.code];
   }
 }
 

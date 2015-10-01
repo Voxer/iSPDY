@@ -295,8 +295,11 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
       window_out_queue_ = [NSMutableArray arrayWithCapacity: 16];
 
     // Retry on positive window_out
+    __weak __typeof(self) weakSelf = self;
     [window_out_queue_ addObject: ^() {
-      [self _updateWindow: delta withBlock: block];
+      __strong __typeof(self) strongSelf = weakSelf;
+      if(!strongSelf) return;
+      [strongSelf _updateWindow: delta withBlock: block];
     }];
     return;
   }

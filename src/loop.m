@@ -58,8 +58,8 @@ static dispatch_once_t loop_once;
     // Create timer that fires in distant future, just to keep loop running
     NSTimer* timer = [[NSTimer alloc] initWithFireDate: [NSDate distantFuture]
                                               interval: 0.0
-                                                target: nil
-                                              selector: nil
+                                                target: self
+                                              selector: @selector(dummyTimerFunc:)
                                               userInfo: nil
                                                repeats: NO];
     runLoop_ = [NSRunLoop currentRunLoop];
@@ -77,5 +77,7 @@ static dispatch_once_t loop_once;
     dispatch_semaphore_wait(init_sem_, DISPATCH_TIME_FOREVER);
   return (NSRunLoop *)runLoop_;
 }
+
+- (void)dummyTimerFunc: (NSTimer*)timer{}
 
 @end
