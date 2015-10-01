@@ -18,6 +18,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		0FFAA6C91BBD143600CEF619 /* ISpdy.podspec */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = ISpdy.podspec; sourceTree = "<group>"; };
 		33DFEE9ACE47E7C730EA8CD2 /* parser.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = parser.m; sourceTree = "<group>"; };
 		45E89AE67B8AE6EF4718D7C3 /* common.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = common.m; sourceTree = "<group>"; };
 		4E0EC184FCD7551AB66886F7 /* loop.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = loop.m; sourceTree = "<group>"; };
@@ -45,6 +46,7 @@
 		09D72A3446683184C3DA8B19 = {
 			isa = PBXGroup;
 			children = (
+				0FFAA6C91BBD143600CEF619 /* ISpdy.podspec */,
 				76A0499926D35BC73B27804E /* Source */,
 				89F1B268A8AE1DB046DF10EA /* Products */,
 				DC9A387065BBBB1DAFC5D681 /* Build */,
@@ -113,7 +115,11 @@
 			};
 			buildConfigurationList = 97733FC07CD992A00FB661F2 /* Build configuration list for PBXProject "ispdy-iphoneos" */;
 			compatibilityVersion = "Xcode 3.2";
+			developmentRegion = English;
 			hasScannedForEncodings = 1;
+			knownRegions = (
+				en,
+			);
 			mainGroup = 09D72A3446683184C3DA8B19;
 			projectDirPath = "";
 			projectRoot = "";
@@ -145,6 +151,7 @@
 		259C6554D53D5A98ABDAD2D8 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				GCC_TREAT_WARNINGS_AS_ERRORS = YES;
 				INTERMEDIATE_DIR = "$(PROJECT_DERIVED_FILE_DIR)/$(CONFIGURATION)";
 				SHARED_INTERMEDIATE_DIR = "$(SYMROOT)/DerivedSources/$(CONFIGURATION)";
 			};
@@ -153,6 +160,7 @@
 		5459E02B5E6D0632E756BE8A /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				GCC_TREAT_WARNINGS_AS_ERRORS = YES;
 				INTERMEDIATE_DIR = "$(PROJECT_DERIVED_FILE_DIR)/$(CONFIGURATION)";
 				SHARED_INTERMEDIATE_DIR = "$(SYMROOT)/DerivedSources/$(CONFIGURATION)";
 			};

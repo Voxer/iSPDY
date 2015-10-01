@@ -746,11 +746,12 @@ static void ispdy_close_source_cb(void* arg) {
 }
 
 
-- (void) _closeSocket {
+- (BOOL) _closeSocket {
   [in_stream_ close];
   [out_stream_ close];
   in_stream_ = nil;
   out_stream_ = nil;
+  return YES;
 }
 
 
@@ -1043,7 +1044,7 @@ static void ispdy_close_source_cb(void* arg) {
       // Partial write
       if (size > (NSUInteger) r) {
         [buffer_size_ replaceObjectAtIndex: 0
-                   withObject: [NSNumber numberWithUnsignedInt: size - r]];
+                   withObject: [NSNumber numberWithUnsignedInteger: size - r]];
         r = 0;
         break;
       }
