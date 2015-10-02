@@ -157,7 +157,6 @@ typedef void (^ISpdyTimerCallback)(void);
                    interval: (NSInteger) interval
                    andCount: (NSInteger) count;
 - (BOOL) _close: (ISpdyError*) err;
-- (BOOL) _closeSocket;
 
 // Close all streams and send error to each of them
 - (void) _closeStreams: (ISpdyError*) err;
@@ -250,7 +249,6 @@ typedef void (^ISpdyTimerCallback)(void);
 @property NSString* mode;
 @property CFRunLoopSourceRef source;
 @property CFRunLoopSourceRef remove_source;
-@property CFRunLoopSourceRef close_source;
 
 + (ISpdyLoopWrap*) stateForLoop: (NSRunLoop*) loop andMode: (NSString*) mode;
 - (BOOL) isEqual: (id) anObject;
