@@ -730,16 +730,12 @@ static void ispdy_remove_source_cb(void* arg) {
   CFRelease(ctx.info);
   ctx.info = NULL;
 
-  [wrap.ispdy->in_stream_ removeFromRunLoop: wrap.loop forMode: wrap.mode];
-  [wrap.ispdy->out_stream_ removeFromRunLoop: wrap.loop forMode: wrap.mode];
-
   CFRelease(wrap.source);
   CFRelease(wrap.remove_source);
   CFRelease(wrap.close_source);
   wrap.source = NULL;
   wrap.remove_source = NULL;
   wrap.close_source = NULL;
-  wrap.ispdy = NULL;
 }
 
 
@@ -760,8 +756,6 @@ static void ispdy_close_source_cb(void* arg) {
 
 - (void) _scheduleInRunLoop: (NSRunLoop*) loop forMode: (NSString*) mode {
   ISpdyLoopWrap* wrap = [ISpdyLoopWrap stateForLoop: loop andMode: mode];
-
-  wrap.ispdy = self;
 
   CFRunLoopSourceContext ctx;
   memset(&ctx, 0, sizeof(ctx));
@@ -799,6 +793,9 @@ static void ispdy_close_source_cb(void* arg) {
 
   CFRunLoopSourceSignal(wrap.remove_source);
   CFRunLoopWakeUp([wrap.loop getCFRunLoop]);
+
+  [in_stream_ removeFromRunLoop: wrap.loop forMode: wrap.mode];
+  [out_stream_ removeFromRunLoop: wrap.loop forMode: wrap.mode];
 }
 
 

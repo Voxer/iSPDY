@@ -246,7 +246,6 @@ typedef void (^ISpdyTimerCallback)(void);
 
 @interface ISpdyLoopWrap : NSObject
 
-@property ISpdy* ispdy;
 @property NSRunLoop* loop;
 @property NSString* mode;
 @property CFRunLoopSourceRef source;
