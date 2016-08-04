@@ -1082,7 +1082,18 @@ static void ispdy_remove_source_cb(void* arg) {
 
 - (void) _writeData: (NSData*) data
             withFin: (BOOL) fin
-                 to: (ISpdyRequest*) request {
+                 to: (ISpdyRequest*) request
+{
+  [self _writeData: data
+           withFin: fin
+                to: request
+        completion: nil];
+}
+
+- (void) _writeData: (NSData*) data
+            withFin: (BOOL) fin
+                 to: (ISpdyRequest*) request
+         completion: (void (^)(void)) completion {
   // Already closed
   if (request.closed_by_us == YES)
     return;
@@ -1107,6 +1118,9 @@ static void ispdy_remove_source_cb(void* arg) {
         @"request=\"%@\" DATA sent size=%d",
         request.url,
         [data length]);
+
+    if (completion)
+      completion();
 
     if (!fin)
       return;

@@ -135,6 +135,10 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
 - (void) request: (ISpdyRequest*) req handleInput: (NSData*) input;
 - (void) request: (ISpdyRequest*) req handleHeaders: (NSDictionary*) headers;
 - (void) request: (ISpdyRequest*) req handleEnd: (ISpdyError*) err;
+- (void)          request: (ISpdyRequest*) req
+             didWriteData: (int64_t) bytesWritten
+        totalBytesWritten: (int64_t) totalBytesWritten
+totalBytesExpectedToWrite: (int64_t) totalBytesExpectedToWrite;
 @end
 
 /**

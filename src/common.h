@@ -169,6 +169,10 @@ typedef void (^ISpdyTimerCallback)(void);
 - (void) _writeData: (NSData*) data
             withFin: (BOOL) fin
                  to: (ISpdyRequest*) request;
+- (void) _writeData: (NSData*) data
+            withFin: (BOOL) fin
+                 to: (ISpdyRequest*) request
+         completion: (void (^)(void)) completion;
 - (void) _addHeaders: (NSDictionary*) headers to: (ISpdyRequest*) request;
 - (void) _rst: (uint32_t) stream_id code: (uint8_t) code;
 - (void) _error: (ISpdyRequest*) request code: (ISpdyErrorCode) code;

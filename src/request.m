@@ -56,6 +56,9 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
   NSMutableArray* connection_queue_;
   NSMutableArray* window_out_queue_;
   BOOL corked_;
+
+  NSUInteger bytes_expected_to_write_;
+  NSUInteger bytes_written_;
 }
 
 - (id) init: (NSString*) method
@@ -71,14 +74,33 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 }
 
 
-- (void) writeData: (NSData*) data {
+- (void) writeData: (NSData*) data
+{
+  [self _writeData: data fin: NO];
+}
+
+- (void) _writeData: (NSData*) data
+                fin: (BOOL) fin
+{
   [self _connectionDispatch: ^{
+    bytes_expected_to_write_ += data.length;
+
     [self _resetTimeout];
     [self.connection _splitOutput: data
-                          withFin: NO
-                         andBlock: ^(NSData* data, BOOL fin) {
-      [self _updateWindow: -(NSInteger) [data length] withBlock: ^() {
-        [self.connection _writeData: data withFin: fin to: self];
+                          withFin: fin
+                         andBlock: ^(NSData* slice, BOOL isFinSlice) {
+                           [self _updateWindow: -(NSInteger) [slice length]
+                                     withBlock: ^{
+                                       [self.connection _writeData: slice
+                                                           withFin: isFinSlice
+                                                                to: self
+                                                        completion: ^{
+                                                          bytes_written_ += slice.length;
+                                                          [self.delegate request: self
+                                                                    didWriteData: slice.length
+                                                               totalBytesWritten: bytes_written_
+                                                       totalBytesExpectedToWrite: bytes_expected_to_write_];
+                                                        }];
       }];
     }];
   }];
@@ -100,16 +122,7 @@ static const NSTimeInterval kResponseTimeout = 60.0;  // 1 minute
 }
 
 - (void) endWithData: (NSData*) data {
-  [self _connectionDispatch: ^{
-    [self _resetTimeout];
-    [self.connection _splitOutput: data
-                          withFin: YES
-                         andBlock: ^(NSData* data, BOOL fin) {
-      [self _updateWindow: -(NSInteger) [data length] withBlock: ^() {
-        [self.connection _writeData: data withFin: fin to: self];
-      }];
-    }];
-  }];
+  [self _writeData: data fin: YES];
 }
 
 - (void) endWithString: (NSString*) str {
