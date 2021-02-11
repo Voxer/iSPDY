@@ -958,7 +958,11 @@ static void ispdy_remove_source_cb(void* arg) {
 
 
 - (void) _doSocketWrite {
-  NSStreamStatus status = [out_stream_ streamStatus];
+    
+  // Capture the out_stream_ variable to ensure thread safety
+  NSOutputStream* out_stream = out_stream_;
+    
+  NSStreamStatus status = [out_stream streamStatus];
 
   if (status == NSStreamStatusNotOpen) {
     ISpdyError* err = [ISpdyError errorWithCode: kISpdyErrConnectionEnd];
@@ -971,7 +975,7 @@ static void ispdy_remove_source_cb(void* arg) {
   // If stream is not open yet, or if there's already queued data -
   // queue more.
   if ((status != NSStreamStatusOpen && status != NSStreamStatusWriting) ||
-      ![out_stream_ hasSpaceAvailable]) {
+      ![out_stream hasSpaceAvailable]) {
     return;
   }
 
@@ -982,13 +986,13 @@ static void ispdy_remove_source_cb(void* arg) {
     if (buffer_offset_ == 0)
       r = 0;
     else
-      r = [out_stream_ write: [buffer_data_ bytes] maxLength: buffer_offset_];
+      r = [out_stream write: [buffer_data_ bytes] maxLength: buffer_offset_];
   }];
 
   LOG(kISpdyLogDebug, @"Socket sent size=%d", r);
   if (r == -1) {
     ISpdyError* err = [ISpdyError errorWithCode: kISpdyErrSocketError
-                                     andDetails: [out_stream_ streamError]];
+                                     andDetails: [out_stream streamError]];
     [self _connectionDispatch: ^{
       [self _close: err];
     }];
