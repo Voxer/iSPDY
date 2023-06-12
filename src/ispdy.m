@@ -332,18 +332,6 @@ typedef enum {
   }];
 }
 
-
-- (void) setVoip: (BOOL) enable {
-  [self _connectionDispatch: ^{
-    const NSString* type = enable ? NSStreamNetworkServiceTypeVoIP : nil;
-    [in_stream_ setProperty: type
-                     forKey: NSStreamNetworkServiceType];
-    [out_stream_ setProperty: type
-                      forKey: NSStreamNetworkServiceType];
-  }];
-}
-
-
 - (ISpdyCheckStatus) checkSocket {
   __block ISpdyCheckStatus res;
   [self _connectionDispatchSync: ^{

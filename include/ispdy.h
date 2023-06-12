@@ -440,11 +440,6 @@ totalBytesExpectedToWrite: (int64_t) totalBytesExpectedToWrite;
                   andCount: (NSInteger) count;
 
 /**
- * Configure the socket for VoIP usage
- */
-- (void) setVoip: (BOOL) enable;
-
-/**
  * Check underlying TCP socket's status and emit error in case of trouble
  */
 - (ISpdyCheckStatus) checkSocket;
