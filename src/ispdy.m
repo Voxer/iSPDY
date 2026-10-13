@@ -29,6 +29,9 @@
 #import <string.h>  // memmove
 #import <sys/socket.h>  // setsockopt
 #import <errno.h>  // errno
+#import <arpa/inet.h>  // inet_ntop
+#import <ifaddrs.h>  // getifaddrs
+#import <Security/Security.h>  // SecTrustRef, SSLContextRef
 
 #import "ispdy.h"
 #import "common.h"  // Common internal parts
@@ -46,6 +49,8 @@ static const NSTimeInterval kConnectTimeout = 30.0;  // 30 seconds
 // Make sure DATA chunks fit into single TLS frame
 static const NSInteger kSocketMaxWriteSize = 32 * 1024;
 static const NSUInteger kSocketMaxBufferSize = 256 * 1024;
+static const NSTimeInterval kTLSHandshakeTimeout = 10.0;  // 10 seconds
+static const NSUInteger kFirstBytesMax = 64;
 
 typedef enum {
   kISpdySSLPinningNone,
@@ -137,6 +142,18 @@ typedef enum {
   // Dispatch queue for invoking methods on parser loop and
   // working with connection's state
   dispatch_queue_t connection_queue_;
+
+  // Connect diagnostics (connection_queue_), times are systemUptime
+  NSTimeInterval connect_start_;
+  NSTimeInterval tcp_open_at_;
+  NSTimeInterval tls_done_at_;
+  NSTimeInterval first_frame_at_;
+  int first_frame_type_;
+  NSUInteger bytes_in_;
+  NSMutableData* first_bytes_;
+
+  // Run loop thread only
+  BOOL secure_connect_reported_;
 }
 
 - (id) init: (ISpdyVersion) version
@@ -388,7 +405,16 @@ typedef enum {
 
   [self _connectionDispatchSync: ^{
     [self _lazySchedule];
+
+    connect_start_ = [self _now];
+    tcp_open_at_ = 0;
+    tls_done_at_ = 0;
+    first_frame_at_ = 0;
+    first_frame_type_ = -1;
+    bytes_in_ = 0;
+    first_bytes_ = [NSMutableData dataWithCapacity: kFirstBytesMax];
   }];
+  secure_connect_reported_ = NO;
 
   _state = kISpdyStateConnecting;
   [in_stream_ open];
@@ -685,6 +711,224 @@ typedef enum {
 }
 
 
+- (void) _setHandshakeTimeout {
+  if (connection_timeout_ != NULL)
+    [connection_timeout_ clear];
+  else
+    connection_timeout_ = [self _timer];
+  [connection_timeout_ armWithTimeInterval: kTLSHandshakeTimeout
+                                  andBlock: ^{
+    [self _close: [ISpdyError errorWithCode: kISpdyErrTLSHandshakeTimeout]];
+  }];
+}
+
+
+- (NSTimeInterval) _now {
+  return [[NSProcessInfo processInfo] systemUptime];
+}
+
+
+- (NSNumber*) _msSinceConnect: (NSTimeInterval) at {
+  return [NSNumber numberWithInteger: (NSInteger) ((at - connect_start_) * 1000)];
+}
+
+
+- (NSDictionary*) _connectDiagnostics {
+  NSMutableDictionary* d = [NSMutableDictionary dictionaryWithCapacity: 6];
+  if (connect_start_ == 0)
+    return d;
+
+  if (tcp_open_at_ != 0)
+    d[@"tcp_open_ms"] = [self _msSinceConnect: tcp_open_at_];
+  if (tls_done_at_ != 0)
+    d[@"tls_done_ms"] = [self _msSinceConnect: tls_done_at_];
+  if (first_frame_at_ != 0) {
+    d[@"first_frame_ms"] = [self _msSinceConnect: first_frame_at_];
+    d[@"first_frame_type"] = [NSNumber numberWithInt: first_frame_type_];
+  }
+  d[@"bytes_in"] = [NSNumber numberWithUnsignedInteger: bytes_in_];
+
+  // Only bytes nothing could be parsed from are worth reporting: once a SPDY
+  // frame came through, the peer is speaking SPDY
+  if (first_frame_type_ == -1 && [first_bytes_ length] > 0)
+    d[@"first_bytes"] = [first_bytes_ copy];
+  return d;
+}
+
+
+- (NSDictionary*) connectDiagnostics {
+  __block NSDictionary* res;
+  [self _connectionDispatchSync: ^{
+    res = [self _connectDiagnostics];
+  }];
+  return res;
+}
+
+
+- (NSString*) _connectStage {
+  if (tcp_open_at_ == 0)
+    return @"tcp";
+  if (secure_ && tls_done_at_ == 0)
+    return @"tls";
+  return @"spdy";
+}
+
+
+- (ISpdyError*) _annotatedError: (ISpdyError*) err {
+  NSMutableDictionary* info =
+      [NSMutableDictionary dictionaryWithDictionary: err.userInfo ?: @{}];
+  info[@"stage"] = [self _connectStage];
+  info[@"diagnostics"] = [self _connectDiagnostics];
+  return [ISpdyError errorWithCode: [err code] userInfo: info];
+}
+
+
+// Returns NO when the very first bytes from the server can't be SPDY: a SPDY
+// server always opens with a control frame (SETTINGS or SYN_REPLY), whose first
+// byte has the control bit set. Anything else is some other protocol, e.g. a
+// proxy answering "HTTP/1.1 403 ...", which the parser would otherwise read as
+// a DATA frame with a multi-megabyte length and wait on forever.
+- (BOOL) _noteBytesIn: (const uint8_t*) data length: (NSUInteger) len {
+  BOOL first = bytes_in_ == 0;
+  if (bytes_in_ < kFirstBytesMax)
+    [first_bytes_ appendBytes: data length: MIN(len, kFirstBytesMax - bytes_in_)];
+  bytes_in_ += len;
+
+  return !(first && len > 0 && (data[0] & 0x80) == 0);
+}
+
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+
+static NSInteger ispdy_tls_wire_version(SSLProtocol protocol) {
+  switch (protocol) {
+    case kTLSProtocol1: return 0x0301;
+    case kTLSProtocol11: return 0x0302;
+    case kTLSProtocol12: return 0x0303;
+    case kTLSProtocol13: return 0x0304;
+    default: return 0;
+  }
+}
+
+
+static NSString* ispdy_address_string(const struct sockaddr* sa) {
+  char host[INET6_ADDRSTRLEN];
+  if (sa->sa_family == AF_INET) {
+    const struct sockaddr_in* in = (const struct sockaddr_in*) sa;
+    if (inet_ntop(AF_INET, &in->sin_addr, host, sizeof(host)) == NULL)
+      return nil;
+    return [NSString stringWithFormat: @"%s:%u", host, ntohs(in->sin_port)];
+  }
+  if (sa->sa_family == AF_INET6) {
+    const struct sockaddr_in6* in6 = (const struct sockaddr_in6*) sa;
+    if (inet_ntop(AF_INET6, &in6->sin6_addr, host, sizeof(host)) == NULL)
+      return nil;
+    return [NSString stringWithFormat: @"[%s]:%u", host, ntohs(in6->sin6_port)];
+  }
+  return nil;
+}
+
+
+static NSString* ispdy_interface_for_address(const struct sockaddr* sa) {
+  struct ifaddrs* list;
+  if (getifaddrs(&list) != 0)
+    return nil;
+
+  NSString* name = nil;
+  for (struct ifaddrs* it = list; it != NULL; it = it->ifa_next) {
+    if (it->ifa_addr == NULL || it->ifa_addr->sa_family != sa->sa_family)
+      continue;
+
+    BOOL match = NO;
+    if (sa->sa_family == AF_INET) {
+      match = ((const struct sockaddr_in*) it->ifa_addr)->sin_addr.s_addr ==
+              ((const struct sockaddr_in*) sa)->sin_addr.s_addr;
+    } else if (sa->sa_family == AF_INET6) {
+      match = memcmp(&((const struct sockaddr_in6*) it->ifa_addr)->sin6_addr,
+                     &((const struct sockaddr_in6*) sa)->sin6_addr,
+                     sizeof(struct in6_addr)) == 0;
+    }
+    if (match) {
+      name = [NSString stringWithUTF8String: it->ifa_name];
+      break;
+    }
+  }
+  freeifaddrs(list);
+  return name;
+}
+
+
+- (NSDictionary*) _secureInfo: (NSStream*) stream {
+  NSMutableDictionary* info = [NSMutableDictionary dictionaryWithCapacity: 5];
+
+  if (secure_) {
+    NSString* peer_trust = (__bridge NSString*) kCFStreamPropertySSLPeerTrust;
+    id trust = [stream propertyForKey: peer_trust];
+    if (trust != nil)
+      info[@"trust"] = trust;
+
+    NSString* ssl_context = (__bridge NSString*) kCFStreamPropertySSLContext;
+    SSLContextRef ctx =
+        (__bridge SSLContextRef) [stream propertyForKey: ssl_context];
+    if (ctx != NULL) {
+      SSLProtocol protocol;
+      if (SSLGetNegotiatedProtocolVersion(ctx, &protocol) == noErr) {
+        NSInteger wire = ispdy_tls_wire_version(protocol);
+        if (wire != 0)
+          info[@"tls_version"] = [NSNumber numberWithInteger: wire];
+      }
+      SSLCipherSuite cipher;
+      if (SSLGetNegotiatedCipher(ctx, &cipher) == noErr)
+        info[@"cipher"] = [NSNumber numberWithUnsignedInt: cipher];
+    }
+  }
+
+  [self _fdWithBlock: ^(CFSocketNativeHandle fd) {
+    if (fd == -1)
+      return;
+
+    struct sockaddr_storage addr;
+    socklen_t len = sizeof(addr);
+    if (getpeername(fd, (struct sockaddr*) &addr, &len) == 0) {
+      NSString* peer = ispdy_address_string((struct sockaddr*) &addr);
+      if (peer != nil)
+        info[@"peer"] = peer;
+    }
+
+    len = sizeof(addr);
+    if (getsockname(fd, (struct sockaddr*) &addr, &len) == 0) {
+      NSString* name = ispdy_interface_for_address((struct sockaddr*) &addr);
+      if (name != nil)
+        info[@"interface"] = name;
+    }
+  }];
+
+  return info;
+}
+
+#pragma clang diagnostic pop
+
+
+- (void) _handleSecureConnect: (NSStream*) stream {
+  NSMutableDictionary* info = [[self _secureInfo: stream] mutableCopy];
+
+  [self _connectionDispatch: ^{
+    tls_done_at_ = [self _now];
+    [self _setTimeout: 0];
+    [info addEntriesFromDictionary: [self _connectDiagnostics]];
+
+    NSObject* d = (NSObject*) self.delegate;
+    if (![d respondsToSelector: @selector(connection:handleSecureConnect:)])
+      return;
+
+    [self _delegateDispatch: ^{
+      [self.delegate connection: self handleSecureConnect: info];
+    }];
+  }];
+}
+
+
 static void ispdy_source_cb(void* arg) {
   ISpdy* ispdy = (__bridge ISpdy*) arg;
 
@@ -888,6 +1132,7 @@ static void ispdy_remove_source_cb(void* arg) {
   if (err == nil) {
     err = [ISpdyError errorWithCode: kISpdyErrClose];
   } else {
+    err = [self _annotatedError: err];
     [self _delegateDispatch: ^{
       [self.delegate connection: self handleError: err];
     }];
@@ -1339,6 +1584,7 @@ static void ispdy_remove_source_cb(void* arg) {
       }
 
       _state = kISpdyStateConnected;
+      tcp_open_at_ = [self _now];
     }];
 
     // Notify delegate
@@ -1351,12 +1597,24 @@ static void ispdy_remove_source_cb(void* arg) {
     if (secure_ && ![self _checkPinnedCertificates: stream]) {
       // Failure
       err = [ISpdyError errorWithCode: kISpdyErrSSLPinningError];
+    } else if (!secure_connect_reported_) {
+      // First readable/writable event: the TLS handshake is done
+      secure_connect_reported_ = YES;
+      [self _handleSecureConnect: stream];
     }
   }
 
-  if (event == NSStreamEventOpenCompleted ||
-      event == NSStreamEventErrorOccurred ||
-      event == NSStreamEventEndEncountered) {
+  if (event == NSStreamEventOpenCompleted) {
+    // The socket is open, but a secure connection is still in its TLS
+    // handshake: keep a timer on it until the first readable/writable event
+    [self _connectionDispatch: ^{
+      if (secure_ && tls_done_at_ == 0)
+        [self _setHandshakeTimeout];
+      else
+        [self _setTimeout: 0];
+    }];
+  } else if (event == NSStreamEventErrorOccurred ||
+             event == NSStreamEventEndEncountered) {
     [self _connectionDispatch: ^{
       [self _setTimeout: 0];
     }];
@@ -1402,6 +1660,11 @@ static void ispdy_remove_source_cb(void* arg) {
     }
 
     [self _connectionDispatch: ^{
+      if (![self _noteBytesIn: read_buf_ length: (NSUInteger) r]) {
+        [self _close:
+            [ISpdyError errorWithCode: kISpdyErrUnexpectedFirstFrame]];
+        return;
+      }
       [parser_ execute: read_buf_ length: (NSUInteger) r];
     }];
   }
@@ -1417,6 +1680,11 @@ static void ispdy_remove_source_cb(void* arg) {
 
   // Update last_frame time
   gettimeofday(&last_frame_, NULL);
+
+  if (first_frame_at_ == 0) {
+    first_frame_at_ = [self _now];
+    first_frame_type_ = type;
+  }
 
   if (type != kISpdyPing &&
       type != kISpdyGoaway &&

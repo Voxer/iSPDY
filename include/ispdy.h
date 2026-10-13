@@ -55,7 +55,9 @@ typedef enum {
   kISpdyErrSSLPinningError,
   kISpdyErrGoawayError,
   kISpdyErrSendAfterGoawayError,
-  kISpdyErrSendAfterClose
+  kISpdyErrSendAfterClose,
+  kISpdyErrTLSHandshakeTimeout,
+  kISpdyErrUnexpectedFirstFrame
 } ISpdyErrorCode;
 
 /**
@@ -112,6 +114,12 @@ typedef void (^ISpdyPingCallback)(ISpdyPingStatus status, NSTimeInterval rtt);
  * referring to original error, reported by either Socket or Parser respectively
  *
  * When `code` is `kISpdyErrRst`, details will contain `NSNumber*` of RST code.
+ *
+ * Connection-level errors (the ones passed to `connection:handleError:`) also
+ * carry `@"stage"` - the last stage the connection reached when it failed:
+ * `@"tcp"` (socket never opened), `@"tls"` (socket open, TLS handshake not
+ * done) or `@"spdy"` (TLS done) - and `@"diagnostics"`, a snapshot of
+ * `connectDiagnostics`.
  */
 
 @end
@@ -300,6 +308,26 @@ totalBytesExpectedToWrite: (int64_t) totalBytesExpectedToWrite;
  */
 - (void) connection: (ISpdy*) conn handleError: (ISpdyError*) err;
 
+@optional
+
+/**
+ * Invoked once per connection, when the TLS handshake has completed (or, for
+ * an insecure connection, when the socket first becomes readable/writable).
+ * `handleConnect:` fires earlier, as soon as the TCP socket opens.
+ *
+ * `info` keys (each may be absent when the platform doesn't expose it):
+ *   @"trust"        - SecTrustRef of the peer (bridged), already evaluated
+ *   @"tls_version"  - NSNumber, TLS wire version (0x0303 = TLS 1.2)
+ *   @"cipher"       - NSNumber, negotiated cipher suite
+ *   @"peer"         - NSString, remote "ip:port" actually connected to
+ *   @"interface"    - NSString, local interface name (en0, pdp_ip0, utun3...)
+ *   plus the `connectDiagnostics` keys as of the handshake (timings so far)
+ *
+ * @param conn  ISpdy connection
+ * @param info  Details of the secure connection
+ */
+- (void) connection: (ISpdy*) conn handleSecureConnect: (NSDictionary*) info;
+
 @end
 
 /**
@@ -345,6 +373,17 @@ totalBytesExpectedToWrite: (int64_t) totalBytesExpectedToWrite;
  * State of connection
  */
 @property (readonly) ISpdyState state;
+
+/**
+ * Timings and first bytes of the current connection attempt:
+ *   @"tcp_open_ms", @"tls_done_ms", @"first_frame_ms" - NSNumber, ms since
+ *       `connect` (absent until reached)
+ *   @"first_frame_type" - NSNumber, ISpdyFrameType of the first frame
+ *   @"bytes_in"         - NSNumber, bytes received so far
+ *   @"first_bytes"      - NSData, first bytes received, only while no SPDY
+ *                         frame could be parsed from them
+ */
+@property (readonly) NSDictionary* connectDiagnostics;
 
 
 /**

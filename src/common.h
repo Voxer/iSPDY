@@ -148,6 +148,7 @@ typedef void (^ISpdyTimerCallback)(void);
 
 // Private version of setTimeout and friends
 - (void) _setTimeout: (NSTimeInterval) timeout;
+- (NSTimeInterval) _now;
 - (void) _scheduleInRunLoop: (NSRunLoop*) loop forMode: (NSString*) mode;
 - (void) _removeFromRunLoop: (NSRunLoop*) loop forMode: (NSString*) mode;
 - (void) _setNoDelay: (BOOL) enable;
@@ -275,6 +276,8 @@ typedef void (^ISpdyTimerCallback)(void);
 
 + (ISpdyError*) errorWithCode: (ISpdyErrorCode) code;
 + (ISpdyError*) errorWithCode: (ISpdyErrorCode) code andDetails: (id) details;
++ (ISpdyError*) errorWithCode: (ISpdyErrorCode) code
+                     userInfo: (NSDictionary*) userInfo;
 
 @end
 

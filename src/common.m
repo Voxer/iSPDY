@@ -180,6 +180,10 @@
       return @"ISpdy error: request sent after go away";
     case kISpdyErrSendAfterClose:
       return @"ISpdy error: request sent after close";
+    case kISpdyErrTLSHandshakeTimeout:
+      return @"ISpdy error: TLS handshake timed out";
+    case kISpdyErrUnexpectedFirstFrame:
+      return @"ISpdy error: server's first bytes are not SPDY";
     default:
       return [NSString stringWithFormat: @"Unexpected spdy error %d",
           self.code];
@@ -203,6 +207,13 @@
   if (details != nil)
     dict = [NSDictionary dictionaryWithObject: details forKey: @"details"];
   return [r initWithDomain: @"ispdy" code: (NSInteger) code userInfo: dict];
+}
+
++ (ISpdyError*) errorWithCode: (ISpdyErrorCode) code
+                     userInfo: (NSDictionary*) userInfo {
+  ISpdyError* r = [ISpdyError alloc];
+
+  return [r initWithDomain: @"ispdy" code: (NSInteger) code userInfo: userInfo];
 }
 
 @end
