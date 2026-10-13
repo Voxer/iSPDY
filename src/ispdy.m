@@ -914,6 +914,10 @@ static NSString* ispdy_interface_for_address(const struct sockaddr* sa) {
   NSMutableDictionary* info = [[self _secureInfo: stream] mutableCopy];
 
   [self _connectionDispatch: ^{
+    // A handshake timeout (or any other close) may have run first
+    if (_state == kISpdyStateClosed || in_stream_ == nil)
+      return;
+
     tls_done_at_ = [self _now];
     [self _setTimeout: 0];
     [info addEntriesFromDictionary: [self _connectDiagnostics]];
